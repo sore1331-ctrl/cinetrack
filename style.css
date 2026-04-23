@@ -302,6 +302,55 @@ main { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
 .btn-sm:hover { border-color: var(--accent); color: var(--text); }
 .btn-sm.danger:hover { border-color: #c0392b; color: #c0392b; }
 
+/* ── CSV import ── */
+.import-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+#import-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  font-size: .85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color .15s;
+  white-space: nowrap;
+}
+#import-btn:hover { border-color: var(--accent); }
+
+#csv-template {
+  font-size: .75rem;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+#csv-template:hover { color: var(--text); }
+
+.import-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e3a2a;
+  color: #4caf82;
+  border: 1px solid #2a5a3a;
+  padding: 12px 24px;
+  border-radius: var(--radius);
+  font-size: .9rem;
+  font-weight: 500;
+  z-index: 300;
+  box-shadow: var(--shadow);
+  transition: opacity .3s;
+}
+.import-toast.error { background: #3a1e1e; color: #e07070; border-color: #5a2a2a; }
+
 .empty-msg {
   text-align: center;
   color: var(--muted);

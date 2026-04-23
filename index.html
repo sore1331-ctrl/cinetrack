@@ -32,8 +32,16 @@
         <button class="size-btn active" data-size="md">M</button>
         <button class="size-btn" data-size="lg">L</button>
       </div>
+      <div class="import-wrap">
+        <button id="import-btn" title="Import CSV">⬆ CSV</button>
+        <input type="file" id="csv-input" accept=".csv,text/csv" style="display:none" />
+        <a id="csv-template" href="#" download="cinetrack-template.csv">template</a>
+      </div>
       <button id="add-btn">+ Add</button>
     </section>
+
+    <!-- Import result toast -->
+    <div id="import-toast" class="import-toast hidden"></div>
 
     <div id="movie-grid" class="movie-grid grid-md"></div>
     <p id="empty-msg" class="empty-msg hidden">No titles found. Add one!</p>

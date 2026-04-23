@@ -496,6 +496,153 @@ if (movies.length === 0) {
   save();
 }
 
+// ── CSV Import ──────────────────────────────────────────
+const importBtn   = document.getElementById('import-btn');
+const csvInput    = document.getElementById('csv-input');
+const csvTemplate = document.getElementById('csv-template');
+const importToast = document.getElementById('import-toast');
+
+// Column name aliases → canonical field
+const COL_MAP = {
+  title: 'title', name: 'title',
+  year: 'year', release_year: 'year', release_date: 'year',
+  genre: 'genre', genres: 'genre',
+  director: 'director', creator: 'director', created_by: 'director',
+  country: 'country', origin_country: 'country',
+  status: 'status',
+  rating: 'rating',
+  notes: 'notes', overview: 'notes', description: 'notes',
+  type: 'mediaType', media_type: 'mediaType', mediatype: 'mediaType',
+  poster: 'posterUrl', poster_url: 'posterUrl', posterurl: 'posterUrl',
+};
+
+function parseCSV(text) {
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  if (lines.length < 2) return [];
+
+  // Parse one line respecting quoted fields
+  function parseLine(line) {
+    const fields = [];
+    let cur = '', inQuote = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuote && line[i + 1] === '"') { cur += '"'; i++; }
+        else inQuote = !inQuote;
+      } else if (ch === ',' && !inQuote) {
+        fields.push(cur.trim()); cur = '';
+      } else {
+        cur += ch;
+      }
+    }
+    fields.push(cur.trim());
+    return fields;
+  }
+
+  const headers = parseLine(lines[0]).map(h => h.toLowerCase().replace(/\s+/g, '_'));
+  const rows = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    const vals = parseLine(line);
+    const obj = {};
+    headers.forEach((h, idx) => {
+      const field = COL_MAP[h];
+      if (field) obj[field] = vals[idx] ?? '';
+    });
+    rows.push(obj);
+  }
+  return rows;
+}
+
+function showToast(msg, isError = false) {
+  importToast.textContent = msg;
+  importToast.className = 'import-toast' + (isError ? ' error' : '');
+  clearTimeout(importToast._timer);
+  importToast._timer = setTimeout(() => importToast.classList.add('hidden'), 4000);
+}
+
+function importRows(rows) {
+  let imported = 0, skipped = 0;
+
+  rows.forEach(row => {
+    const title = row.title?.trim();
+    if (!title) { skipped++; return; }
+
+    // Normalise mediaType
+    const rawType = (row.mediaType || '').toLowerCase();
+    const mediaType = rawType === 'tv' || rawType === 'tv show' || rawType === 'show' ? 'tv' : 'movie';
+
+    // Normalise status
+    const rawStatus = (row.status || '').toLowerCase();
+    const status = rawStatus === 'watched' ? 'watched' : 'watchlist';
+
+    // Normalise rating
+    const rating = status === 'watched' ? Math.min(10, Math.max(0, parseInt(row.rating) || 0)) : 0;
+
+    // Normalise year (take first 4 digits)
+    const year = (row.year || '').toString().slice(0, 4);
+
+    // Skip duplicates (same title + year + type)
+    const dup = movies.some(m =>
+      m.title.toLowerCase() === title.toLowerCase() &&
+      m.mediaType === mediaType &&
+      (m.year || '') === year
+    );
+    if (dup) { skipped++; return; }
+
+    movies.push({
+      id: genId(),
+      addedAt: Date.now(),
+      title,
+      year,
+      genre:     row.genre     || '',
+      director:  row.director  || '',
+      country:   row.country   || '',
+      notes:     row.notes     || '',
+      posterUrl: row.posterUrl || '',
+      tmdbId:    null,
+      mediaType,
+      status,
+      rating,
+    });
+    imported++;
+  });
+
+  save();
+  updateCountryDropdown();
+  render();
+  showToast(`Imported ${imported} title${imported !== 1 ? 's' : ''}${skipped ? `, skipped ${skipped} duplicate${skipped !== 1 ? 's' : ''}` : ''}.`);
+}
+
+importBtn.addEventListener('click', () => csvInput.click());
+
+csvInput.addEventListener('change', () => {
+  const file = csvInput.files[0];
+  if (!file) return;
+  csvInput.value = ''; // reset so same file can be re-uploaded
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const rows = parseCSV(e.target.result);
+      if (!rows.length) { showToast('CSV appears empty or has no valid rows.', true); return; }
+      importRows(rows);
+    } catch {
+      showToast('Failed to parse CSV. Check the file format.', true);
+    }
+  };
+  reader.readAsText(file);
+});
+
+// Template download — generate a data URL so no server needed
+const TEMPLATE_CSV = `title,year,genre,director,country,status,rating,notes,type
+Inception,2010,"Sci-Fi, Thriller",Christopher Nolan,United States,watched,9,Mind-bending film,movie
+Breaking Bad,2008,"Crime, Drama",Vince Gilligan,United States,watched,10,Greatest TV drama,tv
+Dune Part Two,2024,Sci-Fi,Denis Villeneuve,United States,watchlist,,,movie
+`;
+csvTemplate.href = URL.createObjectURL(new Blob([TEMPLATE_CSV], { type: 'text/csv' }));
+
 applyGridSize(gridSize);
 updateCountryDropdown();
 render();
