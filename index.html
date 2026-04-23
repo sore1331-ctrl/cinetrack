@@ -31,18 +31,44 @@
     <div class="modal-card">
       <h2 id="modal-title">Add Movie</h2>
       <form id="movie-form">
-        <label>Title *
-          <input type="text" id="f-title" required placeholder="e.g. Inception" />
-        </label>
-        <label>Year
-          <input type="number" id="f-year" min="1888" max="2099" placeholder="e.g. 2010" />
-        </label>
-        <label>Genre
-          <input type="text" id="f-genre" placeholder="e.g. Sci-Fi, Thriller" />
-        </label>
-        <label>Director
-          <input type="text" id="f-director" placeholder="e.g. Christopher Nolan" />
-        </label>
+
+        <!-- TMDB Search -->
+        <div class="tmdb-search-wrap" id="tmdb-search-wrap">
+          <label>Search TMDB
+            <div class="search-field-wrap">
+              <input type="text" id="tmdb-query" placeholder="Type a movie title..." autocomplete="off" />
+              <div id="tmdb-dropdown" class="tmdb-dropdown hidden"></div>
+            </div>
+          </label>
+          <div id="tmdb-selected" class="tmdb-selected hidden">
+            <img id="tmdb-poster-thumb" src="" alt="" />
+            <div class="tmdb-selected-info">
+              <strong id="tmdb-selected-title"></strong>
+              <span id="tmdb-selected-year"></span>
+            </div>
+            <button type="button" id="tmdb-clear" title="Clear selection">✕</button>
+          </div>
+          <div id="tmdb-searching" class="tmdb-status hidden">Searching…</div>
+          <div id="tmdb-error" class="tmdb-status error hidden"></div>
+        </div>
+
+        <div id="manual-fields">
+          <label>Title *
+            <input type="text" id="f-title" required placeholder="e.g. Inception" />
+          </label>
+          <div class="row-2">
+            <label>Year
+              <input type="number" id="f-year" min="1888" max="2099" placeholder="e.g. 2010" />
+            </label>
+            <label>Genre
+              <input type="text" id="f-genre" placeholder="e.g. Sci-Fi" />
+            </label>
+          </div>
+          <label>Director
+            <input type="text" id="f-director" placeholder="e.g. Christopher Nolan" />
+          </label>
+        </div>
+
         <label>Status
           <select id="f-status">
             <option value="watchlist">Watchlist</option>

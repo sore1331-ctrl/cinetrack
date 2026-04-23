@@ -95,7 +95,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
 /* ── Grid ── */
 .movie-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 16px;
 }
 
@@ -103,58 +103,69 @@ main { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 18px;
+  padding: 0 0 14px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   transition: transform .15s, box-shadow .15s;
-  cursor: default;
+  overflow: hidden;
 }
 .movie-card:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
 
 .card-poster {
   width: 100%;
   aspect-ratio: 2/3;
-  border-radius: 8px;
   background: var(--surface2);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 3rem;
-  margin-bottom: 4px;
   overflow: hidden;
+  flex-shrink: 0;
 }
+
+.card-poster-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.card-poster-emoji { font-size: 3.5rem; }
 
 .card-title {
   font-weight: 700;
-  font-size: 1rem;
+  font-size: .95rem;
   line-height: 1.3;
+  padding: 0 14px;
 }
 
 .card-meta {
-  font-size: .8rem;
+  font-size: .78rem;
   color: var(--muted);
   display: flex;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
+  padding: 0 14px;
 }
 
 .badge {
   font-size: .72rem;
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 20px;
   font-weight: 600;
+  margin: 4px 14px 0;
   align-self: flex-start;
 }
-.badge-watched { background: #1a3a2a; color: #4caf82; }
+.badge-watched   { background: #1a3a2a; color: #4caf82; }
 .badge-watchlist { background: #2a2a1a; color: var(--accent2); }
 
-.card-stars { color: var(--accent2); font-size: .9rem; letter-spacing: 1px; }
+.card-stars { color: var(--accent2); font-size: .85rem; letter-spacing: 1px; padding: 0 14px; }
 
 .card-notes {
-  font-size: .8rem;
+  font-size: .78rem;
   color: var(--muted);
   font-style: italic;
+  padding: 0 14px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -163,21 +174,22 @@ main { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
 
 .card-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   margin-top: auto;
-  padding-top: 8px;
+  padding: 8px 14px 0;
 }
 
 .btn-sm {
   flex: 1;
-  padding: 6px;
+  padding: 6px 4px;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--muted);
-  font-size: .78rem;
+  font-size: .72rem;
   cursor: pointer;
   transition: all .15s;
+  white-space: nowrap;
 }
 .btn-sm:hover { border-color: var(--accent); color: var(--text); }
 .btn-sm.danger:hover { border-color: #c0392b; color: #c0392b; }
@@ -208,7 +220,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
   border-radius: var(--radius);
   padding: 28px;
   width: 100%;
-  max-width: 480px;
+  max-width: 500px;
   box-shadow: var(--shadow);
   max-height: 90vh;
   overflow-y: auto;
@@ -238,8 +250,137 @@ label input, label select, label textarea {
   font-family: inherit;
 }
 label input:focus, label select:focus, label textarea:focus { border-color: var(--accent); }
+label input:disabled { opacity: .5; cursor: not-allowed; }
 label select option { background: var(--surface2); }
 label textarea { resize: vertical; }
+
+.row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* ── TMDB search ── */
+.tmdb-search-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.search-field-wrap { position: relative; }
+
+.tmdb-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0; right: 0;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  z-index: 200;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.tmdb-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background .1s;
+}
+.tmdb-result:hover { background: var(--border); }
+
+.tmdb-result-poster {
+  width: 36px;
+  height: 54px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.tmdb-result-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.tmdb-result-title {
+  font-size: .9rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+
+.tmdb-result-year { font-size: .78rem; color: var(--muted); }
+
+.tmdb-no-results {
+  padding: 14px 12px;
+  color: var(--muted);
+  font-size: .85rem;
+  text-align: center;
+}
+
+/* selected movie chip */
+.tmdb-selected {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.tmdb-selected img {
+  width: 32px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.tmdb-selected-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tmdb-selected-info strong {
+  font-size: .9rem;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tmdb-selected-info span { font-size: .78rem; color: var(--muted); }
+
+#tmdb-clear {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: color .15s;
+  flex-shrink: 0;
+}
+#tmdb-clear:hover { color: var(--accent); }
+
+.tmdb-status {
+  font-size: .82rem;
+  color: var(--muted);
+  font-style: italic;
+}
+.tmdb-status.error { color: #e07070; font-style: normal; }
 
 /* Stars */
 .star-row { display: flex; gap: 4px; }
@@ -287,5 +428,6 @@ button.danger:hover { opacity: .85; }
 
 @media (max-width: 500px) {
   header { flex-wrap: wrap; gap: 12px; }
-  .movie-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+  .movie-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .row-2 { grid-template-columns: 1fr; }
 }
