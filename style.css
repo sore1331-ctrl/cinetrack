@@ -71,6 +71,7 @@ header h1 {
 }
 .type-nav-btn:hover { border-color: var(--accent); color: var(--text); }
 .type-nav-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.type-nav-btn[data-type="anime"].active { background: #9b59b6; border-color: #9b59b6; }
 
 .theme-toggle {
   background: var(--surface2);

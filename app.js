@@ -143,11 +143,14 @@ document.querySelectorAll('.type-btn').forEach(btn => {
 });
 
 function updateModalForType() {
-  const isTV = activeMediaType === 'tv';
-  tmdbSearchLabel.childNodes[0].textContent = isTV ? 'Search TMDB (TV)' : 'Search TMDB';
-  tmdbQuery.placeholder = isTV ? 'Type a show title...' : 'Type a movie title...';
-  directorLabel.childNodes[0].textContent = isTV ? 'Creator' : 'Director';
-  document.getElementById('f-director').placeholder = isTV ? 'e.g. Vince Gilligan' : 'e.g. Christopher Nolan';
+  const isTV    = activeMediaType === 'tv';
+  const isAnime = activeMediaType === 'anime';
+  const labels  = { movie: 'Search TMDB', tv: 'Search TMDB (TV)', anime: 'Search TMDB (Anime)' };
+  const placeholders = { movie: 'Type a movie title...', tv: 'Type a show title...', anime: 'Type an anime title...' };
+  tmdbSearchLabel.childNodes[0].textContent = labels[activeMediaType] || 'Search TMDB';
+  tmdbQuery.placeholder = placeholders[activeMediaType] || 'Type a title...';
+  directorLabel.childNodes[0].textContent = (isTV || isAnime) ? 'Creator / Director' : 'Director';
+  document.getElementById('f-director').placeholder = isAnime ? 'e.g. Hayao Miyazaki' : isTV ? 'e.g. Vince Gilligan' : 'e.g. Christopher Nolan';
 }
 
 // ── TMDB search UI ──────────────────────────────────────
@@ -180,13 +183,13 @@ function renderDropdown(results) {
     return;
   }
   tmdbDropdown.innerHTML = results.map(m => `
-    <div class="tmdb-result" data-id="${m.id}">
+    <div class="tmdb-result" data-id="${m.id}" data-media-type="${m.media_type}">
       <img class="tmdb-result-poster"
            src="${m.poster_path ? POSTER_BASE + m.poster_path : ''}"
            alt="" onerror="this.style.display='none'" />
       <div class="tmdb-result-info">
         <span class="tmdb-result-title">${esc(m.title)}</span>
-        <span class="tmdb-result-year">${m.year || '—'}</span>
+        <span class="tmdb-result-year">${m.year || '—'}${activeMediaType === 'anime' ? ` · ${m.media_type}` : ''}</span>
       </div>
     </div>
   `).join('');
@@ -202,13 +205,15 @@ tmdbDropdown.addEventListener('click', async e => {
   const row = e.target.closest('.tmdb-result');
   if (!row) return;
   const id = row.dataset.id;
+  // For anime, use the actual TMDB media_type (movie/tv) for the detail fetch
+  const fetchType = activeMediaType === 'anime' ? (row.dataset.mediaType || 'tv') : activeMediaType;
   hideDropdown();
   tmdbSearching.textContent = 'Loading details…';
   tmdbSearching.classList.remove('hidden');
   tmdbQuery.value = '';
 
   try {
-    const details = await fetchTMDBDetails(id, activeMediaType);
+    const details = await fetchTMDBDetails(id, fetchType);
     tmdbSearching.classList.add('hidden');
     applyTMDBSelection(details);
   } catch (err) {
@@ -342,7 +347,7 @@ function render() {
     const isTV = m.mediaType === 'tv';
     const posterHTML = m.posterUrl
       ? `<img class="card-poster-img" src="${m.posterUrl}" alt="${esc(m.title)}" loading="lazy" />`
-      : `<div class="card-poster-emoji">${isTV ? '📺' : posterEmoji(m.title)}</div>`;
+      : `<div class="card-poster-emoji">${m.mediaType === 'anime' ? '🎌' : isTV ? '📺' : posterEmoji(m.title)}</div>`;
 
     card.innerHTML = `
       <div class="card-poster">
@@ -550,6 +555,9 @@ if (movies.length === 0) {
     { id: genId(), title: 'Breaking Bad', year: '2008', genre: 'Crime, Drama', director: 'Vince Gilligan', country: 'United States', status: 'watched', rating: 10, notes: 'One of the greatest TV dramas ever made.', posterUrl: 'https://image.tmdb.org/t/p/w200/ggFHVNu6YYI5L9pCfOacjizRGt.jpg', mediaType: 'tv', addedAt: Date.now() },
     { id: genId(), title: 'Dark', year: '2017', genre: 'Sci-Fi, Thriller', director: 'Baran bo Odar', country: 'Germany', status: 'watched', rating: 9, notes: 'Intricate time-travel mystery.', posterUrl: 'https://image.tmdb.org/t/p/w200/apbrbWs8M9lyOpJYU5WXrpFbk1Z.jpg', mediaType: 'tv', addedAt: Date.now() },
     { id: genId(), title: 'Shogun', year: '2024', genre: 'Drama, History', director: 'Rachel Kondo', country: 'Japan', status: 'watchlist', rating: 0, notes: '', posterUrl: 'https://image.tmdb.org/t/p/w200/7O4iVfOMQmdCSxhOg1WnzG1AgYT.jpg', mediaType: 'tv', addedAt: Date.now() },
+    { id: genId(), title: 'Spirited Away', year: '2001', genre: 'Animation, Fantasy', director: 'Hayao Miyazaki', country: 'Japan', status: 'watched', rating: 10, notes: 'A masterpiece.', posterUrl: 'https://image.tmdb.org/t/p/w200/39wmItIWsg5sZMyRUHLkWBcuVCM.jpg', mediaType: 'anime', addedAt: Date.now() },
+    { id: genId(), title: 'Attack on Titan', year: '2013', genre: 'Action, Drama', director: 'Tetsuro Araki', country: 'Japan', status: 'watched', rating: 9, notes: 'Gripping from start to finish.', posterUrl: 'https://image.tmdb.org/t/p/w200/hTP1DtLGFamjfu8WqjnuQdP1n4i.jpg', mediaType: 'anime', addedAt: Date.now() },
+    { id: genId(), title: 'Demon Slayer', year: '2019', genre: 'Action, Fantasy', director: 'Haruo Sotozaki', country: 'Japan', status: 'watchlist', rating: 0, notes: '', posterUrl: 'https://image.tmdb.org/t/p/w200/xUfRZu2mi8jH6SzQEJGP6tjBuYj.jpg', mediaType: 'anime', addedAt: Date.now() },
   ];
   save();
 }
