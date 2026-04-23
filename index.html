@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CineTrack</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>CineTrack</h1>
+    <nav>
+      <button class="tab-btn active" data-tab="all">All</button>
+      <button class="tab-btn" data-tab="watched">Watched</button>
+      <button class="tab-btn" data-tab="watchlist">Watchlist</button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="controls">
+      <input type="text" id="search-input" placeholder="Search your movies..." />
+      <button id="add-btn">+ Add Movie</button>
+    </section>
+
+    <div id="movie-grid" class="movie-grid"></div>
+    <p id="empty-msg" class="empty-msg hidden">No movies found. Add one!</p>
+  </main>
+
+  <!-- Add/Edit Modal -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-card">
+      <h2 id="modal-title">Add Movie</h2>
+      <form id="movie-form">
+        <label>Title *
+          <input type="text" id="f-title" required placeholder="e.g. Inception" />
+        </label>
+        <label>Year
+          <input type="number" id="f-year" min="1888" max="2099" placeholder="e.g. 2010" />
+        </label>
+        <label>Genre
+          <input type="text" id="f-genre" placeholder="e.g. Sci-Fi, Thriller" />
+        </label>
+        <label>Director
+          <input type="text" id="f-director" placeholder="e.g. Christopher Nolan" />
+        </label>
+        <label>Status
+          <select id="f-status">
+            <option value="watchlist">Watchlist</option>
+            <option value="watched">Watched</option>
+          </select>
+        </label>
+        <label id="rating-label" class="hidden">Rating (1–10)
+          <div class="star-row" id="star-row"></div>
+        </label>
+        <label>Notes
+          <textarea id="f-notes" rows="3" placeholder="Your thoughts..."></textarea>
+        </label>
+        <div class="modal-actions">
+          <button type="button" id="cancel-btn" class="secondary">Cancel</button>
+          <button type="submit" id="save-btn">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Confirm delete modal -->
+  <div id="confirm-modal" class="modal hidden">
+    <div class="modal-card small">
+      <h2>Remove Movie?</h2>
+      <p id="confirm-msg"></p>
+      <div class="modal-actions">
+        <button id="confirm-cancel" class="secondary">Cancel</button>
+        <button id="confirm-ok" class="danger">Remove</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
