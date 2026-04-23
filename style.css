@@ -60,12 +60,14 @@ main { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
 
 .controls {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   margin-bottom: 24px;
+  flex-wrap: wrap;
 }
 
 #search-input {
   flex: 1;
+  min-width: 160px;
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text);
@@ -77,6 +79,20 @@ main { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
 }
 #search-input:focus { border-color: var(--accent); }
 #search-input::placeholder { color: var(--muted); }
+
+#type-filter, #country-filter {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  font-size: .88rem;
+  outline: none;
+  cursor: pointer;
+  transition: border-color .15s;
+}
+#type-filter:focus, #country-filter:focus { border-color: var(--accent); }
+#type-filter option, #country-filter option { background: var(--surface2); }
 
 #add-btn {
   background: var(--accent);
@@ -132,6 +148,24 @@ main { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
 
 .card-poster-emoji { font-size: 3.5rem; }
 
+.card-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 4px 14px 0;
+}
+
+.badge {
+  font-size: .7rem;
+  padding: 3px 8px;
+  border-radius: 20px;
+  font-weight: 600;
+}
+.badge-watched   { background: #1a3a2a; color: #4caf82; }
+.badge-watchlist { background: #2a2a1a; color: var(--accent2); }
+.badge-movie     { background: #1e1e32; color: #7c8cf8; }
+.badge-tv        { background: #1e2a32; color: #5bc0eb; }
+
 .card-title {
   font-weight: 700;
   font-size: .95rem;
@@ -147,17 +181,6 @@ main { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
   flex-wrap: wrap;
   padding: 0 14px;
 }
-
-.badge {
-  font-size: .72rem;
-  padding: 3px 10px;
-  border-radius: 20px;
-  font-weight: 600;
-  margin: 4px 14px 0;
-  align-self: flex-start;
-}
-.badge-watched   { background: #1a3a2a; color: #4caf82; }
-.badge-watchlist { background: #2a2a1a; color: var(--accent2); }
 
 .card-stars { color: var(--accent2); font-size: .85rem; letter-spacing: 1px; padding: 0 14px; }
 
@@ -226,7 +249,37 @@ main { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
   overflow-y: auto;
 }
 .modal-card.small { max-width: 340px; }
-.modal-card h2 { margin-bottom: 20px; font-size: 1.2rem; }
+.modal-card h2 { margin-bottom: 14px; font-size: 1.2rem; }
+
+/* ── Media type toggle ── */
+.type-toggle {
+  display: flex;
+  gap: 0;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px;
+  margin-bottom: 18px;
+}
+
+.type-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: .88rem;
+  font-weight: 500;
+  transition: all .15s;
+}
+.type-btn:hover { color: var(--text); }
+.type-btn.active {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
 
 form { display: flex; flex-direction: column; gap: 14px; }
 
@@ -261,9 +314,9 @@ label textarea { resize: vertical; }
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding-bottom: 4px;
+  padding-bottom: 12px;
   border-bottom: 1px solid var(--border);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .search-field-wrap { position: relative; }
@@ -301,12 +354,7 @@ label textarea { resize: vertical; }
   flex-shrink: 0;
 }
 
-.tmdb-result-info {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
+.tmdb-result-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 
 .tmdb-result-title {
   font-size: .9rem;
@@ -326,7 +374,6 @@ label textarea { resize: vertical; }
   text-align: center;
 }
 
-/* selected movie chip */
 .tmdb-selected {
   display: flex;
   align-items: center;
@@ -375,11 +422,7 @@ label textarea { resize: vertical; }
 }
 #tmdb-clear:hover { color: var(--accent); }
 
-.tmdb-status {
-  font-size: .82rem;
-  color: var(--muted);
-  font-style: italic;
-}
+.tmdb-status { font-size: .82rem; color: var(--muted); font-style: italic; }
 .tmdb-status.error { color: #e07070; font-style: normal; }
 
 /* Stars */
@@ -426,8 +469,10 @@ button.danger:hover { opacity: .85; }
 
 #confirm-msg { color: var(--muted); font-size: .9rem; margin-bottom: 20px; }
 
-@media (max-width: 500px) {
+@media (max-width: 600px) {
   header { flex-wrap: wrap; gap: 12px; }
   .movie-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
   .row-2 { grid-template-columns: 1fr; }
+  .controls { gap: 8px; }
+  #type-filter, #country-filter { font-size: .8rem; padding: 8px 10px; }
 }

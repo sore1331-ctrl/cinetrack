@@ -18,25 +18,39 @@
 
   <main>
     <section class="controls">
-      <input type="text" id="search-input" placeholder="Search your movies..." />
-      <button id="add-btn">+ Add Movie</button>
+      <input type="text" id="search-input" placeholder="Search titles, genres, directors..." />
+      <select id="type-filter">
+        <option value="">All Types</option>
+        <option value="movie">Movies</option>
+        <option value="tv">TV Shows</option>
+      </select>
+      <select id="country-filter">
+        <option value="">All Countries</option>
+      </select>
+      <button id="add-btn">+ Add</button>
     </section>
 
     <div id="movie-grid" class="movie-grid"></div>
-    <p id="empty-msg" class="empty-msg hidden">No movies found. Add one!</p>
+    <p id="empty-msg" class="empty-msg hidden">No titles found. Add one!</p>
   </main>
 
   <!-- Add/Edit Modal -->
   <div id="modal" class="modal hidden">
     <div class="modal-card">
-      <h2 id="modal-title">Add Movie</h2>
-      <form id="movie-form">
+      <h2 id="modal-title">Add Title</h2>
 
+      <!-- Media type toggle -->
+      <div class="type-toggle" id="type-toggle">
+        <button type="button" class="type-btn active" data-type="movie">🎬 Movie</button>
+        <button type="button" class="type-btn" data-type="tv">📺 TV Show</button>
+      </div>
+
+      <form id="movie-form">
         <!-- TMDB Search -->
         <div class="tmdb-search-wrap" id="tmdb-search-wrap">
-          <label>Search TMDB
+          <label id="tmdb-search-label">Search TMDB
             <div class="search-field-wrap">
-              <input type="text" id="tmdb-query" placeholder="Type a movie title..." autocomplete="off" />
+              <input type="text" id="tmdb-query" placeholder="Type a title..." autocomplete="off" />
               <div id="tmdb-dropdown" class="tmdb-dropdown hidden"></div>
             </div>
           </label>
@@ -60,13 +74,18 @@
             <label>Year
               <input type="number" id="f-year" min="1888" max="2099" placeholder="e.g. 2010" />
             </label>
+            <label>Country
+              <input type="text" id="f-country" placeholder="e.g. United States" />
+            </label>
+          </div>
+          <div class="row-2">
             <label>Genre
               <input type="text" id="f-genre" placeholder="e.g. Sci-Fi" />
             </label>
+            <label id="director-label">Director
+              <input type="text" id="f-director" placeholder="e.g. Christopher Nolan" />
+            </label>
           </div>
-          <label>Director
-            <input type="text" id="f-director" placeholder="e.g. Christopher Nolan" />
-          </label>
         </div>
 
         <label>Status
@@ -92,7 +111,7 @@
   <!-- Confirm delete modal -->
   <div id="confirm-modal" class="modal hidden">
     <div class="modal-card small">
-      <h2>Remove Movie?</h2>
+      <h2>Remove Title?</h2>
       <p id="confirm-msg"></p>
       <div class="modal-actions">
         <button id="confirm-cancel" class="secondary">Cancel</button>
