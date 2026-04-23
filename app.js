@@ -47,14 +47,26 @@ const tmdbError      = document.getElementById('tmdb-error');
 
 // ── TMDB API ────────────────────────────────────────────
 async function searchTMDB(q) {
-  const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-  if (!r.ok) throw new Error('Search failed');
+  let r;
+  try {
+    r = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+  } catch {
+    throw new Error('Network error — are you running locally? TMDB search requires Vercel deployment.');
+  }
+  if (r.status === 401 || r.status === 403) throw new Error('Invalid TMDB API key — check the TMDB_API_KEY environment variable in Vercel.');
+  if (r.status === 404) throw new Error('API route not found — this feature only works when deployed to Vercel.');
+  if (!r.ok) throw new Error(`TMDB request failed (${r.status}). Fill in details manually below.`);
   return r.json();
 }
 
 async function fetchMovieDetails(id) {
-  const r = await fetch(`/api/movie?id=${id}`);
-  if (!r.ok) throw new Error('Details failed');
+  let r;
+  try {
+    r = await fetch(`/api/movie?id=${id}`);
+  } catch {
+    throw new Error('Network error fetching movie details.');
+  }
+  if (!r.ok) throw new Error(`Could not load movie details (${r.status}).`);
   return r.json();
 }
 
@@ -73,9 +85,9 @@ async function runSearch(q) {
     const data = await searchTMDB(q);
     tmdbSearching.classList.add('hidden');
     renderDropdown(data.results || []);
-  } catch {
+  } catch (err) {
     tmdbSearching.classList.add('hidden');
-    tmdbError.textContent = 'Could not reach TMDB. You can still fill in details manually below.';
+    tmdbError.textContent = err.message || 'Could not reach TMDB. You can still fill in details manually below.';
     tmdbError.classList.remove('hidden');
   }
 }
