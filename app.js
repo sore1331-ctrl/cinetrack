@@ -1,3 +1,20 @@
+// ── Theme ───────────────────────────────────────────────
+const themeToggle = document.getElementById('theme-toggle');
+
+function applyTheme(theme) {
+  document.documentElement.classList.toggle('light', theme === 'light');
+  themeToggle.textContent = theme === 'light' ? '🌙' : '☀️';
+}
+
+const savedTheme = localStorage.getItem('cinetrack_theme') || 'dark';
+applyTheme(savedTheme);
+
+themeToggle.addEventListener('click', () => {
+  const next = document.documentElement.classList.contains('light') ? 'dark' : 'light';
+  localStorage.setItem('cinetrack_theme', next);
+  applyTheme(next);
+});
+
 // ── State ──────────────────────────────────────────────
 const STORAGE_KEY = 'cinetrack_movies';
 const POSTER_BASE = 'https://image.tmdb.org/t/p/w200';
