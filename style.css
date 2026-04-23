@@ -34,18 +34,43 @@ body {
 header {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  padding: 16px 24px;
+  padding: 14px 24px;
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 16px;
   position: sticky;
   top: 0;
   z-index: 10;
 }
 
-/* push toggle to far right */
-header { justify-content: flex-start; }
-header nav { flex: 1; }
+header h1 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: -.5px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+/* Films / TV type nav */
+.type-nav {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+
+.type-nav-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 7px 20px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: .9rem;
+  font-weight: 500;
+  transition: all .15s;
+}
+.type-nav-btn:hover { border-color: var(--accent); color: var(--text); }
+.type-nav-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 
 .theme-toggle {
   background: var(--surface2);
@@ -64,37 +89,68 @@ header nav { flex: 1; }
 }
 .theme-toggle:hover { border-color: var(--accent); }
 
-header h1 {
-  font-size: 1.4rem;
-  font-weight: 700;
-  letter-spacing: -.5px;
-  color: var(--accent);
-}
-
-nav { display: flex; gap: 6px; }
-
-.tab-btn {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--muted);
-  padding: 6px 16px;
-  border-radius: 20px;
-  cursor: pointer;
-  font-size: .85rem;
-  transition: all .15s;
-}
-.tab-btn:hover { border-color: var(--accent); color: var(--text); }
-.tab-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
-
 /* ── Main ── */
 main { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
 
 .controls {
   display: flex;
+  align-items: center;
   gap: 10px;
   margin-bottom: 24px;
   flex-wrap: wrap;
 }
+
+/* All / Watched / Watchlist status tabs */
+.status-tabs {
+  display: flex;
+  gap: 0;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px;
+  flex-shrink: 0;
+}
+
+.status-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  padding: 6px 14px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: .83rem;
+  font-weight: 500;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.status-btn:hover { color: var(--text); }
+.status-btn.active { background: var(--accent); color: #fff; font-weight: 600; }
+
+/* S / M / L size toggle */
+.size-toggle {
+  display: flex;
+  gap: 0;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px;
+  flex-shrink: 0;
+}
+
+.size-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  width: 30px;
+  height: 28px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: .78rem;
+  font-weight: 700;
+  transition: all .15s;
+}
+.size-btn:hover { color: var(--text); }
+.size-btn.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.3); }
 
 #search-input {
   flex: 1;
@@ -142,9 +198,11 @@ main { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
 /* ── Grid ── */
 .movie-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 16px;
 }
+.movie-grid.grid-sm { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+.movie-grid.grid-md { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.movie-grid.grid-lg { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
 
 .movie-card {
   background: var(--surface);
@@ -179,13 +237,6 @@ main { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
 
 .card-poster-emoji { font-size: 3.5rem; }
 
-.card-badges {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  padding: 4px 14px 0;
-}
-
 .badge {
   font-size: .7rem;
   padding: 3px 8px;
@@ -194,8 +245,11 @@ main { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
 }
 .badge-watched   { background: #1a3a2a; color: #4caf82; }
 .badge-watchlist { background: #2a2a1a; color: var(--accent2); }
-.badge-movie     { background: #1e1e32; color: #7c8cf8; }
-.badge-tv        { background: #1e2a32; color: #5bc0eb; }
+
+.card-status-badge {
+  margin: 4px 14px 0;
+  align-self: flex-start;
+}
 
 .card-title {
   font-weight: 700;
@@ -501,9 +555,10 @@ button.danger:hover { opacity: .85; }
 #confirm-msg { color: var(--muted); font-size: .9rem; margin-bottom: 20px; }
 
 @media (max-width: 600px) {
-  header { flex-wrap: wrap; gap: 12px; }
-  .movie-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  header { flex-wrap: wrap; gap: 10px; }
+  .type-nav { order: 3; width: 100%; }
+  .movie-grid.grid-lg { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
   .row-2 { grid-template-columns: 1fr; }
   .controls { gap: 8px; }
-  #type-filter, #country-filter { font-size: .8rem; padding: 8px 10px; }
+  #country-filter { font-size: .8rem; padding: 8px 10px; }
 }

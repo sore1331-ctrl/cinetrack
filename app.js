@@ -19,16 +19,17 @@ themeToggle.addEventListener('click', () => {
 const STORAGE_KEY = 'cinetrack_movies';
 const POSTER_BASE = 'https://image.tmdb.org/t/p/w200';
 
-let movies = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-let activeTab      = 'all';
+let movies         = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+let activeType     = 'movie';   // 'movie' | 'tv'
+let activeStatus   = 'all';     // 'all' | 'watched' | 'watchlist'
 let searchQuery    = '';
-let typeFilter     = '';
 let countryFilter  = '';
+let gridSize       = localStorage.getItem('cinetrack_grid') || 'md';
 let editingId      = null;
 let pendingDeleteId = null;
 let selectedRating = 0;
 let tmdbSelection  = null;
-let activeMediaType = 'movie'; // modal toggle state
+let activeMediaType = 'movie';
 let searchTimer    = null;
 
 function save() {
@@ -40,23 +41,22 @@ function genId() {
 }
 
 // ── DOM refs ────────────────────────────────────────────
-const grid             = document.getElementById('movie-grid');
-const emptyMsg         = document.getElementById('empty-msg');
-const searchInput      = document.getElementById('search-input');
-const typeFilterEl     = document.getElementById('type-filter');
-const countryFilterEl  = document.getElementById('country-filter');
-const addBtn           = document.getElementById('add-btn');
-const modal            = document.getElementById('modal');
-const modalTitle       = document.getElementById('modal-title');
-const form             = document.getElementById('movie-form');
-const cancelBtn        = document.getElementById('cancel-btn');
-const ratingLabel      = document.getElementById('rating-label');
-const starRow          = document.getElementById('star-row');
-const directorLabel    = document.getElementById('director-label');
-const confirmModal     = document.getElementById('confirm-modal');
-const confirmMsg       = document.getElementById('confirm-msg');
-const confirmCancel    = document.getElementById('confirm-cancel');
-const confirmOk        = document.getElementById('confirm-ok');
+const grid            = document.getElementById('movie-grid');
+const emptyMsg        = document.getElementById('empty-msg');
+const searchInput     = document.getElementById('search-input');
+const countryFilterEl = document.getElementById('country-filter');
+const addBtn          = document.getElementById('add-btn');
+const modal           = document.getElementById('modal');
+const modalTitle      = document.getElementById('modal-title');
+const form            = document.getElementById('movie-form');
+const cancelBtn       = document.getElementById('cancel-btn');
+const ratingLabel     = document.getElementById('rating-label');
+const starRow         = document.getElementById('star-row');
+const directorLabel   = document.getElementById('director-label');
+const confirmModal    = document.getElementById('confirm-modal');
+const confirmMsg      = document.getElementById('confirm-msg');
+const confirmCancel   = document.getElementById('confirm-cancel');
+const confirmOk       = document.getElementById('confirm-ok');
 
 const tmdbQuery       = document.getElementById('tmdb-query');
 const tmdbDropdown    = document.getElementById('tmdb-dropdown');
@@ -69,17 +69,54 @@ const tmdbSearching   = document.getElementById('tmdb-searching');
 const tmdbError       = document.getElementById('tmdb-error');
 const tmdbSearchLabel = document.getElementById('tmdb-search-label');
 
+// ── Grid size ───────────────────────────────────────────
+function applyGridSize(size) {
+  gridSize = size;
+  grid.className = `movie-grid grid-${size}`;
+  document.querySelectorAll('.size-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.size === size)
+  );
+  localStorage.setItem('cinetrack_grid', size);
+}
+
+document.querySelectorAll('.size-btn').forEach(btn => {
+  btn.addEventListener('click', () => applyGridSize(btn.dataset.size));
+});
+
+// ── Section nav (Films / TV) ────────────────────────────
+document.querySelectorAll('.type-nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.type-nav-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeType = btn.dataset.type;
+    // default modal type to the active section
+    activeMediaType = activeType;
+    updateCountryDropdown();
+    render();
+  });
+});
+
+// ── Status tabs ─────────────────────────────────────────
+document.querySelectorAll('.status-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.status-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeStatus = btn.dataset.status;
+    render();
+  });
+});
+
 // ── TMDB API ────────────────────────────────────────────
 async function searchTMDB(q, type) {
   let r;
   try {
     r = await fetch(`/api/search?q=${encodeURIComponent(q)}&type=${type}`);
   } catch {
-    throw new Error('Network error — are you running locally? TMDB search requires Vercel deployment.');
+    throw new Error('Network error — TMDB search requires Vercel deployment.');
   }
-  if (r.status === 401 || r.status === 403) throw new Error('Invalid TMDB API key — check TMDB_API_KEY in Vercel environment variables.');
-  if (r.status === 404) throw new Error('API route not found — TMDB search only works when deployed to Vercel.');
-  if (!r.ok) throw new Error(`TMDB request failed (${r.status}). Fill in details manually below.`);
+  if (r.status === 401 || r.status === 403) throw new Error('Invalid TMDB API key — check TMDB_API_KEY in Vercel.');
+  if (r.status === 404) throw new Error('API route not found — only works when deployed to Vercel.');
+  if (!r.ok) throw new Error(`TMDB request failed (${r.status}). Fill in details manually.`);
   return r.json();
 }
 
@@ -109,8 +146,7 @@ function updateModalForType() {
   const isTV = activeMediaType === 'tv';
   tmdbSearchLabel.childNodes[0].textContent = isTV ? 'Search TMDB (TV)' : 'Search TMDB';
   tmdbQuery.placeholder = isTV ? 'Type a show title...' : 'Type a movie title...';
-  const dirLabelText = directorLabel.childNodes[0];
-  dirLabelText.textContent = isTV ? 'Creator' : 'Director';
+  directorLabel.childNodes[0].textContent = isTV ? 'Creator' : 'Director';
   document.getElementById('f-director').placeholder = isTV ? 'e.g. Vince Gilligan' : 'e.g. Christopher Nolan';
 }
 
@@ -147,8 +183,7 @@ function renderDropdown(results) {
     <div class="tmdb-result" data-id="${m.id}">
       <img class="tmdb-result-poster"
            src="${m.poster_path ? POSTER_BASE + m.poster_path : ''}"
-           alt=""
-           onerror="this.style.display='none'" />
+           alt="" onerror="this.style.display='none'" />
       <div class="tmdb-result-info">
         <span class="tmdb-result-title">${esc(m.title)}</span>
         <span class="tmdb-result-year">${m.year || '—'}</span>
@@ -160,7 +195,6 @@ function renderDropdown(results) {
 
 function hideDropdown() {
   tmdbDropdown.classList.add('hidden');
-  tmdbSearching.classList.add('hidden');
   tmdbDropdown.innerHTML = '';
 }
 
@@ -186,7 +220,6 @@ tmdbDropdown.addEventListener('click', async e => {
 
 function applyTMDBSelection(details) {
   tmdbSelection = details;
-
   tmdbPosterThumb.src = details.poster_path ? POSTER_BASE + details.poster_path : '';
   tmdbPosterThumb.style.display = details.poster_path ? 'block' : 'none';
   tmdbSelTitle.textContent = details.title;
@@ -199,9 +232,8 @@ function applyTMDBSelection(details) {
   document.getElementById('f-genre').value    = details.genre    || '';
   document.getElementById('f-director').value = details.director || '';
   document.getElementById('f-country').value  = details.country  || '';
-  if (!document.getElementById('f-notes').value) {
+  if (!document.getElementById('f-notes').value)
     document.getElementById('f-notes').value  = details.overview || '';
-  }
 }
 
 function resetTMDBUI() {
@@ -211,15 +243,14 @@ function resetTMDBUI() {
   tmdbQuery.value = '';
   hideDropdown();
   tmdbError.classList.add('hidden');
+  tmdbSearching.classList.add('hidden');
 }
 
 tmdbClear.addEventListener('click', () => {
   resetTMDBUI();
-  document.getElementById('f-title').value    = '';
-  document.getElementById('f-year').value     = '';
-  document.getElementById('f-genre').value    = '';
-  document.getElementById('f-director').value = '';
-  document.getElementById('f-country').value  = '';
+  ['f-title','f-year','f-genre','f-director','f-country'].forEach(id =>
+    document.getElementById(id).value = ''
+  );
   tmdbQuery.focus();
 });
 
@@ -242,15 +273,14 @@ function buildStars() {
 }
 
 function setRating(val) { selectedRating = val; hoverStars(val); }
-
 function hoverStars(val) {
   starRow.querySelectorAll('.star').forEach((s, i) => s.classList.toggle('lit', i < val));
 }
 
-// ── Country dropdown (main page) ────────────────────────
+// ── Country dropdown ────────────────────────────────────
 function updateCountryDropdown() {
   const countries = [...new Set(
-    movies.map(m => m.country).filter(Boolean)
+    movies.filter(m => m.mediaType === activeType).map(m => m.country).filter(Boolean)
   )].sort();
 
   const current = countryFilterEl.value;
@@ -261,13 +291,13 @@ function updateCountryDropdown() {
 // ── Filtering ───────────────────────────────────────────
 function filtered() {
   return movies.filter(m => {
-    if (activeTab !== 'all' && m.status !== activeTab) return false;
-    if (typeFilter && m.mediaType !== typeFilter) return false;
+    if (m.mediaType !== activeType) return false;
+    if (activeStatus !== 'all' && m.status !== activeStatus) return false;
     if (countryFilter && m.country !== countryFilter) return false;
     const q = searchQuery.toLowerCase();
     if (q) {
-      const haystack = [m.title, m.genre, m.director, m.country].join(' ').toLowerCase();
-      if (!haystack.includes(q)) return false;
+      const hay = [m.title, m.genre, m.director, m.country].join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
     }
     return true;
   });
@@ -307,10 +337,9 @@ function render() {
 
     card.innerHTML = `
       <div class="card-poster">${posterHTML}</div>
-      <div class="card-badges">
-        <span class="badge badge-${m.status}">${m.status === 'watched' ? '✓ Watched' : '⏳ Watchlist'}</span>
-        <span class="badge badge-type badge-${isTV ? 'tv' : 'movie'}">${isTV ? 'TV' : 'Film'}</span>
-      </div>
+      <span class="badge badge-${m.status} card-status-badge">
+        ${m.status === 'watched' ? '✓ Watched' : '⏳ Watchlist'}
+      </span>
       <div class="card-title">${esc(m.title)}</div>
       <div class="card-meta">
         ${m.year    ? `<span>${m.year}</span>` : ''}
@@ -343,11 +372,10 @@ function openModal(movie = null) {
   editingId = movie ? movie.id : null;
   modalTitle.textContent = movie ? 'Edit Title' : 'Add Title';
 
-  // Set media type toggle
-  activeMediaType = movie?.mediaType || 'movie';
-  document.querySelectorAll('.type-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.type === activeMediaType);
-  });
+  activeMediaType = movie?.mediaType || activeType;
+  document.querySelectorAll('.type-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.type === activeMediaType)
+  );
   updateModalForType();
   resetTMDBUI();
 
@@ -382,10 +410,10 @@ form.addEventListener('submit', e => {
   const title = document.getElementById('f-title').value.trim();
   if (!title) return;
 
-  const existingMovie = editingId ? movies.find(m => m.id === editingId) : null;
+  const existing = editingId ? movies.find(m => m.id === editingId) : null;
   const posterUrl = tmdbSelection?.poster_path
     ? POSTER_BASE + tmdbSelection.poster_path
-    : existingMovie?.posterUrl || '';
+    : existing?.posterUrl || '';
 
   const data = {
     title,
@@ -398,7 +426,7 @@ form.addEventListener('submit', e => {
     rating:    document.getElementById('f-status').value === 'watched' ? selectedRating : 0,
     mediaType: activeMediaType,
     posterUrl,
-    tmdbId: tmdbSelection?.id || existingMovie?.tmdbId || null,
+    tmdbId: tmdbSelection?.id || existing?.tmdbId || null,
   };
 
   if (editingId) {
@@ -419,18 +447,7 @@ addBtn.addEventListener('click', () => openModal());
 cancelBtn.addEventListener('click', closeModal);
 modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
 document.getElementById('f-status').addEventListener('change', () => { toggleRatingLabel(); buildStars(); });
-
-document.querySelectorAll('.tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    activeTab = btn.dataset.tab;
-    render();
-  });
-});
-
 searchInput.addEventListener('input', () => { searchQuery = searchInput.value; render(); });
-typeFilterEl.addEventListener('change', () => { typeFilter = typeFilterEl.value; render(); });
 countryFilterEl.addEventListener('change', () => { countryFilter = countryFilterEl.value; render(); });
 
 grid.addEventListener('click', e => {
@@ -469,15 +486,16 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
 if (movies.length === 0) {
   movies = [
     { id: genId(), title: 'Inception', year: '2010', genre: 'Sci-Fi, Thriller', director: 'Christopher Nolan', country: 'United States', status: 'watched', rating: 9, notes: 'Mind-bending. The spinning top...', posterUrl: 'https://image.tmdb.org/t/p/w200/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg', mediaType: 'movie', addedAt: Date.now() },
-    { id: genId(), title: 'The Grand Budapest Hotel', year: '2014', genre: 'Comedy, Drama', director: 'Wes Anderson', country: 'Germany', status: 'watched', rating: 8, notes: 'Gorgeous cinematography and colors.', posterUrl: 'https://image.tmdb.org/t/p/w200/nX5XotM9yprCKarRFDtgpaKzkjr.jpg', mediaType: 'movie', addedAt: Date.now() },
+    { id: genId(), title: 'The Grand Budapest Hotel', year: '2014', genre: 'Comedy, Drama', director: 'Wes Anderson', country: 'Germany', status: 'watched', rating: 8, notes: 'Gorgeous cinematography.', posterUrl: 'https://image.tmdb.org/t/p/w200/nX5XotM9yprCKarRFDtgpaKzkjr.jpg', mediaType: 'movie', addedAt: Date.now() },
     { id: genId(), title: 'Dune: Part Two', year: '2024', genre: 'Sci-Fi', director: 'Denis Villeneuve', country: 'United States', status: 'watchlist', rating: 0, notes: '', posterUrl: 'https://image.tmdb.org/t/p/w200/8b8R8l88Qje9dn9OE8PY05Nxl1X.jpg', mediaType: 'movie', addedAt: Date.now() },
     { id: genId(), title: 'Spirited Away', year: '2001', genre: 'Animation, Fantasy', director: 'Hayao Miyazaki', country: 'Japan', status: 'watched', rating: 10, notes: 'A masterpiece of imagination.', posterUrl: 'https://image.tmdb.org/t/p/w200/39wmItIWsg5sZMyRUHLkWBcuVCM.jpg', mediaType: 'movie', addedAt: Date.now() },
     { id: genId(), title: 'Breaking Bad', year: '2008', genre: 'Crime, Drama', director: 'Vince Gilligan', country: 'United States', status: 'watched', rating: 10, notes: 'One of the greatest TV dramas ever made.', posterUrl: 'https://image.tmdb.org/t/p/w200/ggFHVNu6YYI5L9pCfOacjizRGt.jpg', mediaType: 'tv', addedAt: Date.now() },
-    { id: genId(), title: 'Dark', year: '2017', genre: 'Sci-Fi, Thriller', director: 'Baran bo Odar', country: 'Germany', status: 'watched', rating: 9, notes: 'Intricate time-travel mystery. Watch with subtitles.', posterUrl: 'https://image.tmdb.org/t/p/w200/apbrbWs8M9lyOpJYU5WXrpFbk1Z.jpg', mediaType: 'tv', addedAt: Date.now() },
+    { id: genId(), title: 'Dark', year: '2017', genre: 'Sci-Fi, Thriller', director: 'Baran bo Odar', country: 'Germany', status: 'watched', rating: 9, notes: 'Intricate time-travel mystery.', posterUrl: 'https://image.tmdb.org/t/p/w200/apbrbWs8M9lyOpJYU5WXrpFbk1Z.jpg', mediaType: 'tv', addedAt: Date.now() },
     { id: genId(), title: 'Shogun', year: '2024', genre: 'Drama, History', director: 'Rachel Kondo', country: 'Japan', status: 'watchlist', rating: 0, notes: '', posterUrl: 'https://image.tmdb.org/t/p/w200/7O4iVfOMQmdCSxhOg1WnzG1AgYT.jpg', mediaType: 'tv', addedAt: Date.now() },
   ];
   save();
 }
 
+applyGridSize(gridSize);
 updateCountryDropdown();
 render();

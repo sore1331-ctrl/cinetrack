@@ -9,29 +9,33 @@
 <body>
   <header>
     <h1>CineTrack</h1>
-    <nav>
-      <button class="tab-btn active" data-tab="all">All</button>
-      <button class="tab-btn" data-tab="watched">Watched</button>
-      <button class="tab-btn" data-tab="watchlist">Watchlist</button>
+    <nav class="type-nav">
+      <button class="type-nav-btn active" data-type="movie">🎬 Films</button>
+      <button class="type-nav-btn" data-type="tv">📺 TV Shows</button>
     </nav>
     <button id="theme-toggle" class="theme-toggle" title="Toggle light/dark mode">🌙</button>
   </header>
 
   <main>
     <section class="controls">
+      <div class="status-tabs">
+        <button class="status-btn active" data-status="all">All</button>
+        <button class="status-btn" data-status="watched">Watched</button>
+        <button class="status-btn" data-status="watchlist">Watchlist</button>
+      </div>
       <input type="text" id="search-input" placeholder="Search titles, genres, directors..." />
-      <select id="type-filter">
-        <option value="">All Types</option>
-        <option value="movie">Movies</option>
-        <option value="tv">TV Shows</option>
-      </select>
       <select id="country-filter">
         <option value="">All Countries</option>
       </select>
+      <div class="size-toggle">
+        <button class="size-btn" data-size="sm">S</button>
+        <button class="size-btn active" data-size="md">M</button>
+        <button class="size-btn" data-size="lg">L</button>
+      </div>
       <button id="add-btn">+ Add</button>
     </section>
 
-    <div id="movie-grid" class="movie-grid"></div>
+    <div id="movie-grid" class="movie-grid grid-md"></div>
     <p id="empty-msg" class="empty-msg hidden">No titles found. Add one!</p>
   </main>
 
