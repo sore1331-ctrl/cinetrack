@@ -43,6 +43,28 @@
     <!-- Import result toast -->
     <div id="import-toast" class="import-toast hidden"></div>
 
+    <!-- Bulk action bar (appears when cards are selected) -->
+    <div id="bulk-bar" class="bulk-bar hidden">
+      <span id="bulk-count">0 selected</span>
+      <div class="bulk-actions">
+        <button id="bulk-select-all">Select all</button>
+        <button id="bulk-deselect">Deselect</button>
+        <button id="bulk-delete" class="danger">🗑 Delete selected</button>
+      </div>
+    </div>
+
+    <!-- TMDB matching progress overlay -->
+    <div id="import-progress" class="import-progress hidden">
+      <div class="import-progress-card">
+        <h3>Matching with TMDB</h3>
+        <div class="progress-bar-wrap">
+          <div id="progress-bar" class="progress-bar" style="width:0%"></div>
+        </div>
+        <p id="progress-text">Starting…</p>
+        <button id="progress-cancel" class="secondary">Cancel</button>
+      </div>
+    </div>
+
     <div id="movie-grid" class="movie-grid grid-md"></div>
     <p id="empty-msg" class="empty-msg hidden">No titles found. Add one!</p>
   </main>

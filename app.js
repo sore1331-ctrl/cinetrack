@@ -321,6 +321,13 @@ function render() {
   const list = filtered();
   grid.innerHTML = '';
 
+  // Remove stale selections (items no longer visible)
+  const visibleIds = new Set(list.map(m => m.id));
+  for (const id of selectedIds) {
+    if (!visibleIds.has(id)) selectedIds.delete(id);
+  }
+  updateBulkBar();
+
   if (list.length === 0) {
     emptyMsg.classList.remove('hidden');
     return;
@@ -329,14 +336,22 @@ function render() {
 
   list.forEach(m => {
     const card = document.createElement('div');
-    card.className = 'movie-card';
+    const checked = selectedIds.has(m.id);
+    card.className = 'movie-card' + (checked ? ' selected' : '');
+    card.dataset.id = m.id;
     const isTV = m.mediaType === 'tv';
     const posterHTML = m.posterUrl
       ? `<img class="card-poster-img" src="${m.posterUrl}" alt="${esc(m.title)}" loading="lazy" />`
       : `<div class="card-poster-emoji">${isTV ? '📺' : posterEmoji(m.title)}</div>`;
 
     card.innerHTML = `
-      <div class="card-poster">${posterHTML}</div>
+      <div class="card-poster">
+        ${posterHTML}
+        <label class="card-checkbox" title="Select">
+          <input type="checkbox" data-check="${m.id}" ${checked ? 'checked' : ''} />
+          <span class="card-checkbox-box"></span>
+        </label>
+      </div>
       <span class="badge badge-${m.status} card-status-badge">
         ${m.status === 'watched' ? '✓ Watched' : '⏳ Watchlist'}
       </span>
@@ -360,6 +375,49 @@ function render() {
     grid.appendChild(card);
   });
 }
+
+// ── Bulk select ─────────────────────────────────────────
+const bulkBar       = document.getElementById('bulk-bar');
+const bulkCount     = document.getElementById('bulk-count');
+const bulkSelectAll = document.getElementById('bulk-select-all');
+const bulkDeselect  = document.getElementById('bulk-deselect');
+const bulkDelete    = document.getElementById('bulk-delete');
+
+function updateBulkBar() {
+  const n = selectedIds.size;
+  bulkBar.classList.toggle('hidden', n === 0);
+  bulkCount.textContent = `${n} selected`;
+}
+
+grid.addEventListener('change', e => {
+  const id = e.target.dataset.check;
+  if (!id) return;
+  if (e.target.checked) selectedIds.add(id);
+  else selectedIds.delete(id);
+  // toggle .selected on the card
+  e.target.closest('.movie-card')?.classList.toggle('selected', e.target.checked);
+  updateBulkBar();
+});
+
+bulkSelectAll.addEventListener('click', () => {
+  filtered().forEach(m => selectedIds.add(m.id));
+  render();
+});
+
+bulkDeselect.addEventListener('click', () => {
+  selectedIds.clear();
+  render();
+});
+
+bulkDelete.addEventListener('click', () => {
+  const n = selectedIds.size;
+  if (!confirm(`Delete ${n} title${n !== 1 ? 's' : ''}? This cannot be undone.`)) return;
+  movies = movies.filter(m => !selectedIds.has(m.id));
+  selectedIds.clear();
+  save();
+  updateCountryDropdown();
+  render();
+});
 
 function esc(str) {
   return String(str)
@@ -497,10 +555,17 @@ if (movies.length === 0) {
 }
 
 // ── CSV Import ──────────────────────────────────────────
-const importBtn   = document.getElementById('import-btn');
-const csvInput    = document.getElementById('csv-input');
-const csvTemplate = document.getElementById('csv-template');
-const importToast = document.getElementById('import-toast');
+const importBtn      = document.getElementById('import-btn');
+const csvInput       = document.getElementById('csv-input');
+const csvTemplate    = document.getElementById('csv-template');
+const importToast    = document.getElementById('import-toast');
+const importProgress = document.getElementById('import-progress');
+const progressBar    = document.getElementById('progress-bar');
+const progressText   = document.getElementById('progress-text');
+const progressCancel = document.getElementById('progress-cancel');
+
+let cancelImport = false;
+let selectedIds = new Set();
 
 // Column name aliases → canonical field
 const COL_MAP = {
@@ -520,7 +585,6 @@ function parseCSV(text) {
   const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
   if (lines.length < 2) return [];
 
-  // Parse one line respecting quoted fields
   function parseLine(line) {
     const fields = [];
     let cur = '', inQuote = false;
@@ -531,9 +595,7 @@ function parseCSV(text) {
         else inQuote = !inQuote;
       } else if (ch === ',' && !inQuote) {
         fields.push(cur.trim()); cur = '';
-      } else {
-        cur += ch;
-      }
+      } else { cur += ch; }
     }
     fields.push(cur.trim());
     return fields;
@@ -541,7 +603,6 @@ function parseCSV(text) {
 
   const headers = parseLine(lines[0]).map(h => h.toLowerCase().replace(/\s+/g, '_'));
   const rows = [];
-
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
@@ -560,68 +621,116 @@ function showToast(msg, isError = false) {
   importToast.textContent = msg;
   importToast.className = 'import-toast' + (isError ? ' error' : '');
   clearTimeout(importToast._timer);
-  importToast._timer = setTimeout(() => importToast.classList.add('hidden'), 4000);
+  importToast._timer = setTimeout(() => importToast.classList.add('hidden'), 5000);
 }
 
-function importRows(rows) {
-  let imported = 0, skipped = 0;
+function normaliseRow(row) {
+  const rawType = (row.mediaType || '').toLowerCase();
+  const mediaType = (rawType === 'tv' || rawType === 'tv show' || rawType === 'show') ? 'tv' : 'movie';
+  const rawStatus = (row.status || '').toLowerCase();
+  const status = rawStatus === 'watched' ? 'watched' : 'watchlist';
+  const rating = status === 'watched' ? Math.min(10, Math.max(0, parseInt(row.rating) || 0)) : 0;
+  const year = (row.year || '').toString().slice(0, 4);
+  return { mediaType, status, rating, year };
+}
 
-  rows.forEach(row => {
+async function matchWithTMDB(title, year, mediaType) {
+  try {
+    const params = new URLSearchParams({ title, type: mediaType });
+    if (year) params.set('year', year);
+    const r = await fetch(`/api/match?${params}`);
+    if (!r.ok) return null;
+    const data = await r.json();
+    return data.matched ? data : null;
+  } catch {
+    return null;
+  }
+}
+
+async function importRows(rows) {
+  cancelImport = false;
+  importProgress.classList.remove('hidden');
+
+  let imported = 0, skipped = 0, unmatched = 0;
+  const total = rows.length;
+
+  for (let i = 0; i < total; i++) {
+    if (cancelImport) break;
+
+    const row = rows[i];
     const title = row.title?.trim();
-    if (!title) { skipped++; return; }
+    if (!title) { skipped++; continue; }
 
-    // Normalise mediaType
-    const rawType = (row.mediaType || '').toLowerCase();
-    const mediaType = rawType === 'tv' || rawType === 'tv show' || rawType === 'show' ? 'tv' : 'movie';
+    const { mediaType, status, rating, year } = normaliseRow(row);
 
-    // Normalise status
-    const rawStatus = (row.status || '').toLowerCase();
-    const status = rawStatus === 'watched' ? 'watched' : 'watchlist';
-
-    // Normalise rating
-    const rating = status === 'watched' ? Math.min(10, Math.max(0, parseInt(row.rating) || 0)) : 0;
-
-    // Normalise year (take first 4 digits)
-    const year = (row.year || '').toString().slice(0, 4);
-
-    // Skip duplicates (same title + year + type)
+    // Skip duplicates
     const dup = movies.some(m =>
       m.title.toLowerCase() === title.toLowerCase() &&
       m.mediaType === mediaType &&
       (m.year || '') === year
     );
-    if (dup) { skipped++; return; }
+    if (dup) { skipped++; continue; }
 
-    movies.push({
-      id: genId(),
-      addedAt: Date.now(),
-      title,
-      year,
-      genre:     row.genre     || '',
-      director:  row.director  || '',
-      country:   row.country   || '',
-      notes:     row.notes     || '',
-      posterUrl: row.posterUrl || '',
-      tmdbId:    null,
-      mediaType,
-      status,
-      rating,
-    });
+    // Update progress
+    progressText.textContent = `Matching "${title}" (${i + 1} of ${total})…`;
+    progressBar.style.width = `${Math.round(((i) / total) * 100)}%`;
+
+    // Try TMDB match
+    const tmdb = await matchWithTMDB(title, year, mediaType);
+
+    if (tmdb) {
+      movies.push({
+        id: genId(), addedAt: Date.now(),
+        title:     tmdb.title,
+        year:      tmdb.year,
+        genre:     tmdb.genre,
+        director:  tmdb.director,
+        country:   tmdb.country,
+        notes:     row.notes || tmdb.overview || '',
+        posterUrl: tmdb.poster_path ? `https://image.tmdb.org/t/p/w200${tmdb.poster_path}` : '',
+        tmdbId:    tmdb.tmdbId,
+        mediaType, status, rating,
+      });
+    } else {
+      // Fall back to raw CSV data
+      unmatched++;
+      movies.push({
+        id: genId(), addedAt: Date.now(),
+        title,
+        year,
+        genre:     row.genre     || '',
+        director:  row.director  || '',
+        country:   row.country   || '',
+        notes:     row.notes     || '',
+        posterUrl: row.posterUrl || '',
+        tmdbId:    null,
+        mediaType, status, rating,
+      });
+    }
     imported++;
-  });
+  }
 
+  progressBar.style.width = '100%';
+  importProgress.classList.add('hidden');
   save();
   updateCountryDropdown();
   render();
-  showToast(`Imported ${imported} title${imported !== 1 ? 's' : ''}${skipped ? `, skipped ${skipped} duplicate${skipped !== 1 ? 's' : ''}` : ''}.`);
+
+  const parts = [`Imported ${imported} title${imported !== 1 ? 's' : ''}`];
+  if (skipped)   parts.push(`${skipped} duplicate${skipped !== 1 ? 's' : ''} skipped`);
+  if (unmatched) parts.push(`${unmatched} not found on TMDB`);
+  if (cancelImport) parts.push('cancelled');
+  showToast(parts.join(' · '));
 }
+
+progressCancel.addEventListener('click', () => { cancelImport = true; });
 
 importBtn.addEventListener('click', () => csvInput.click());
 
 csvInput.addEventListener('change', () => {
   const file = csvInput.files[0];
   if (!file) return;
-  csvInput.value = ''; // reset so same file can be re-uploaded
+  csvInput.value = '';
   const reader = new FileReader();
   reader.onload = e => {
     try {
@@ -635,7 +744,7 @@ csvInput.addEventListener('change', () => {
   reader.readAsText(file);
 });
 
-// Template download — generate a data URL so no server needed
+// Template download
 const TEMPLATE_CSV = `title,year,genre,director,country,status,rating,notes,type
 Inception,2010,"Sci-Fi, Thriller",Christopher Nolan,United States,watched,9,Mind-bending film,movie
 Breaking Bad,2008,"Crime, Drama",Vince Gilligan,United States,watched,10,Greatest TV drama,tv
