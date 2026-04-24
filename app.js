@@ -91,9 +91,9 @@ document.querySelectorAll('.size-btn').forEach(btn => {
 });
 
 // ── Section nav (Films / TV / Anime) ───────────────────
-document.querySelectorAll('.type-nav-btn').forEach(btn => {
+document.querySelectorAll('.type-tab').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.type-nav-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.type-tab').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     activeType = btn.dataset.type;
     activeMediaType = activeType;
@@ -481,11 +481,13 @@ function render() {
 }
 
 // ── Bulk select ─────────────────────────────────────────
-const bulkBar       = document.getElementById('bulk-bar');
-const bulkCount     = document.getElementById('bulk-count');
-const bulkSelectAll = document.getElementById('bulk-select-all');
-const bulkDeselect  = document.getElementById('bulk-deselect');
-const bulkDelete    = document.getElementById('bulk-delete');
+const bulkBar          = document.getElementById('bulk-bar');
+const bulkCount        = document.getElementById('bulk-count');
+const bulkSelectAll    = document.getElementById('bulk-select-all');
+const bulkDeselect     = document.getElementById('bulk-deselect');
+const bulkDelete       = document.getElementById('bulk-delete');
+const bulkMarkWatched  = document.getElementById('bulk-mark-watched');
+const bulkMarkWatchlist = document.getElementById('bulk-mark-watchlist');
 
 function updateBulkBar() {
   const n = selectedIds.size;
@@ -512,6 +514,18 @@ bulkSelectAll.addEventListener('click', () => {
 bulkDeselect.addEventListener('click', () => {
   selectedIds.clear();
   render();
+});
+
+bulkMarkWatched.addEventListener('click', () => {
+  movies.forEach(m => { if (selectedIds.has(m.id)) m.status = 'watched'; });
+  selectedIds.clear();
+  save(); render();
+});
+
+bulkMarkWatchlist.addEventListener('click', () => {
+  movies.forEach(m => { if (selectedIds.has(m.id)) { m.status = 'watchlist'; m.rating = 0; } });
+  selectedIds.clear();
+  save(); render();
 });
 
 bulkDelete.addEventListener('click', () => {
