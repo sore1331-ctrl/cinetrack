@@ -8,19 +8,17 @@
 </head>
 <body>
 
-  <!-- Auth overlay (shown before login) -->
+  <!-- Auth overlay -->
   <div id="auth-overlay" class="auth-overlay">
     <div class="auth-card">
       <div class="auth-logo">
         <h1>CineTrack</h1>
         <p>Your personal film &amp; TV tracker</p>
       </div>
-
       <div id="auth-loading" class="auth-loading">
         <div class="auth-spinner"></div>
         <p>Connecting…</p>
       </div>
-
       <div id="auth-form-wrap" class="hidden">
         <div class="auth-tabs">
           <button class="auth-tab active" data-tab="signin">Sign In</button>
@@ -42,7 +40,7 @@
     </div>
   </div>
 
-  <!-- Minimal header -->
+  <!-- Header -->
   <header>
     <h1>CineTrack</h1>
     <div id="sync-indicator" class="sync-indicator" data-state="loading" title="Loading…"></div>
@@ -50,8 +48,17 @@
       <button class="user-avatar-btn" id="user-avatar-btn">
         <span id="user-avatar">?</span>
       </button>
-      <div class="user-dropdown" id="user-dropdown">
+      <div class="user-dropdown hidden" id="user-dropdown">
+        <div class="user-name-row">
+          <span id="username-display" class="username-display">Set username</span>
+          <button id="username-edit-btn" class="username-edit-btn" title="Edit username">✏</button>
+        </div>
+        <div id="username-form" class="username-form hidden">
+          <input type="text" id="username-input" placeholder="Your display name" maxlength="30" />
+          <button id="username-save-btn" class="username-save-btn">Save</button>
+        </div>
         <span id="user-email" class="user-email-label"></span>
+        <hr class="dropdown-divider" />
         <button id="signout-btn" class="signout-btn">Sign out</button>
       </div>
     </div>
@@ -64,11 +71,13 @@
       <button class="type-tab active" data-type="movie">🎬 Films</button>
       <button class="type-tab" data-type="tv">📺 TV Shows</button>
       <button class="type-tab" data-type="anime">🎌 Anime</button>
+      <button class="type-tab" data-type="stats">📊 Stats</button>
+      <button class="type-tab" data-type="community">👥 Community</button>
     </div>
   </div>
 
   <main>
-    <!-- Single controls row -->
+    <!-- Controls row (hidden on stats/community) -->
     <section class="controls">
       <div class="status-tabs">
         <button class="status-btn active" data-status="all">All</button>
@@ -97,6 +106,7 @@
         <input type="file" id="csv-input" accept=".csv,text/csv" style="display:none" />
         <a id="csv-template" href="#" download="cinetrack-template.csv">template</a>
       </div>
+      <button id="export-btn" class="export-btn" title="Export CSV">⬇ CSV</button>
       <button id="add-btn">+ Add</button>
     </section>
 
@@ -129,9 +139,28 @@
       </div>
     </div>
 
+    <!-- Content grid -->
     <div id="movie-grid" class="movie-grid grid-md"></div>
     <p id="empty-msg" class="empty-msg hidden">No titles found. Add one!</p>
     <div id="pagination" class="pagination hidden"></div>
+
+    <!-- Stats panel -->
+    <div id="stats-panel" class="stats-panel hidden"></div>
+
+    <!-- Community panel -->
+    <div id="community-panel" class="community-panel hidden">
+      <div class="community-top">
+        <h2>Community</h2>
+        <label class="sharing-label">
+          <span>Share my watchlist</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="sharing-toggle" />
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+          </label>
+        </label>
+      </div>
+      <div id="community-grid" class="community-grid"></div>
+    </div>
   </main>
 
   <!-- Add/Edit Modal -->

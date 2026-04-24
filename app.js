@@ -20,7 +20,8 @@ const STORAGE_KEY = 'cinetrack_movies';
 const POSTER_BASE = 'https://image.tmdb.org/t/p/w200';
 
 let movies          = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-let activeType      = 'movie';
+let activeType      = 'movie';   // 'movie' | 'tv' | 'anime'
+let activeView      = 'content'; // 'content' | 'stats' | 'community'
 let activeStatus    = 'all';
 let searchQuery     = '';
 let countryFilter   = '';
@@ -37,11 +38,13 @@ let selectMode      = false;
 let cloudSyncTimer  = null;
 
 // Supabase
-let sb          = null;   // supabase client
-let currentUser = null;
-let offlineMode = false;
+let sb              = null;
+let currentUser     = null;
+let offlineMode     = false;
+let currentUsername = null;
+let sharingEnabled  = false;
 
-// ── Sync state indicator ────────────────────────────────
+// ── Sync indicator ──────────────────────────────────────
 function setSyncState(state, detail = '') {
   const el = document.getElementById('sync-indicator');
   if (!el) return;
@@ -61,6 +64,34 @@ async function initSupabase() {
   } catch {
     return false;
   }
+}
+
+// ── Profile load / save ─────────────────────────────────
+async function loadProfile() {
+  if (!sb || !currentUser) return;
+  try {
+    const { data } = await sb
+      .from('profiles')
+      .select('username, sharing_enabled')
+      .eq('user_id', currentUser.id)
+      .maybeSingle();
+    if (data) {
+      currentUsername = data.username || null;
+      sharingEnabled  = !!data.sharing_enabled;
+    }
+    updateUserMenu();
+  } catch {}
+}
+
+async function saveProfile(updates) {
+  if (!sb || !currentUser) return;
+  try {
+    await sb.from('profiles').upsert({
+      user_id: currentUser.id,
+      ...updates,
+      updated_at: new Date().toISOString(),
+    });
+  } catch {}
 }
 
 // ── User data load / save ───────────────────────────────
@@ -86,7 +117,7 @@ async function loadUserData() {
     if (movies.length === 0) seedData();
   }
   updateCountryDropdown();
-  render();
+  refreshCurrentView();
 }
 
 async function saveUserData() {
@@ -147,6 +178,46 @@ const tmdbSearching   = document.getElementById('tmdb-searching');
 const tmdbError       = document.getElementById('tmdb-error');
 const tmdbSearchLabel = document.getElementById('tmdb-search-label');
 
+// ── View switching ──────────────────────────────────────
+function refreshCurrentView() {
+  if (activeView === 'stats') renderStats();
+  else if (activeView === 'community') { /* don't auto-reload community */ }
+  else render();
+}
+
+function switchView(view, type) {
+  activeView = view;
+  if (type && view === 'content') {
+    activeType      = type;
+    activeMediaType = type;
+  }
+
+  const isContent   = view === 'content';
+  const isStats     = view === 'stats';
+  const isCommunity = view === 'community';
+
+  document.querySelector('.controls').classList.toggle('hidden', !isContent);
+  statsBar.classList.toggle('hidden', !isContent);
+  grid.classList.toggle('hidden', !isContent);
+  emptyMsg.classList.add('hidden');
+  paginationEl.classList.add('hidden');
+  document.getElementById('bulk-bar').classList.add('hidden');
+  document.getElementById('stats-panel').classList.toggle('hidden', !isStats);
+  document.getElementById('community-panel').classList.toggle('hidden', !isCommunity);
+
+  if (isContent) {
+    selectMode = false;
+    selectModeBtn.classList.remove('active');
+    selectedIds.clear();
+    updateCountryDropdown();
+    render();
+  } else if (isStats) {
+    renderStats();
+  } else if (isCommunity) {
+    renderCommunity();
+  }
+}
+
 // ── Grid size ───────────────────────────────────────────
 function applyGridSize(size) {
   gridSize = size;
@@ -161,16 +232,20 @@ document.querySelectorAll('.size-btn').forEach(btn => {
   btn.addEventListener('click', () => applyGridSize(btn.dataset.size));
 });
 
-// ── Section nav (Films / TV / Anime) ───────────────────
+// ── Type tab nav ────────────────────────────────────────
 document.querySelectorAll('.type-tab').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.type-tab').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    activeType = btn.dataset.type;
-    activeMediaType = activeType;
+    const t = btn.dataset.type;
     currentPage = 0;
-    updateCountryDropdown();
-    render();
+    if (t === 'stats') {
+      switchView('stats');
+    } else if (t === 'community') {
+      switchView('community');
+    } else {
+      switchView('content', t);
+    }
   });
 });
 
@@ -445,6 +520,225 @@ function updateStats() {
     (timeStr ? `<span class="stat-sep">·</span><span class="stat-item stat-time">⏱ <strong>${timeStr}</strong> spent watching</span>` : '');
 }
 
+// ── Stats panel ─────────────────────────────────────────
+function renderStats() {
+  const panel = document.getElementById('stats-panel');
+  if (!panel) return;
+
+  const watched  = movies.filter(m => m.status === 'watched');
+  const total    = movies.length;
+  const watchedN = watched.length;
+  const totalMin = watched.reduce((s, m) => s + (m.runtime || 0), 0);
+  const ratings  = watched.filter(m => m.rating > 0).map(m => m.rating);
+  const avgRating = ratings.length
+    ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1)
+    : null;
+
+  // Genre counts (split comma-separated)
+  const genreCounts = {};
+  watched.forEach(m => {
+    if (!m.genre) return;
+    m.genre.split(',').map(g => g.trim()).filter(Boolean).forEach(g => {
+      genreCounts[g] = (genreCounts[g] || 0) + 1;
+    });
+  });
+  const topGenres = Object.entries(genreCounts)
+    .sort((a, b) => b[1] - a[1]).slice(0, 14);
+
+  // Year counts
+  const yearCounts = {};
+  watched.forEach(m => {
+    const y = parseInt(m.year);
+    if (!y || y < 1900 || y > 2100) return;
+    yearCounts[y] = (yearCounts[y] || 0) + 1;
+  });
+  const yearEntries = Object.entries(yearCounts)
+    .sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
+
+  // Type breakdown
+  const tc = {
+    movie: movies.filter(m => m.mediaType === 'movie' && m.status === 'watched').length,
+    tv:    movies.filter(m => m.mediaType === 'tv'    && m.status === 'watched').length,
+    anime: movies.filter(m => m.mediaType === 'anime' && m.status === 'watched').length,
+  };
+  const typeEntries = [
+    ['🎬 Films',    tc.movie],
+    ['📺 TV Shows', tc.tv],
+    ['🎌 Anime',    tc.anime],
+  ].filter(e => e[1] > 0);
+
+  const maxGenre = topGenres[0]?.[1] || 1;
+  const maxYear  = yearEntries.length ? Math.max(...yearEntries.map(e => e[1])) : 1;
+  const maxType  = typeEntries.length ? Math.max(...typeEntries.map(e => e[1])) : 1;
+
+  panel.innerHTML = `
+    <div class="stats-overview">
+      <div class="stat-card">
+        <div class="stat-card-value">${watchedN}</div>
+        <div class="stat-card-label">Watched</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-value">${total - watchedN}</div>
+        <div class="stat-card-label">On Watchlist</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-value">${formatRuntime(totalMin) || '—'}</div>
+        <div class="stat-card-label">Time Spent</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-value">${avgRating ? '★ ' + avgRating : '—'}</div>
+        <div class="stat-card-label">Avg Rating</div>
+      </div>
+    </div>
+
+    <div class="stats-charts">
+      ${topGenres.length ? `
+      <div class="chart-section">
+        <h3>Top Genres</h3>
+        <div class="chart-bars">${renderBarChart(topGenres, maxGenre, '#e2405a')}</div>
+      </div>` : ''}
+
+      ${yearEntries.length ? `
+      <div class="chart-section">
+        <h3>By Year</h3>
+        <div class="chart-bars chart-bars-scroll">${renderBarChart(yearEntries, maxYear, '#3b9eff')}</div>
+      </div>` : ''}
+
+      ${typeEntries.length ? `
+      <div class="chart-section chart-section-sm">
+        <h3>By Type</h3>
+        <div class="chart-bars">${renderBarChart(typeEntries, maxType, '#a855f7')}</div>
+      </div>` : ''}
+    </div>
+  `;
+}
+
+function renderBarChart(entries, maxVal, color) {
+  if (!entries.length || !maxVal) return '<p class="chart-empty">No data yet</p>';
+  return entries.map(([label, count]) => `
+    <div class="chart-row">
+      <div class="chart-label" title="${esc(String(label))}">${esc(String(label))}</div>
+      <div class="chart-track">
+        <div class="chart-fill" style="width:${Math.max(3, Math.round((count / maxVal) * 100))}%;background:${color}"></div>
+      </div>
+      <div class="chart-count">${count}</div>
+    </div>
+  `).join('');
+}
+
+// ── Community panel ─────────────────────────────────────
+async function renderCommunity() {
+  const sharingToggle = document.getElementById('sharing-toggle');
+  if (sharingToggle) sharingToggle.checked = sharingEnabled;
+
+  const communityGrid = document.getElementById('community-grid');
+  if (!communityGrid) return;
+
+  if (!currentUser || offlineMode) {
+    communityGrid.innerHTML = '<p class="community-empty">Sign in to see the community.</p>';
+    return;
+  }
+
+  communityGrid.innerHTML = '<p class="community-loading">Loading community…</p>';
+
+  try {
+    const { data: sharingProfiles, error: pe } = await sb
+      .from('profiles')
+      .select('user_id, username')
+      .eq('sharing_enabled', true)
+      .neq('user_id', currentUser.id);
+
+    if (pe) throw pe;
+
+    if (!sharingProfiles?.length) {
+      communityGrid.innerHTML = `
+        <div class="community-empty-state">
+          <div class="community-empty-icon">👥</div>
+          <p>No one is sharing their watchlist yet.</p>
+          <p class="community-empty-hint">Enable sharing above to let others see what you're watching!</p>
+        </div>`;
+      return;
+    }
+
+    const userIds = sharingProfiles.map(p => p.user_id);
+    const { data: sharedData, error: de } = await sb
+      .from('user_data')
+      .select('user_id, movies')
+      .in('user_id', userIds);
+
+    if (de) throw de;
+
+    const dataMap = Object.fromEntries((sharedData || []).map(d => [d.user_id, d.movies || []]));
+
+    const cards = sharingProfiles.map(profile => {
+      const userMovies = dataMap[profile.user_id] || [];
+      const watched    = userMovies.filter(m => m.status === 'watched');
+      const watchlist  = userMovies.filter(m => m.status === 'watchlist');
+      const username   = profile.username || 'Anonymous';
+      const initial    = username[0].toUpperCase();
+
+      const posters = watched
+        .filter(m => m.posterUrl)
+        .slice(0, 6)
+        .map(m => `<img class="community-poster" src="${esc(m.posterUrl)}" alt="${esc(m.title)}" title="${esc(m.title)}" loading="lazy" />`)
+        .join('');
+
+      const topGenres = (() => {
+        const gc = {};
+        watched.forEach(m => (m.genre || '').split(',').map(g => g.trim()).filter(Boolean).forEach(g => { gc[g] = (gc[g] || 0) + 1; }));
+        return Object.entries(gc).sort((a, b) => b[1] - a[1]).slice(0, 3).map(e => e[0]).join(', ');
+      })();
+
+      return `
+        <div class="community-card">
+          <div class="community-card-header">
+            <div class="community-avatar">${esc(initial)}</div>
+            <div class="community-card-info">
+              <div class="community-username">${esc(username)}</div>
+              <div class="community-stats-mini">
+                <span>✓ ${watched.length} watched</span>
+                <span>⏳ ${watchlist.length} on list</span>
+              </div>
+              ${topGenres ? `<div class="community-genres">${esc(topGenres)}</div>` : ''}
+            </div>
+          </div>
+          ${posters ? `<div class="community-posters">${posters}</div>` : ''}
+        </div>
+      `;
+    }).join('');
+
+    communityGrid.innerHTML = cards || '<p class="community-empty">No data found.</p>';
+
+  } catch (e) {
+    communityGrid.innerHTML = `<p class="community-empty error">Failed to load: ${esc(e.message)}</p>`;
+  }
+}
+
+// ── Export CSV ──────────────────────────────────────────
+function exportCSV() {
+  const list = movies.filter(m => m.mediaType === activeType);
+  if (!list.length) { showToast('No titles to export for this tab.', true); return; }
+
+  const headers = ['title','year','genre','director','country','status','rating','runtime','notes','type'];
+  const rows = list.map(m =>
+    [m.title, m.year, m.genre, m.director, m.country, m.status, m.rating || '', m.runtime || '', m.notes, m.mediaType]
+      .map(v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`)
+      .join(',')
+  );
+
+  const csv  = [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `cinetrack-${activeType}-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast(`Exported ${list.length} title${list.length !== 1 ? 's' : ''}.`);
+}
+
+document.getElementById('export-btn').addEventListener('click', exportCSV);
+
 // ── Pagination ──────────────────────────────────────────
 function renderPagination(totalItems) {
   const totalPages = Math.ceil(totalItems / pageSize);
@@ -640,7 +934,7 @@ form.addEventListener('submit', e => {
   const title = document.getElementById('f-title').value.trim();
   if (!title) return;
 
-  const existing = editingId ? movies.find(m => m.id === editingId) : null;
+  const existing  = editingId ? movies.find(m => m.id === editingId) : null;
   const posterUrl = tmdbSelection?.poster_path
     ? POSTER_BASE + tmdbSelection.poster_path
     : existing?.posterUrl || '';
@@ -787,13 +1081,15 @@ function parseCSV(text) {
 function showToast(msg, isError = false) {
   importToast.textContent = msg;
   importToast.className = 'import-toast' + (isError ? ' error' : '');
+  importToast.classList.remove('hidden');
   clearTimeout(importToast._timer);
   importToast._timer = setTimeout(() => importToast.classList.add('hidden'), 5000);
 }
 
 function normaliseRow(row) {
   const rawType   = (row.mediaType || '').toLowerCase();
-  const mediaType = (rawType === 'tv' || rawType === 'tv show' || rawType === 'show') ? 'tv' : 'movie';
+  const mediaType = (rawType === 'tv' || rawType === 'tv show' || rawType === 'show') ? 'tv'
+                  : rawType === 'anime' ? 'anime' : 'movie';
   const rawStatus = (row.status || '').toLowerCase();
   const status    = rawStatus === 'watched' ? 'watched' : 'watchlist';
   const rating    = status === 'watched' ? Math.min(10, Math.max(0, parseInt(row.rating) || 0)) : 0;
@@ -955,27 +1251,79 @@ function hideAuthOverlay() {
 function updateUserMenu() {
   if (!currentUser) { userMenu.classList.add('hidden'); return; }
   userMenu.classList.remove('hidden');
-  userAvatar.textContent   = currentUser.email[0].toUpperCase();
-  userEmailEl.textContent  = currentUser.email;
+  const displayName = currentUsername || currentUser.email.split('@')[0];
+  userAvatar.textContent  = displayName[0].toUpperCase();
+  userEmailEl.textContent = currentUser.email;
+  const usernameDisplay = document.getElementById('username-display');
+  if (usernameDisplay) {
+    usernameDisplay.textContent = currentUsername || 'Set username';
+    usernameDisplay.classList.toggle('username-placeholder', !currentUsername);
+  }
+  const sharingToggle = document.getElementById('sharing-toggle');
+  if (sharingToggle) sharingToggle.checked = sharingEnabled;
 }
 
+// ── User dropdown toggle ────────────────────────────────
 document.getElementById('user-avatar-btn').addEventListener('click', e => {
   e.stopPropagation();
-  document.getElementById('user-dropdown').classList.toggle('open');
+  document.getElementById('user-dropdown').classList.toggle('hidden');
 });
 
 document.addEventListener('click', e => {
   if (!e.target.closest('#user-menu')) {
-    document.getElementById('user-dropdown').classList.remove('open');
+    document.getElementById('user-dropdown').classList.add('hidden');
+    closeUsernameForm();
   }
 });
 
+// ── Username edit ───────────────────────────────────────
+function closeUsernameForm() {
+  document.getElementById('username-form')?.classList.add('hidden');
+}
+
+document.getElementById('username-edit-btn').addEventListener('click', e => {
+  e.stopPropagation();
+  const form = document.getElementById('username-form');
+  form.classList.toggle('hidden');
+  if (!form.classList.contains('hidden')) {
+    const input = document.getElementById('username-input');
+    input.value = currentUsername || '';
+    input.focus();
+  }
+});
+
+document.getElementById('username-save-btn').addEventListener('click', async e => {
+  e.stopPropagation();
+  const val = document.getElementById('username-input').value.trim();
+  if (!val) return;
+  currentUsername = val;
+  updateUserMenu();
+  closeUsernameForm();
+  await saveProfile({ username: val });
+});
+
+document.getElementById('username-input').addEventListener('keydown', async e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    document.getElementById('username-save-btn').click();
+  }
+});
+
+// ── Sharing toggle ──────────────────────────────────────
+document.getElementById('sharing-toggle').addEventListener('change', async e => {
+  sharingEnabled = e.target.checked;
+  await saveProfile({ sharing_enabled: sharingEnabled });
+});
+
+// ── Sign out ────────────────────────────────────────────
 signoutBtn.addEventListener('click', async () => {
   await sb.auth.signOut();
-  currentUser = null;
-  movies = [];
+  currentUser     = null;
+  currentUsername = null;
+  sharingEnabled  = false;
+  movies          = [];
   localStorage.removeItem(STORAGE_KEY);
-  document.getElementById('user-dropdown').classList.remove('open');
+  document.getElementById('user-dropdown').classList.add('hidden');
   updateUserMenu();
   showAuthOverlay('form');
 });
@@ -983,7 +1331,6 @@ signoutBtn.addEventListener('click', async () => {
 // ── Init ────────────────────────────────────────────────
 applyGridSize(gridSize);
 
-// Render cached data immediately for instant display
 if (movies.length > 0) { updateCountryDropdown(); render(); }
 
 (async () => {
@@ -1001,12 +1348,12 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
     return;
   }
 
-  // React to auth changes (e.g. email confirmation redirect)
   sb.auth.onAuthStateChange(async (event, session) => {
     if (event === 'SIGNED_IN' && session?.user) {
       currentUser = session.user;
       updateUserMenu();
       hideAuthOverlay();
+      await loadProfile();
       await loadUserData();
     } else if (event === 'SIGNED_OUT') {
       currentUser = null;
@@ -1019,6 +1366,7 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
     currentUser = session.user;
     updateUserMenu();
     hideAuthOverlay();
+    await loadProfile();
     await loadUserData();
   } else {
     showAuthOverlay('form');
