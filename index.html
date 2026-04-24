@@ -7,22 +7,29 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+
+  <!-- Minimal header -->
   <header>
     <h1>CineTrack</h1>
-    <nav class="type-nav">
-      <button class="type-nav-btn active" data-type="movie">🎬 Films</button>
-      <button class="type-nav-btn" data-type="tv">📺 TV Shows</button>
-      <button class="type-nav-btn" data-type="anime">🎌 Anime</button>
-    </nav>
     <button id="theme-toggle" class="theme-toggle" title="Toggle light/dark mode">🌙</button>
   </header>
 
+  <!-- Type tab bar -->
+  <div class="type-tabs-bar">
+    <div class="type-tabs-inner">
+      <button class="type-tab active" data-type="movie">🎬 Films</button>
+      <button class="type-tab" data-type="tv">📺 TV Shows</button>
+      <button class="type-tab" data-type="anime">🎌 Anime</button>
+    </div>
+  </div>
+
   <main>
+    <!-- Single controls row -->
     <section class="controls">
       <div class="status-tabs">
         <button class="status-btn active" data-status="all">All</button>
-        <button class="status-btn" data-status="watched">Watched</button>
-        <button class="status-btn" data-status="watchlist">Watchlist</button>
+        <button class="status-btn" data-status="watched">✓ Watched</button>
+        <button class="status-btn" data-status="watchlist">⏳ List</button>
       </div>
       <input type="text" id="search-input" placeholder="Search titles, genres, directors..." />
       <select id="country-filter">
@@ -35,11 +42,11 @@
       </div>
       <button id="select-mode-btn" class="select-mode-btn" title="Toggle selection mode">☑ Select</button>
       <select id="page-size-select" class="page-size-select" title="Items per page">
-        <option value="50">50 / page</option>
-        <option value="100">100 / page</option>
-        <option value="150">150 / page</option>
-        <option value="200">200 / page</option>
-        <option value="300">300 / page</option>
+        <option value="50">50 / pg</option>
+        <option value="100">100 / pg</option>
+        <option value="150">150 / pg</option>
+        <option value="200">200 / pg</option>
+        <option value="300">300 / pg</option>
       </select>
       <div class="import-wrap">
         <button id="import-btn" title="Import CSV">⬆ CSV</button>
@@ -55,13 +62,17 @@
     <!-- Import result toast -->
     <div id="import-toast" class="import-toast hidden"></div>
 
-    <!-- Bulk action bar (appears when cards are selected) -->
+    <!-- Bulk action bar -->
     <div id="bulk-bar" class="bulk-bar hidden">
       <span id="bulk-count">0 selected</span>
       <div class="bulk-actions">
+        <button id="bulk-mark-watched" class="bulk-watched">✓ Mark Watched</button>
+        <button id="bulk-mark-watchlist" class="bulk-watchlist">⏳ Mark Watchlist</button>
+        <span class="bulk-divider"></span>
         <button id="bulk-select-all">Select all</button>
         <button id="bulk-deselect">Deselect</button>
-        <button id="bulk-delete" class="danger">🗑 Delete selected</button>
+        <span class="bulk-divider"></span>
+        <button id="bulk-delete" class="danger">🗑 Delete</button>
       </div>
     </div>
 
@@ -80,7 +91,6 @@
     <div id="movie-grid" class="movie-grid grid-md"></div>
     <p id="empty-msg" class="empty-msg hidden">No titles found. Add one!</p>
 
-    <!-- Pagination -->
     <div id="pagination" class="pagination hidden"></div>
   </main>
 
@@ -89,7 +99,6 @@
     <div class="modal-card">
       <h2 id="modal-title">Add Title</h2>
 
-      <!-- Media type toggle -->
       <div class="type-toggle" id="type-toggle">
         <button type="button" class="type-btn active" data-type="movie">🎬 Movie</button>
         <button type="button" class="type-btn" data-type="tv">📺 TV Show</button>
@@ -97,7 +106,6 @@
       </div>
 
       <form id="movie-form">
-        <!-- TMDB Search -->
         <div class="tmdb-search-wrap" id="tmdb-search-wrap">
           <label id="tmdb-search-label">Search TMDB
             <div class="search-field-wrap">
