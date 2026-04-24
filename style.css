@@ -67,6 +67,25 @@ header h1 {
 }
 .theme-toggle:hover { border-color: var(--accent); color: var(--text); }
 
+/* ── Sync indicator ── */
+.sync-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background .4s;
+  cursor: default;
+}
+.sync-indicator[data-state="loading"] { background: var(--muted); animation: sync-pulse 1.2s ease-in-out infinite; }
+.sync-indicator[data-state="saving"]  { background: var(--accent2); animation: sync-pulse .7s ease-in-out infinite; }
+.sync-indicator[data-state="saved"]   { background: #4caf82; }
+.sync-indicator[data-state="error"]   { background: #e07070; }
+
+@keyframes sync-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .25; }
+}
+
 /* ── Type tab bar ── */
 .type-tabs-bar {
   background: var(--surface);

@@ -19,24 +19,72 @@ themeToggle.addEventListener('click', () => {
 const STORAGE_KEY = 'cinetrack_movies';
 const POSTER_BASE = 'https://image.tmdb.org/t/p/w200';
 
-let movies         = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-let activeType     = 'movie';   // 'movie' | 'tv' | 'anime'
-let activeStatus   = 'all';     // 'all' | 'watched' | 'watchlist'
-let searchQuery    = '';
-let countryFilter  = '';
-let gridSize       = localStorage.getItem('cinetrack_grid') || 'md';
-let editingId      = null;
+let movies          = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+let activeType      = 'movie';
+let activeStatus    = 'all';
+let searchQuery     = '';
+let countryFilter   = '';
+let gridSize        = localStorage.getItem('cinetrack_grid') || 'md';
+let editingId       = null;
 let pendingDeleteId = null;
-let selectedRating = 0;
-let tmdbSelection  = null;
+let selectedRating  = 0;
+let tmdbSelection   = null;
 let activeMediaType = 'movie';
-let searchTimer    = null;
-let currentPage    = 0;
-let pageSize       = parseInt(localStorage.getItem('cinetrack_pagesize') || '50');
-let selectMode     = false;
+let searchTimer     = null;
+let currentPage     = 0;
+let pageSize        = parseInt(localStorage.getItem('cinetrack_pagesize') || '50');
+let selectMode      = false;
+let cloudSyncTimer  = null;
+
+// ── Sync / Cloud ────────────────────────────────────────
+function setSyncState(state, detail = '') {
+  const el = document.getElementById('sync-indicator');
+  if (!el) return;
+  el.dataset.state = state;
+  const labels = { loading: 'Loading…', saving: 'Saving…', saved: 'Synced', error: detail || 'Sync failed — changes saved locally' };
+  el.title = labels[state] || '';
+}
+
+async function loadFromCloud() {
+  setSyncState('loading');
+  try {
+    const r = await fetch('/api/data');
+    if (!r.ok) throw new Error(`${r.status}`);
+    const { movies: cloud } = await r.json();
+    if (Array.isArray(cloud)) {
+      movies = cloud;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
+    }
+    setSyncState('saved');
+  } catch (e) {
+    setSyncState('error', 'Could not reach cloud — showing local data');
+  }
+  // Seed if still empty after cloud load
+  if (movies.length === 0) seedData();
+  updateCountryDropdown();
+  render();
+}
+
+async function pushToCloud() {
+  setSyncState('saving');
+  try {
+    const r = await fetch('/api/data', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ movies }),
+    });
+    if (!r.ok) throw new Error(`${r.status}`);
+    setSyncState('saved');
+  } catch (e) {
+    setSyncState('error', `Save failed (${e.message}) — data kept locally`);
+  }
+}
 
 function save() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
+  setSyncState('saving');
+  clearTimeout(cloudSyncTimer);
+  cloudSyncTimer = setTimeout(pushToCloud, 600);
 }
 
 function genId() {
@@ -656,7 +704,7 @@ confirmModal.addEventListener('click', e => { if (e.target === confirmModal) { c
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); confirmModal.classList.add('hidden'); } });
 
 // ── Seed data ───────────────────────────────────────────
-if (movies.length === 0) {
+function seedData() {
   movies = [
     { id: genId(), title: 'Inception', year: '2010', genre: 'Sci-Fi, Thriller', director: 'Christopher Nolan', country: 'United States', status: 'watched', rating: 9, runtime: 148, notes: 'Mind-bending. The spinning top...', posterUrl: 'https://image.tmdb.org/t/p/w200/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg', mediaType: 'movie', addedAt: Date.now() },
     { id: genId(), title: 'The Grand Budapest Hotel', year: '2014', genre: 'Comedy, Drama', director: 'Wes Anderson', country: 'Germany', status: 'watched', rating: 8, runtime: 99, notes: 'Gorgeous cinematography.', posterUrl: 'https://image.tmdb.org/t/p/w200/nX5XotM9yprCKarRFDtgpaKzkjr.jpg', mediaType: 'movie', addedAt: Date.now() },
@@ -866,6 +914,14 @@ Dune Part Two,2024,Sci-Fi,Denis Villeneuve,United States,watchlist,,,166,movie
 `;
 csvTemplate.href = URL.createObjectURL(new Blob([TEMPLATE_CSV], { type: 'text/csv' }));
 
+// ── Init ────────────────────────────────────────────────
 applyGridSize(gridSize);
-updateCountryDropdown();
-render();
+
+// Render immediately from localStorage cache (instant display)
+if (movies.length > 0) {
+  updateCountryDropdown();
+  render();
+}
+
+// Then sync with cloud (updates UI when done)
+loadFromCloud();
