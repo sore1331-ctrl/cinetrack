@@ -402,6 +402,7 @@ function applyTMDBSelection(details) {
   tmdbQuery.disabled = true;
 
   document.getElementById('f-title').value    = details.title    || '';
+  populateYearSelect(details.year || '');
   document.getElementById('f-year').value     = details.year     || '';
   document.getElementById('f-genre').value    = details.genre    || '';
   document.getElementById('f-director').value = details.director || '';
@@ -902,6 +903,17 @@ bulkDelete.addEventListener('click', () => {
   save(); updateCountryDropdown(); render();
 });
 
+// ── Year select ─────────────────────────────────────────
+function populateYearSelect(selectedYear) {
+  const sel = document.getElementById('f-year');
+  const cur = new Date().getFullYear();
+  let opts = '<option value="">— Year —</option>';
+  for (let y = cur + 1; y >= 1888; y--) {
+    opts += `<option value="${y}"${String(y) === String(selectedYear) ? ' selected' : ''}>${y}</option>`;
+  }
+  sel.innerHTML = opts;
+}
+
 // ── Modal ───────────────────────────────────────────────
 function openModal(movie = null) {
   editingId = movie ? movie.id : null;
@@ -915,7 +927,7 @@ function openModal(movie = null) {
   resetTMDBUI();
 
   document.getElementById('f-title').value    = movie?.title    || '';
-  document.getElementById('f-year').value     = movie?.year     || '';
+  populateYearSelect(movie?.year || '');
   document.getElementById('f-genre').value    = movie?.genre    || '';
   document.getElementById('f-director').value = movie?.director || '';
   document.getElementById('f-country').value  = movie?.country  || '';
@@ -988,6 +1000,16 @@ grid.addEventListener('click', e => {
   const editId   = e.target.dataset.edit;
   const toggleId = e.target.dataset.toggle;
   const deleteId = e.target.dataset.delete;
+
+  // Click poster to edit (skip in select mode or when clicking checkbox)
+  if (!editId && !toggleId && !deleteId && !selectMode && !e.target.closest('.card-checkbox')) {
+    const poster = e.target.closest('.card-poster');
+    if (poster) {
+      const card = poster.closest('.movie-card');
+      if (card?.dataset.id) openModal(movies.find(m => m.id === card.dataset.id));
+      return;
+    }
+  }
 
   if (editId) {
     openModal(movies.find(m => m.id === editId));

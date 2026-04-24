@@ -337,6 +337,27 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 20px 0; }
 .btn-sm:hover { border-color: var(--accent); color: var(--text); }
 .btn-sm.danger:hover { border-color: #c0392b; color: #c0392b; }
 
+/* ── Poster click-to-edit overlay ── */
+.movie-grid:not(.select-mode) .card-poster { cursor: pointer; }
+
+.movie-grid:not(.select-mode) .card-poster::after {
+  content: '✏ Edit';
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,.52);
+  color: #fff;
+  font-size: .82rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity .15s;
+  pointer-events: none;
+}
+.movie-grid:not(.select-mode) .movie-card:hover .card-poster::after { opacity: 1; }
+
 /* ── Card checkbox (bulk select) ── */
 .card-poster { position: relative; }
 
@@ -560,9 +581,9 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 20px 0; }
   border-radius: var(--radius);
   padding: 28px;
   width: 100%;
-  max-width: 500px;
+  max-width: 620px;
   box-shadow: var(--shadow);
-  max-height: 90vh;
+  max-height: 92vh;
   overflow-y: auto;
 }
 .modal-card.small { max-width: 340px; }
@@ -759,6 +780,19 @@ label textarea { resize: vertical; }
   justify-content: flex-end;
   margin-top: 4px;
 }
+
+#save-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 9px 28px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: .95rem;
+  font-weight: 700;
+  transition: opacity .15s;
+}
+#save-btn:hover { opacity: .85; }
 
 button.secondary {
   background: transparent;

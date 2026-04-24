@@ -197,10 +197,47 @@
           </label>
           <div class="row-2">
             <label>Year
-              <input type="number" id="f-year" min="1888" max="2099" placeholder="e.g. 2010" />
+              <select id="f-year"><option value="">— Year —</option></select>
             </label>
             <label>Country
-              <input type="text" id="f-country" placeholder="e.g. United States" />
+              <input type="text" id="f-country" placeholder="e.g. United States" list="country-datalist" autocomplete="off" />
+              <datalist id="country-datalist">
+                <option value="United States"></option><option value="United Kingdom"></option>
+                <option value="Japan"></option><option value="France"></option>
+                <option value="Germany"></option><option value="South Korea"></option>
+                <option value="Italy"></option><option value="Spain"></option>
+                <option value="China"></option><option value="India"></option>
+                <option value="Australia"></option><option value="Canada"></option>
+                <option value="Brazil"></option><option value="Mexico"></option>
+                <option value="Argentina"></option><option value="Russia"></option>
+                <option value="Sweden"></option><option value="Denmark"></option>
+                <option value="Norway"></option><option value="Finland"></option>
+                <option value="Poland"></option><option value="Czech Republic"></option>
+                <option value="Hungary"></option><option value="Romania"></option>
+                <option value="Austria"></option><option value="Switzerland"></option>
+                <option value="Belgium"></option><option value="Netherlands"></option>
+                <option value="Portugal"></option><option value="Greece"></option>
+                <option value="Turkey"></option><option value="Israel"></option>
+                <option value="Iran"></option><option value="Egypt"></option>
+                <option value="Nigeria"></option><option value="South Africa"></option>
+                <option value="Morocco"></option><option value="Kenya"></option>
+                <option value="Ethiopia"></option><option value="Ghana"></option>
+                <option value="Thailand"></option><option value="Vietnam"></option>
+                <option value="Indonesia"></option><option value="Malaysia"></option>
+                <option value="Philippines"></option><option value="Taiwan"></option>
+                <option value="Hong Kong"></option><option value="Singapore"></option>
+                <option value="Pakistan"></option><option value="Bangladesh"></option>
+                <option value="Sri Lanka"></option><option value="New Zealand"></option>
+                <option value="Ireland"></option><option value="Serbia"></option>
+                <option value="Croatia"></option><option value="Ukraine"></option>
+                <option value="Kazakhstan"></option><option value="Colombia"></option>
+                <option value="Chile"></option><option value="Peru"></option>
+                <option value="Venezuela"></option><option value="Cuba"></option>
+                <option value="Jordan"></option><option value="Saudi Arabia"></option>
+                <option value="Iraq"></option><option value="Lebanon"></option>
+                <option value="Algeria"></option><option value="Tunisia"></option>
+                <option value="Senegal"></option><option value="Cambodia"></option>
+              </datalist>
             </label>
           </div>
           <div class="row-2">
@@ -225,7 +262,7 @@
           <input type="number" id="f-runtime" min="0" max="99999" placeholder="e.g. 148 (filled from TMDB)" />
         </label>
         <label>Notes
-          <textarea id="f-notes" rows="3" placeholder="Your thoughts..."></textarea>
+          <textarea id="f-notes" rows="5" placeholder="Your thoughts..."></textarea>
         </label>
         <div class="modal-actions">
           <button type="button" id="cancel-btn" class="secondary">Cancel</button>
