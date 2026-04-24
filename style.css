@@ -904,3 +904,168 @@ button.danger:hover { opacity: .85; }
   .select-mode-btn, .page-size-select { font-size: .78rem; padding: 6px 9px; }
   .bulk-bar { left: 12px; right: 12px; transform: none; flex-wrap: wrap; }
 }
+
+/* ── Auth overlay ── */
+.auth-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+  padding: 20px;
+}
+
+.auth-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 36px 32px;
+  width: 100%;
+  max-width: 380px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.auth-logo { text-align: center; }
+.auth-logo h1 { font-size: 1.8rem; font-weight: 800; color: var(--accent); letter-spacing: -.5px; }
+.auth-logo p  { color: var(--muted); font-size: .9rem; margin-top: 4px; }
+
+.auth-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: .9rem;
+}
+
+.auth-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.auth-tabs {
+  display: flex;
+  gap: 0;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 3px;
+}
+
+.auth-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  padding: 7px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: .88rem;
+  font-weight: 500;
+  transition: all .15s;
+}
+.auth-tab:hover { color: var(--text); }
+.auth-tab.active { background: var(--surface); color: var(--text); font-weight: 700; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+
+.auth-submit {
+  width: 100%;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 11px;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity .15s;
+  margin-top: 2px;
+}
+.auth-submit:hover { opacity: .87; }
+.auth-submit:disabled { opacity: .5; cursor: not-allowed; }
+
+.auth-error   { color: #e07070; font-size: .85rem; background: rgba(192,57,43,.15); border: 1px solid rgba(192,57,43,.4); border-radius: 8px; padding: 8px 12px; }
+.auth-success { color: #4caf82; font-size: .85rem; background: rgba(76,175,130,.1); border: 1px solid rgba(76,175,130,.3); border-radius: 8px; padding: 8px 12px; }
+
+.auth-offline-btn {
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 9px;
+  border-radius: var(--radius);
+  font-size: .85rem;
+  cursor: pointer;
+  transition: all .15s;
+}
+.auth-offline-btn:hover { border-color: var(--text); color: var(--text); }
+
+/* ── User menu ── */
+.user-menu {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.user-avatar-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: .9rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color .15s;
+}
+.user-avatar-btn:hover { border-color: var(--accent); }
+
+.user-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 8px;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 50;
+}
+.user-dropdown.hidden { display: none !important; }
+
+.user-email-label {
+  font-size: .8rem;
+  color: var(--muted);
+  padding: 4px 8px;
+  word-break: break-all;
+}
+
+.signout-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 7px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: .85rem;
+  transition: all .15s;
+  text-align: left;
+}
+.signout-btn:hover { border-color: var(--accent); color: #e07070; }

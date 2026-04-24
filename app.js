@@ -36,55 +36,78 @@ let pageSize        = parseInt(localStorage.getItem('cinetrack_pagesize') || '50
 let selectMode      = false;
 let cloudSyncTimer  = null;
 
-// ── Sync / Cloud ────────────────────────────────────────
+// Supabase
+let sb          = null;   // supabase client
+let currentUser = null;
+let offlineMode = false;
+
+// ── Sync state indicator ────────────────────────────────
 function setSyncState(state, detail = '') {
   const el = document.getElementById('sync-indicator');
   if (!el) return;
   el.dataset.state = state;
-  const labels = { loading: 'Loading…', saving: 'Saving…', saved: 'Synced', error: detail || 'Sync failed — changes saved locally' };
-  el.title = labels[state] || '';
+  el.title = { loading: 'Loading…', saving: 'Saving…', saved: 'Synced ✓', error: detail || 'Offline — saved locally' }[state] || '';
 }
 
-async function loadFromCloud() {
+// ── Supabase init ───────────────────────────────────────
+async function initSupabase() {
+  try {
+    const r = await fetch('/api/config');
+    if (!r.ok) throw new Error();
+    const { supabaseUrl, supabaseKey } = await r.json();
+    if (!supabaseUrl || !supabaseKey) throw new Error();
+    sb = window.supabase.createClient(supabaseUrl, supabaseKey);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ── User data load / save ───────────────────────────────
+async function loadUserData() {
+  if (!sb || !currentUser) return;
   setSyncState('loading');
   try {
-    const r = await fetch('/api/data');
-    if (!r.ok) throw new Error(`${r.status}`);
-    const { movies: cloud } = await r.json();
-    if (Array.isArray(cloud)) {
-      movies = cloud;
+    const { data, error } = await sb
+      .from('user_data')
+      .select('movies')
+      .eq('user_id', currentUser.id)
+      .maybeSingle();
+    if (error) throw error;
+    if (data?.movies && Array.isArray(data.movies)) {
+      movies = data.movies;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
+    } else if (movies.length === 0) {
+      seedData();
     }
     setSyncState('saved');
   } catch (e) {
-    setSyncState('error', 'Could not reach cloud — showing local data');
+    setSyncState('error', e.message);
+    if (movies.length === 0) seedData();
   }
-  // Seed if still empty after cloud load
-  if (movies.length === 0) seedData();
   updateCountryDropdown();
   render();
 }
 
-async function pushToCloud() {
-  setSyncState('saving');
+async function saveUserData() {
+  if (!sb || !currentUser) return;
   try {
-    const r = await fetch('/api/data', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ movies }),
-    });
-    if (!r.ok) throw new Error(`${r.status}`);
+    const { error } = await sb
+      .from('user_data')
+      .upsert({ user_id: currentUser.id, movies, updated_at: new Date().toISOString() });
+    if (error) throw error;
     setSyncState('saved');
   } catch (e) {
-    setSyncState('error', `Save failed (${e.message}) — data kept locally`);
+    setSyncState('error', e.message);
   }
 }
 
 function save() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
+  if (offlineMode || !currentUser) return;
   setSyncState('saving');
   clearTimeout(cloudSyncTimer);
-  cloudSyncTimer = setTimeout(pushToCloud, 600);
+  cloudSyncTimer = setTimeout(saveUserData, 600);
 }
 
 function genId() {
@@ -457,7 +480,6 @@ function renderPagination(totalItems) {
 function render() {
   const list = filtered();
 
-  // Remove stale selections
   const visibleIds = new Set(list.map(m => m.id));
   for (const id of selectedIds) {
     if (!visibleIds.has(id)) selectedIds.delete(id);
@@ -465,7 +487,6 @@ function render() {
   updateBulkBar();
   updateStats();
 
-  // Clamp page
   const totalPages = Math.max(1, Math.ceil(list.length / pageSize));
   if (currentPage >= totalPages) currentPage = totalPages - 1;
   if (currentPage < 0) currentPage = 0;
@@ -529,12 +550,12 @@ function render() {
 }
 
 // ── Bulk select ─────────────────────────────────────────
-const bulkBar          = document.getElementById('bulk-bar');
-const bulkCount        = document.getElementById('bulk-count');
-const bulkSelectAll    = document.getElementById('bulk-select-all');
-const bulkDeselect     = document.getElementById('bulk-deselect');
-const bulkDelete       = document.getElementById('bulk-delete');
-const bulkMarkWatched  = document.getElementById('bulk-mark-watched');
+const bulkBar           = document.getElementById('bulk-bar');
+const bulkCount         = document.getElementById('bulk-count');
+const bulkSelectAll     = document.getElementById('bulk-select-all');
+const bulkDeselect      = document.getElementById('bulk-deselect');
+const bulkDelete        = document.getElementById('bulk-delete');
+const bulkMarkWatched   = document.getElementById('bulk-mark-watched');
 const bulkMarkWatchlist = document.getElementById('bulk-mark-watchlist');
 
 function updateBulkBar() {
@@ -554,26 +575,17 @@ grid.addEventListener('change', e => {
   updateBulkBar();
 });
 
-bulkSelectAll.addEventListener('click', () => {
-  filtered().forEach(m => selectedIds.add(m.id));
-  render();
-});
-
-bulkDeselect.addEventListener('click', () => {
-  selectedIds.clear();
-  render();
-});
+bulkSelectAll.addEventListener('click', () => { filtered().forEach(m => selectedIds.add(m.id)); render(); });
+bulkDeselect.addEventListener('click', () => { selectedIds.clear(); render(); });
 
 bulkMarkWatched.addEventListener('click', () => {
   movies.forEach(m => { if (selectedIds.has(m.id)) m.status = 'watched'; });
-  selectedIds.clear();
-  save(); render();
+  selectedIds.clear(); save(); render();
 });
 
 bulkMarkWatchlist.addEventListener('click', () => {
   movies.forEach(m => { if (selectedIds.has(m.id)) { m.status = 'watchlist'; m.rating = 0; } });
-  selectedIds.clear();
-  save(); render();
+  selectedIds.clear(); save(); render();
 });
 
 bulkDelete.addEventListener('click', () => {
@@ -581,9 +593,7 @@ bulkDelete.addEventListener('click', () => {
   if (!confirm(`Delete ${n} title${n !== 1 ? 's' : ''}? This cannot be undone.`)) return;
   movies = movies.filter(m => !selectedIds.has(m.id));
   selectedIds.clear();
-  save();
-  updateCountryDropdown();
-  render();
+  save(); updateCountryDropdown(); render();
 });
 
 // ── Modal ───────────────────────────────────────────────
@@ -657,10 +667,7 @@ form.addEventListener('submit', e => {
     movies.unshift({ id: genId(), addedAt: Date.now(), ...data });
   }
 
-  save();
-  updateCountryDropdown();
-  render();
-  closeModal();
+  save(); updateCountryDropdown(); render(); closeModal();
 });
 
 // ── Events ──────────────────────────────────────────────
@@ -738,9 +745,7 @@ const COL_MAP = {
   genre: 'genre', genres: 'genre',
   director: 'director', creator: 'director', created_by: 'director',
   country: 'country', origin_country: 'country',
-  status: 'status',
-  rating: 'rating',
-  runtime: 'runtime',
+  status: 'status', rating: 'rating', runtime: 'runtime',
   notes: 'notes', overview: 'notes', description: 'notes',
   type: 'mediaType', media_type: 'mediaType', mediatype: 'mediaType',
   poster: 'posterUrl', poster_url: 'posterUrl', posterurl: 'posterUrl',
@@ -773,10 +778,7 @@ function parseCSV(text) {
     if (!line) continue;
     const vals = parseLine(line);
     const obj = {};
-    headers.forEach((h, idx) => {
-      const field = COL_MAP[h];
-      if (field) obj[field] = vals[idx] ?? '';
-    });
+    headers.forEach((h, idx) => { const field = COL_MAP[h]; if (field) obj[field] = vals[idx] ?? ''; });
     rows.push(obj);
   }
   return rows;
@@ -790,13 +792,13 @@ function showToast(msg, isError = false) {
 }
 
 function normaliseRow(row) {
-  const rawType = (row.mediaType || '').toLowerCase();
+  const rawType   = (row.mediaType || '').toLowerCase();
   const mediaType = (rawType === 'tv' || rawType === 'tv show' || rawType === 'show') ? 'tv' : 'movie';
   const rawStatus = (row.status || '').toLowerCase();
-  const status = rawStatus === 'watched' ? 'watched' : 'watchlist';
-  const rating = status === 'watched' ? Math.min(10, Math.max(0, parseInt(row.rating) || 0)) : 0;
-  const year = (row.year || '').toString().slice(0, 4);
-  const runtime = parseInt(row.runtime) || 0;
+  const status    = rawStatus === 'watched' ? 'watched' : 'watchlist';
+  const rating    = status === 'watched' ? Math.min(10, Math.max(0, parseInt(row.rating) || 0)) : 0;
+  const year      = (row.year || '').toString().slice(0, 4);
+  const runtime   = parseInt(row.runtime) || 0;
   return { mediaType, status, rating, year, runtime };
 }
 
@@ -808,88 +810,47 @@ async function matchWithTMDB(title, year, mediaType) {
     if (!r.ok) return null;
     const data = await r.json();
     return data.matched ? data : null;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 async function importRows(rows) {
   cancelImport = false;
   importProgress.classList.remove('hidden');
-
   let imported = 0, skipped = 0, unmatched = 0;
   const total = rows.length;
 
   for (let i = 0; i < total; i++) {
     if (cancelImport) break;
-
     const row = rows[i];
     const title = row.title?.trim();
     if (!title) { skipped++; continue; }
-
     const { mediaType, status, rating, year, runtime } = normaliseRow(row);
-
-    const dup = movies.some(m =>
-      m.title.toLowerCase() === title.toLowerCase() &&
-      m.mediaType === mediaType &&
-      (m.year || '') === year
-    );
+    const dup = movies.some(m => m.title.toLowerCase() === title.toLowerCase() && m.mediaType === mediaType && (m.year || '') === year);
     if (dup) { skipped++; continue; }
-
     progressText.textContent = `Matching "${title}" (${i + 1} of ${total})…`;
-    progressBar.style.width = `${Math.round(((i) / total) * 100)}%`;
-
+    progressBar.style.width = `${Math.round((i / total) * 100)}%`;
     const tmdb = await matchWithTMDB(title, year, mediaType);
-
     if (tmdb) {
-      movies.push({
-        id: genId(), addedAt: Date.now(),
-        title:     tmdb.title,
-        year:      tmdb.year,
-        genre:     tmdb.genre,
-        director:  tmdb.director,
-        country:   tmdb.country,
-        notes:     row.notes || tmdb.overview || '',
-        posterUrl: tmdb.poster_path ? `https://image.tmdb.org/t/p/w200${tmdb.poster_path}` : '',
-        tmdbId:    tmdb.tmdbId,
-        runtime:   tmdb.runtime || runtime,
-        mediaType, status, rating,
-      });
+      movies.push({ id: genId(), addedAt: Date.now(), title: tmdb.title, year: tmdb.year, genre: tmdb.genre, director: tmdb.director, country: tmdb.country, notes: row.notes || tmdb.overview || '', posterUrl: tmdb.poster_path ? `https://image.tmdb.org/t/p/w200${tmdb.poster_path}` : '', tmdbId: tmdb.tmdbId, runtime: tmdb.runtime || runtime, mediaType, status, rating });
     } else {
       unmatched++;
-      movies.push({
-        id: genId(), addedAt: Date.now(),
-        title,
-        year,
-        genre:     row.genre     || '',
-        director:  row.director  || '',
-        country:   row.country   || '',
-        notes:     row.notes     || '',
-        posterUrl: row.posterUrl || '',
-        tmdbId:    null,
-        runtime,
-        mediaType, status, rating,
-      });
+      movies.push({ id: genId(), addedAt: Date.now(), title, year, genre: row.genre || '', director: row.director || '', country: row.country || '', notes: row.notes || '', posterUrl: row.posterUrl || '', tmdbId: null, runtime, mediaType, status, rating });
     }
     imported++;
   }
 
   progressBar.style.width = '100%';
   importProgress.classList.add('hidden');
-  save();
-  updateCountryDropdown();
-  render();
-
+  save(); updateCountryDropdown(); render();
   const parts = [`Imported ${imported} title${imported !== 1 ? 's' : ''}`];
-  if (skipped)   parts.push(`${skipped} duplicate${skipped !== 1 ? 's' : ''} skipped`);
-  if (unmatched) parts.push(`${unmatched} not found on TMDB`);
+  if (skipped)   parts.push(`${skipped} skipped`);
+  if (unmatched) parts.push(`${unmatched} not on TMDB`);
   if (cancelImport) parts.push('cancelled');
   showToast(parts.join(' · '));
 }
 
 progressCancel.addEventListener('click', () => { cancelImport = true; });
 importBtn.addEventListener('click', () => csvInput.click());
-
 csvInput.addEventListener('change', () => {
   const file = csvInput.files[0];
   if (!file) return;
@@ -900,28 +861,166 @@ csvInput.addEventListener('change', () => {
       const rows = parseCSV(e.target.result);
       if (!rows.length) { showToast('CSV appears empty or has no valid rows.', true); return; }
       importRows(rows);
-    } catch {
-      showToast('Failed to parse CSV. Check the file format.', true);
-    }
+    } catch { showToast('Failed to parse CSV. Check the file format.', true); }
   };
   reader.readAsText(file);
 });
 
-const TEMPLATE_CSV = `title,year,genre,director,country,status,rating,runtime,notes,type
-Inception,2010,"Sci-Fi, Thriller",Christopher Nolan,United States,watched,9,148,Mind-bending film,movie
-Breaking Bad,2008,"Crime, Drama",Vince Gilligan,United States,watched,10,2700,Greatest TV drama,tv
-Dune Part Two,2024,Sci-Fi,Denis Villeneuve,United States,watchlist,,,166,movie
-`;
+const TEMPLATE_CSV = `title,year,genre,director,country,status,rating,runtime,notes,type\nInception,2010,"Sci-Fi, Thriller",Christopher Nolan,United States,watched,9,148,Mind-bending film,movie\nBreaking Bad,2008,"Crime, Drama",Vince Gilligan,United States,watched,10,2700,Greatest TV drama,tv\n`;
 csvTemplate.href = URL.createObjectURL(new Blob([TEMPLATE_CSV], { type: 'text/csv' }));
+
+// ── Auth UI ──────────────────────────────────────────────
+const authOverlay  = document.getElementById('auth-overlay');
+const authLoading  = document.getElementById('auth-loading');
+const authFormWrap = document.getElementById('auth-form-wrap');
+const authForm     = document.getElementById('auth-form');
+const authEmail    = document.getElementById('auth-email');
+const authPassword = document.getElementById('auth-password');
+const authError    = document.getElementById('auth-error');
+const authSuccess  = document.getElementById('auth-success');
+const authSubmit   = document.getElementById('auth-submit');
+const authOffline  = document.getElementById('auth-offline');
+const userMenu     = document.getElementById('user-menu');
+const userAvatar   = document.getElementById('user-avatar');
+const userEmailEl  = document.getElementById('user-email');
+const signoutBtn   = document.getElementById('signout-btn');
+
+let authMode = 'signin';
+
+document.querySelectorAll('.auth-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.auth-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    authMode = btn.dataset.tab;
+    authSubmit.textContent = authMode === 'signin' ? 'Sign In' : 'Create Account';
+    authError.classList.add('hidden');
+    authSuccess.classList.add('hidden');
+  });
+});
+
+authForm.addEventListener('submit', async e => {
+  e.preventDefault();
+  const email    = authEmail.value.trim();
+  const password = authPassword.value;
+  authError.classList.add('hidden');
+  authSuccess.classList.add('hidden');
+  authSubmit.disabled = true;
+  authSubmit.textContent = '…';
+
+  try {
+    if (authMode === 'signin') {
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+    } else {
+      const { error } = await sb.auth.signUp({ email, password });
+      if (error) throw error;
+      authSuccess.textContent = 'Account created! Check your email to confirm, then sign in.';
+      authSuccess.classList.remove('hidden');
+      authSubmit.disabled = false;
+      authSubmit.textContent = 'Create Account';
+      return;
+    }
+  } catch (err) {
+    authError.textContent = err.message;
+    authError.classList.remove('hidden');
+  }
+  authSubmit.disabled = false;
+  authSubmit.textContent = authMode === 'signin' ? 'Sign In' : 'Create Account';
+});
+
+authOffline.addEventListener('click', () => {
+  offlineMode = true;
+  hideAuthOverlay();
+  if (movies.length === 0) seedData();
+  setSyncState('error', 'Offline mode — changes saved locally only');
+  updateCountryDropdown();
+  render();
+});
+
+function showAuthOverlay(mode = 'form') {
+  authOverlay.classList.remove('hidden');
+  if (mode === 'loading') {
+    authLoading.classList.remove('hidden');
+    authFormWrap.classList.add('hidden');
+  } else {
+    authLoading.classList.add('hidden');
+    authFormWrap.classList.remove('hidden');
+  }
+}
+
+function hideAuthOverlay() {
+  authOverlay.classList.add('hidden');
+}
+
+function updateUserMenu() {
+  if (!currentUser) { userMenu.classList.add('hidden'); return; }
+  userMenu.classList.remove('hidden');
+  userAvatar.textContent   = currentUser.email[0].toUpperCase();
+  userEmailEl.textContent  = currentUser.email;
+}
+
+document.getElementById('user-avatar-btn').addEventListener('click', e => {
+  e.stopPropagation();
+  document.getElementById('user-dropdown').classList.toggle('open');
+});
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#user-menu')) {
+    document.getElementById('user-dropdown').classList.remove('open');
+  }
+});
+
+signoutBtn.addEventListener('click', async () => {
+  await sb.auth.signOut();
+  currentUser = null;
+  movies = [];
+  localStorage.removeItem(STORAGE_KEY);
+  document.getElementById('user-dropdown').classList.remove('open');
+  updateUserMenu();
+  showAuthOverlay('form');
+});
 
 // ── Init ────────────────────────────────────────────────
 applyGridSize(gridSize);
 
-// Render immediately from localStorage cache (instant display)
-if (movies.length > 0) {
-  updateCountryDropdown();
-  render();
-}
+// Render cached data immediately for instant display
+if (movies.length > 0) { updateCountryDropdown(); render(); }
 
-// Then sync with cloud (updates UI when done)
-loadFromCloud();
+(async () => {
+  showAuthOverlay('loading');
+
+  const hasSupabase = await initSupabase();
+
+  if (!hasSupabase) {
+    offlineMode = true;
+    hideAuthOverlay();
+    setSyncState('error', 'Database not configured — offline mode');
+    if (movies.length === 0) seedData();
+    updateCountryDropdown();
+    render();
+    return;
+  }
+
+  // React to auth changes (e.g. email confirmation redirect)
+  sb.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN' && session?.user) {
+      currentUser = session.user;
+      updateUserMenu();
+      hideAuthOverlay();
+      await loadUserData();
+    } else if (event === 'SIGNED_OUT') {
+      currentUser = null;
+      updateUserMenu();
+    }
+  });
+
+  const { data: { session } } = await sb.auth.getSession();
+  if (session?.user) {
+    currentUser = session.user;
+    updateUserMenu();
+    hideAuthOverlay();
+    await loadUserData();
+  } else {
+    showAuthOverlay('form');
+  }
+})();

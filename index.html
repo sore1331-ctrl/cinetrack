@@ -8,10 +8,53 @@
 </head>
 <body>
 
+  <!-- Auth overlay (shown before login) -->
+  <div id="auth-overlay" class="auth-overlay">
+    <div class="auth-card">
+      <div class="auth-logo">
+        <h1>CineTrack</h1>
+        <p>Your personal film &amp; TV tracker</p>
+      </div>
+
+      <div id="auth-loading" class="auth-loading">
+        <div class="auth-spinner"></div>
+        <p>Connecting…</p>
+      </div>
+
+      <div id="auth-form-wrap" class="hidden">
+        <div class="auth-tabs">
+          <button class="auth-tab active" data-tab="signin">Sign In</button>
+          <button class="auth-tab" data-tab="signup">Create Account</button>
+        </div>
+        <form id="auth-form" autocomplete="on">
+          <label>Email
+            <input type="email" id="auth-email" required autocomplete="email" placeholder="you@example.com" />
+          </label>
+          <label>Password
+            <input type="password" id="auth-password" required autocomplete="current-password" placeholder="••••••••" minlength="6" />
+          </label>
+          <p id="auth-error" class="auth-error hidden"></p>
+          <button type="submit" id="auth-submit" class="auth-submit">Sign In</button>
+        </form>
+        <p id="auth-success" class="auth-success hidden"></p>
+        <button id="auth-offline" class="auth-offline-btn">Continue without account</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Minimal header -->
   <header>
     <h1>CineTrack</h1>
     <div id="sync-indicator" class="sync-indicator" data-state="loading" title="Loading…"></div>
+    <div id="user-menu" class="user-menu hidden">
+      <button class="user-avatar-btn" id="user-avatar-btn">
+        <span id="user-avatar">?</span>
+      </button>
+      <div class="user-dropdown" id="user-dropdown">
+        <span id="user-email" class="user-email-label"></span>
+        <button id="signout-btn" class="signout-btn">Sign out</button>
+      </div>
+    </div>
     <button id="theme-toggle" class="theme-toggle" title="Toggle light/dark mode">🌙</button>
   </header>
 
@@ -57,10 +100,7 @@
       <button id="add-btn">+ Add</button>
     </section>
 
-    <!-- Stats bar -->
     <div id="stats-bar" class="stats-bar"></div>
-
-    <!-- Import result toast -->
     <div id="import-toast" class="import-toast hidden"></div>
 
     <!-- Bulk action bar -->
@@ -91,7 +131,6 @@
 
     <div id="movie-grid" class="movie-grid grid-md"></div>
     <p id="empty-msg" class="empty-msg hidden">No titles found. Add one!</p>
-
     <div id="pagination" class="pagination hidden"></div>
   </main>
 
@@ -99,13 +138,11 @@
   <div id="modal" class="modal hidden">
     <div class="modal-card">
       <h2 id="modal-title">Add Title</h2>
-
       <div class="type-toggle" id="type-toggle">
         <button type="button" class="type-btn active" data-type="movie">🎬 Movie</button>
         <button type="button" class="type-btn" data-type="tv">📺 TV Show</button>
         <button type="button" class="type-btn" data-type="anime">🎌 Anime</button>
       </div>
-
       <form id="movie-form">
         <div class="tmdb-search-wrap" id="tmdb-search-wrap">
           <label id="tmdb-search-label">Search TMDB
@@ -125,7 +162,6 @@
           <div id="tmdb-searching" class="tmdb-status hidden">Searching…</div>
           <div id="tmdb-error" class="tmdb-status error hidden"></div>
         </div>
-
         <div id="manual-fields">
           <label>Title *
             <input type="text" id="f-title" required placeholder="e.g. Inception" />
@@ -147,7 +183,6 @@
             </label>
           </div>
         </div>
-
         <label>Status
           <select id="f-status">
             <option value="watchlist">Watchlist</option>
@@ -183,6 +218,7 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
