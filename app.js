@@ -641,6 +641,13 @@ async function renderCommunity() {
 
   communityGrid.innerHTML = '<p class="community-loading">Loading community…</p>';
 
+  // Timeout fallback — never stay permanently stuck on loading
+  const timeoutId = setTimeout(() => {
+    if (communityGrid.textContent.includes('Loading community')) {
+      communityGrid.innerHTML = '<p class="community-empty error">Timed out — check your Supabase setup and run the SQL from the README.</p>';
+    }
+  }, 12000);
+
   try {
     const { data: sharingProfiles, error: pe } = await sb
       .from('profiles')
@@ -648,7 +655,7 @@ async function renderCommunity() {
       .eq('sharing_enabled', true)
       .neq('user_id', currentUser.id);
 
-    if (pe) throw pe;
+    if (pe) throw new Error(pe.message || pe.details || JSON.stringify(pe));
 
     if (!sharingProfiles?.length) {
       communityGrid.innerHTML = `
@@ -666,9 +673,11 @@ async function renderCommunity() {
       .select('user_id, movies')
       .in('user_id', userIds);
 
-    if (de) throw de;
+    if (de) throw new Error(de.message || de.details || JSON.stringify(de));
 
-    const dataMap = Object.fromEntries((sharedData || []).map(d => [d.user_id, d.movies || []]));
+    const dataMap = Object.fromEntries(
+      (sharedData || []).map(d => [d.user_id, Array.isArray(d.movies) ? d.movies : []])
+    );
 
     const cards = sharingProfiles.map(profile => {
       const userMovies = dataMap[profile.user_id] || [];
@@ -710,7 +719,10 @@ async function renderCommunity() {
     communityGrid.innerHTML = cards || '<p class="community-empty">No data found.</p>';
 
   } catch (e) {
-    communityGrid.innerHTML = `<p class="community-empty error">Failed to load: ${esc(e.message)}</p>`;
+    console.error('Community load error:', e);
+    communityGrid.innerHTML = `<p class="community-empty error">Failed to load: ${esc(String(e?.message || e))}</p>`;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
