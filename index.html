@@ -33,6 +33,14 @@
         <button class="size-btn active" data-size="md">M</button>
         <button class="size-btn" data-size="lg">L</button>
       </div>
+      <button id="select-mode-btn" class="select-mode-btn" title="Toggle selection mode">☑ Select</button>
+      <select id="page-size-select" class="page-size-select" title="Items per page">
+        <option value="50">50 / page</option>
+        <option value="100">100 / page</option>
+        <option value="150">150 / page</option>
+        <option value="200">200 / page</option>
+        <option value="300">300 / page</option>
+      </select>
       <div class="import-wrap">
         <button id="import-btn" title="Import CSV">⬆ CSV</button>
         <input type="file" id="csv-input" accept=".csv,text/csv" style="display:none" />
@@ -40,6 +48,9 @@
       </div>
       <button id="add-btn">+ Add</button>
     </section>
+
+    <!-- Stats bar -->
+    <div id="stats-bar" class="stats-bar"></div>
 
     <!-- Import result toast -->
     <div id="import-toast" class="import-toast hidden"></div>
@@ -68,6 +79,9 @@
 
     <div id="movie-grid" class="movie-grid grid-md"></div>
     <p id="empty-msg" class="empty-msg hidden">No titles found. Add one!</p>
+
+    <!-- Pagination -->
+    <div id="pagination" class="pagination hidden"></div>
   </main>
 
   <!-- Add/Edit Modal -->
@@ -133,6 +147,9 @@
         </label>
         <label id="rating-label" class="hidden">Rating (1–10)
           <div class="star-row" id="star-row"></div>
+        </label>
+        <label>Runtime (minutes)
+          <input type="number" id="f-runtime" min="0" max="99999" placeholder="e.g. 148 (filled from TMDB)" />
         </label>
         <label>Notes
           <textarea id="f-notes" rows="3" placeholder="Your thoughts..."></textarea>

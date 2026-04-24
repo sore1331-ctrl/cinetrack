@@ -22,6 +22,10 @@ export default async function handler(req, res) {
     // Country: production_countries works for both movie and TV
     const country = data.production_countries?.[0]?.name || '';
 
+    const runtime = mediaType === 'movie'
+      ? (data.runtime || 0)
+      : Math.round((data.episode_run_time?.[0] || 0) * (data.number_of_episodes || 0));
+
     res.json({
       id:          data.id,
       title:       data.title || data.name || '',
@@ -32,6 +36,7 @@ export default async function handler(req, res) {
       poster_path: data.poster_path || null,
       country,
       media_type:  mediaType,
+      runtime,
     });
   } catch (e) {
     res.status(500).json({ error: 'Failed to reach TMDB' });

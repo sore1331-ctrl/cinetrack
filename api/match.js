@@ -8,6 +8,10 @@ async function fetchDetails(id, mediaType, key) {
     ? (data.created_by?.[0]?.name || '')
     : (data.credits?.crew?.find(p => p.job === 'Director')?.name || '');
 
+  const runtime = mediaType === 'movie'
+    ? (data.runtime || 0)
+    : Math.round((data.episode_run_time?.[0] || 0) * (data.number_of_episodes || 0));
+
   return {
     matched:     true,
     tmdbId:      data.id,
@@ -18,6 +22,7 @@ async function fetchDetails(id, mediaType, key) {
     country:     data.production_countries?.[0]?.name || '',
     overview:    data.overview || '',
     poster_path: data.poster_path || null,
+    runtime,
   };
 }
 
