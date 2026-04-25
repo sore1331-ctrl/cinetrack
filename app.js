@@ -538,13 +538,16 @@ function formatRuntime(mins) {
 // ── Stats bar ───────────────────────────────────────────
 function updateStats() {
   const allOfType    = movies.filter(m => m.mediaType === activeType);
-  const watchedList  = allOfType.filter(m => m.status === 'watched');
-  const watchlistCnt = allOfType.filter(m => m.status === 'watchlist').length;
-  const totalMins    = watchedList.reduce((s, m) => s + (m.runtime || 0), 0);
-  const timeStr      = formatRuntime(totalMins);
+  const watchedList    = allOfType.filter(m => m.status === 'watched');
+  const inProgressCnt  = allOfType.filter(m => m.status === 'in_progress').length;
+  const watchlistCnt   = allOfType.filter(m => m.status === 'watchlist').length;
+  const totalMins      = watchedList.reduce((s, m) => s + (m.runtime || 0), 0);
+  const timeStr        = formatRuntime(totalMins);
 
   statsBar.innerHTML =
     `<span class="stat-item stat-watched">✓ <strong>${watchedList.length}</strong> watched</span>` +
+    `<span class="stat-sep">·</span>` +
+    `<span class="stat-item stat-in-progress">▶ <strong>${inProgressCnt}</strong> in progress</span>` +
     `<span class="stat-sep">·</span>` +
     `<span class="stat-item stat-watchlist">⏳ <strong>${watchlistCnt}</strong> on watchlist</span>` +
     (timeStr ? `<span class="stat-sep">·</span><span class="stat-item stat-time">⏱ <strong>${timeStr}</strong> spent watching</span>` : '');
@@ -1038,7 +1041,7 @@ function render() {
         </label>
       </div>
       <span class="badge badge-${m.status} card-status-badge">
-        ${m.status === 'watched' ? '✓ Watched' : '⏳ Watchlist'}
+        ${m.status === 'watched' ? '✓ Watched' : m.status === 'in_progress' ? '▶ In Progress' : '⏳ Watchlist'}
       </span>
       <div class="card-title">${esc(m.title)}</div>
       <div class="card-meta">
@@ -1055,9 +1058,9 @@ function render() {
           <span class="lbl-md lbl-lg">Edit</span><span class="lbl-sm">✎</span>
         </button>
         <button class="btn-sm" data-toggle="${m.id}">
-          <span class="lbl-lg">${m.status === 'watched' ? 'Watchlist' : 'Mark Watched'}</span>
-          <span class="lbl-md">${m.status === 'watched' ? 'List' : 'Watched'}</span>
-          <span class="lbl-sm">${m.status === 'watched' ? '⏳' : '✓'}</span>
+          <span class="lbl-lg">${m.status === 'watched' ? '⏳ Watchlist' : m.status === 'in_progress' ? '✓ Watched' : '▶ In Progress'}</span>
+          <span class="lbl-md">${m.status === 'watched' ? 'List' : m.status === 'in_progress' ? 'Watched' : 'In Prog'}</span>
+          <span class="lbl-sm">${m.status === 'watched' ? '⏳' : m.status === 'in_progress' ? '✓' : '▶'}</span>
         </button>
         <button class="btn-sm danger" data-delete="${m.id}">✕</button>
       </div>
@@ -1074,8 +1077,9 @@ const bulkCount         = document.getElementById('bulk-count');
 const bulkSelectAll     = document.getElementById('bulk-select-all');
 const bulkDeselect      = document.getElementById('bulk-deselect');
 const bulkDelete        = document.getElementById('bulk-delete');
-const bulkMarkWatched   = document.getElementById('bulk-mark-watched');
-const bulkMarkWatchlist = document.getElementById('bulk-mark-watchlist');
+const bulkMarkWatched     = document.getElementById('bulk-mark-watched');
+const bulkMarkInProgress  = document.getElementById('bulk-mark-in-progress');
+const bulkMarkWatchlist   = document.getElementById('bulk-mark-watchlist');
 
 function updateBulkBar() {
   const n = selectedIds.size;
@@ -1099,6 +1103,11 @@ bulkDeselect.addEventListener('click', () => { selectedIds.clear(); render(); })
 
 bulkMarkWatched.addEventListener('click', () => {
   movies.forEach(m => { if (selectedIds.has(m.id)) m.status = 'watched'; });
+  selectedIds.clear(); save(); render();
+});
+
+bulkMarkInProgress.addEventListener('click', () => {
+  movies.forEach(m => { if (selectedIds.has(m.id)) m.status = 'in_progress'; });
   selectedIds.clear(); save(); render();
 });
 
@@ -1161,7 +1170,8 @@ function closeModal() {
 }
 
 function toggleRatingLabel() {
-  ratingLabel.classList.toggle('hidden', document.getElementById('f-status').value !== 'watched');
+  const s = document.getElementById('f-status').value;
+  ratingLabel.classList.toggle('hidden', s !== 'watched' && s !== 'in_progress');
 }
 
 // ── Form submit ─────────────────────────────────────────
@@ -1184,7 +1194,7 @@ form.addEventListener('submit', e => {
     status:    document.getElementById('f-status').value,
     notes:     document.getElementById('f-notes').value    || '',
     runtime:   parseInt(document.getElementById('f-runtime').value) || 0,
-    rating:    document.getElementById('f-status').value === 'watched' ? selectedRating : 0,
+    rating:    ['watched', 'in_progress'].includes(document.getElementById('f-status').value) ? selectedRating : 0,
     mediaType: activeMediaType,
     posterUrl,
     tmdbId: tmdbSelection?.id || existing?.tmdbId || null,
@@ -1228,7 +1238,7 @@ grid.addEventListener('click', e => {
   } else if (toggleId) {
     const m = movies.find(m => m.id === toggleId);
     if (m) {
-      m.status = m.status === 'watched' ? 'watchlist' : 'watched';
+      m.status = m.status === 'watched' ? 'watchlist' : m.status === 'in_progress' ? 'watched' : 'in_progress';
       if (m.status === 'watchlist') m.rating = 0;
       save(); render();
     }

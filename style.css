@@ -282,8 +282,9 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 20px 0; }
   border-radius: 20px;
   font-weight: 600;
 }
-.badge-watched   { background: #1a3a2a; color: #4caf82; }
-.badge-watchlist { background: #2a2a1a; color: var(--accent2); }
+.badge-watched      { background: #1a3a2a; color: #4caf82; }
+.badge-in_progress  { background: #1a2a3a; color: #5ba3f5; }
+.badge-watchlist    { background: #2a2a1a; color: var(--accent2); }
 
 .card-status-badge {
   margin: 4px 14px 0;
