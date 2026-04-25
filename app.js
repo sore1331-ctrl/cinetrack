@@ -108,13 +108,12 @@ async function loadUserData() {
     if (data?.movies && Array.isArray(data.movies)) {
       movies = data.movies;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
-    } else if (movies.length === 0) {
-      seedData();
     }
     setSyncState('saved');
   } catch (e) {
+    console.error('Failed to load data from cloud:', e);
     setSyncState('error', e.message);
-    if (movies.length === 0) seedData();
+    showToast('Could not load your data from the cloud. Check your connection.', true);
   }
   updateCountryDropdown();
   refreshCurrentView();
@@ -129,7 +128,9 @@ async function saveUserData() {
     if (error) throw error;
     setSyncState('saved');
   } catch (e) {
+    console.error('Failed to save data to cloud:', e);
     setSyncState('error', e.message);
+    showToast('Cloud sync failed — your changes are saved locally only. (' + e.message + ')', true);
   }
 }
 
@@ -1213,7 +1214,8 @@ const authOffline  = document.getElementById('auth-offline');
 const userMenu     = document.getElementById('user-menu');
 const userAvatar   = document.getElementById('user-avatar');
 const userEmailEl  = document.getElementById('user-email');
-const signoutBtn   = document.getElementById('signout-btn');
+const signoutBtn      = document.getElementById('signout-btn');
+const reloadCloudBtn  = document.getElementById('reload-cloud-btn');
 
 let authMode = 'signin';
 
@@ -1349,6 +1351,13 @@ document.getElementById('sharing-toggle').addEventListener('change', async e => 
   await saveProfile({ sharing_enabled: sharingEnabled });
 });
 
+// ── Reload from cloud ───────────────────────────────────
+reloadCloudBtn.addEventListener('click', async () => {
+  document.getElementById('user-dropdown').classList.add('hidden');
+  await loadUserData();
+  showToast('Reloaded from cloud');
+});
+
 // ── Sign out ────────────────────────────────────────────
 signoutBtn.addEventListener('click', async () => {
   await sb.auth.signOut();
@@ -1360,6 +1369,15 @@ signoutBtn.addEventListener('click', async () => {
   document.getElementById('user-dropdown').classList.add('hidden');
   updateUserMenu();
   showAuthOverlay('form');
+});
+
+// ── Flush pending save when tab is hidden/closed ────────
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && cloudSyncTimer && !offlineMode && currentUser) {
+    clearTimeout(cloudSyncTimer);
+    cloudSyncTimer = null;
+    saveUserData();
+  }
 });
 
 // ── Init ────────────────────────────────────────────────
@@ -1382,14 +1400,23 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
     return;
   }
 
+  let userDataFetched = false;
+
+  async function handleUserSignIn(user) {
+    if (userDataFetched && currentUser?.id === user.id) return;
+    userDataFetched = true;
+    currentUser = user;
+    updateUserMenu();
+    hideAuthOverlay();
+    await loadProfile();
+    await loadUserData();
+  }
+
   sb.auth.onAuthStateChange(async (event, session) => {
     if (event === 'SIGNED_IN' && session?.user) {
-      currentUser = session.user;
-      updateUserMenu();
-      hideAuthOverlay();
-      await loadProfile();
-      await loadUserData();
+      await handleUserSignIn(session.user);
     } else if (event === 'SIGNED_OUT') {
+      userDataFetched = false;
       currentUser = null;
       updateUserMenu();
     }
@@ -1397,11 +1424,7 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
 
   const { data: { session } } = await sb.auth.getSession();
   if (session?.user) {
-    currentUser = session.user;
-    updateUserMenu();
-    hideAuthOverlay();
-    await loadProfile();
-    await loadUserData();
+    await handleUserSignIn(session.user);
   } else {
     showAuthOverlay('form');
   }
