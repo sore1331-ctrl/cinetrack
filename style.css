@@ -100,7 +100,11 @@ header h1 {
   margin: 0 auto;
   padding: 0 20px;
   display: flex;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+.type-tabs-inner::-webkit-scrollbar { display: none; }
 
 .type-tab {
   background: transparent;
@@ -948,8 +952,106 @@ button.danger:hover { opacity: .85; }
   white-space: nowrap;
 }
 
+/* ── Mobile (≤ 480px) ── */
+@media (max-width: 480px) {
+  /* Header */
+  header { padding: 0 14px; height: 48px; }
+  header h1 { font-size: 1.1rem; }
+  .theme-toggle { width: 32px; height: 32px; font-size: .85rem; }
+  .user-avatar-btn { width: 32px; height: 32px; }
+
+  /* Tab bar: scrollable row, smaller tabs */
+  .type-tabs-bar { top: 48px; }
+  .type-tabs-inner { padding: 0 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .type-tabs-inner::-webkit-scrollbar { display: none; }
+  .type-tab { padding: 10px 13px; font-size: .78rem; white-space: nowrap; }
+
+  /* Main content */
+  main { padding: 12px 12px 0; }
+
+  /* Controls: two-row layout */
+  .controls {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "search  addbtn"
+      "filters filters";
+    gap: 8px;
+    padding-top: 12px;
+    margin-bottom: 12px;
+  }
+  #search-input  { grid-area: search;  min-width: 0; padding: 9px 12px; font-size: .88rem; }
+  #add-btn       { grid-area: addbtn; padding: 9px 14px; font-size: .88rem; }
+  .status-tabs, .size-toggle, #country-filter,
+  .select-mode-btn, .page-size-select,
+  .import-wrap, .export-btn {
+    grid-area: filters;
+  }
+  /* Filters row: wrap tightly */
+  .controls > :not(#search-input):not(#add-btn) {
+    font-size: .75rem;
+  }
+  .status-btn { padding: 5px 8px; font-size: .75rem; }
+  #country-filter { padding: 6px 8px; font-size: .78rem; }
+  .select-mode-btn, .page-size-select { padding: 5px 8px; font-size: .75rem; }
+  .export-btn { padding: 6px 10px; font-size: .78rem; }
+  .import-wrap button { font-size: .78rem; padding: 6px 10px; }
+
+  /* Hide lowest-priority controls */
+  .page-info { display: none; }
+  .page-size-select { display: none; }
+
+  /* Grid: force 2+ columns even on MD */
+  .movie-grid.grid-md { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .movie-grid.grid-lg { grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); }
+
+  /* Cards */
+  .card-title { font-size: .85rem; }
+  .card-meta  { font-size: .72rem; }
+
+  /* Modal: full-screen sheet */
+  .modal { padding: 0; align-items: flex-end; }
+  .modal-card {
+    max-width: 100%;
+    border-radius: var(--radius) var(--radius) 0 0;
+    max-height: 94vh;
+    padding: 20px 18px;
+  }
+  .modal-card.small { border-radius: var(--radius) var(--radius) 0 0; max-width: 100%; }
+  .row-2 { grid-template-columns: 1fr; }
+
+  /* Bulk bar */
+  .bulk-bar { left: 8px; right: 8px; transform: none; flex-wrap: wrap; gap: 6px; padding: 10px 12px; }
+  .bulk-actions { flex-wrap: wrap; gap: 6px; }
+
+  /* Stats/Profile: 2-col stat cards */
+  .stats-overview { grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 20px; }
+  .stat-card { padding: 14px 12px; }
+  .stat-card-value { font-size: 1.4rem; }
+  .stats-charts { grid-template-columns: 1fr; gap: 12px; }
+
+  /* Profile hero */
+  .profile-hero { padding: 14px 16px; gap: 14px; margin-bottom: 18px; }
+  .profile-avatar-lg { width: 52px; height: 52px; font-size: 1.4rem; }
+  .profile-display-name { font-size: 1.05rem; }
+  .profile-type-grid { gap: 8px; }
+  .profile-type-card { min-width: 120px; padding: 10px 12px; }
+  .profile-recent { grid-template-columns: repeat(auto-fill, minmax(75px, 1fr)); gap: 8px; }
+
+  /* Community */
+  .community-top { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .community-grid { grid-template-columns: 1fr; }
+
+  /* User dropdown: prevent overflow off-screen */
+  .user-dropdown { right: 0; min-width: 190px; }
+
+  /* Supabase setup block */
+  .setup-sql-block { font-size: .68rem; }
+}
+
+/* ── Tablet / small desktop tweaks (≤ 600px) ── */
 @media (max-width: 600px) {
-  .type-tab { padding: 12px 16px; font-size: .85rem; }
+  .type-tab { padding: 11px 15px; font-size: .82rem; }
   .movie-grid.grid-lg { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
   .row-2 { grid-template-columns: 1fr; }
   .controls { gap: 7px; }
