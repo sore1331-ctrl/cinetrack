@@ -652,21 +652,53 @@ function renderStats() {
   loadRecommendations();
 }
 
+const DISMISSED_RECS_KEY = 'cinetrack_dismissed_recs';
+
+function getDismissedRecs() {
+  try { return new Set(JSON.parse(localStorage.getItem(DISMISSED_RECS_KEY) || '[]').map(String)); }
+  catch { return new Set(); }
+}
+function dismissRec(id) {
+  const set = getDismissedRecs();
+  set.add(String(id));
+  localStorage.setItem(DISMISSED_RECS_KEY, JSON.stringify([...set]));
+}
+
 async function loadRecommendations() {
   const section = document.getElementById('recs-section');
   if (!section) return;
 
-  const seeds = movies
-    .filter(m => m.status === 'watched' && m.tmdbId)
-    .sort((a, b) => (b.rating || 0) - (a.rating || 0) || (b.addedAt || 0) - (a.addedAt || 0))
+  // Genre frequency across watched titles (any rating)
+  const watched = movies.filter(m => m.status === 'watched');
+  const genreCounts = {};
+  watched.forEach(m => {
+    if (!m.genre) return;
+    m.genre.split(',').map(g => g.trim()).filter(Boolean).forEach(g => {
+      genreCounts[g] = (genreCounts[g] || 0) + 1;
+    });
+  });
+
+  // Seeds: watched titles with tmdbId, ranked by sum of their genres' frequency.
+  // Titles whose genres dominate your watch history get more weight.
+  const seeds = watched
+    .filter(m => m.tmdbId)
+    .map(m => {
+      const genres = (m.genre || '').split(',').map(g => g.trim()).filter(Boolean);
+      const score = genres.length
+        ? genres.reduce((s, g) => s + (genreCounts[g] || 0), 0) / genres.length
+        : 0;
+      return { ...m, _score: score };
+    })
+    .sort((a, b) => b._score - a._score || (b.addedAt || 0) - (a.addedAt || 0))
     .slice(0, 8);
 
   if (!seeds.length) {
-    section.innerHTML = '<p class="recs-empty">Watch and rate some titles to get personalised recommendations.</p>';
+    section.innerHTML = '<p class="recs-empty">Mark some titles as watched to get personalised recommendations.</p>';
     return;
   }
 
   const trackedTmdbIds = new Set(movies.map(m => String(m.tmdbId)).filter(Boolean));
+  const dismissed      = getDismissedRecs();
   const idParam = seeds.map(m => `${m.tmdbId}:${m.mediaType === 'anime' ? 'tv' : m.mediaType}`).join(',');
 
   let data;
@@ -679,19 +711,25 @@ async function loadRecommendations() {
     return;
   }
 
-  const recs = (data.results || []).filter(r => !trackedTmdbIds.has(String(r.id)));
+  const recs = (data.results || []).filter(r =>
+    !trackedTmdbIds.has(String(r.id)) && !dismissed.has(String(r.id))
+  );
 
   if (!recs.length) {
     section.innerHTML = '<p class="recs-empty">No new recommendations found — try watching more titles!</p>';
     return;
   }
 
+  const topGenres = Object.entries(genreCounts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(e => e[0]);
+  const genreLabel = topGenres.length ? topGenres.join(', ') : 'your watch history';
+
   section.innerHTML = `
     <h3 class="recs-heading">✨ Recommended For You</h3>
-    <p class="recs-sub">Based on your highest-rated titles</p>
+    <p class="recs-sub">Based on what you've watched · favouring ${esc(genreLabel)}</p>
     <div class="recs-grid">
       ${recs.map(r => `
-        <div class="rec-card">
+        <div class="rec-card" data-rec-card="${r.id}">
+          <button class="rec-dismiss-btn" data-rec-dismiss="${r.id}" title="Not interested">✕</button>
           <div class="rec-poster">
             ${r.poster_path
               ? `<img src="${POSTER_BASE}${r.poster_path}" alt="${esc(r.title)}" loading="lazy" />`
@@ -711,6 +749,27 @@ async function loadRecommendations() {
   `;
 
   section.addEventListener('click', e => {
+    const dismissBtn = e.target.closest('.rec-dismiss-btn');
+    if (dismissBtn) {
+      const id = dismissBtn.dataset.recDismiss;
+      dismissRec(id);
+      const card = section.querySelector(`.rec-card[data-rec-card="${id}"]`);
+      if (card) {
+        card.classList.add('rec-card-removing');
+        setTimeout(() => {
+          card.remove();
+          if (!section.querySelector('.rec-card')) {
+            section.querySelector('.recs-grid')?.remove();
+            section.querySelector('.recs-heading')?.remove();
+            section.querySelector('.recs-sub')?.remove();
+            section.insertAdjacentHTML('beforeend',
+              '<p class="recs-empty">All caught up — dismissed everything for now.</p>');
+          }
+        }, 200);
+      }
+      return;
+    }
+
     const btn = e.target.closest('.rec-add-btn');
     if (!btn) return;
     const recId     = btn.dataset.recId;
