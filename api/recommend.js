@@ -32,7 +32,7 @@ export default async function handler(req, res) {
             title:       item.title || item.name || '',
             year:        (item.release_date || item.first_air_date || '').slice(0, 4),
             poster_path: item.poster_path || null,
-            overview:    (item.overview || '').slice(0, 150),
+            overview:    item.overview || '',
             media_type:  mtype,
             popularity:  item.popularity || 0,
           };

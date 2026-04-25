@@ -745,7 +745,7 @@ async function loadRecommendations() {
           <div class="rec-info">
             <div class="rec-title">${esc(r.title)}</div>
             ${r.year ? `<div class="rec-year">${r.year}</div>` : ''}
-            ${r.overview ? `<div class="rec-overview">${esc(r.overview)}${r.overview.length >= 150 ? '…' : ''}</div>` : ''}
+            ${r.overview ? `<div class="rec-overview" title="Tap to expand">${esc(r.overview)}</div>` : ''}
           </div>
           <button class="rec-add-btn" data-rec-id="${r.id}" data-rec-type="${r.media_type}"
             data-rec-title="${esc(r.title)}" data-rec-year="${r.year || ''}"
@@ -756,6 +756,12 @@ async function loadRecommendations() {
   `;
 
   section.addEventListener('click', e => {
+    const overview = e.target.closest('.rec-overview');
+    if (overview) {
+      overview.closest('.rec-card')?.classList.toggle('expanded');
+      return;
+    }
+
     const dismissBtn = e.target.closest('.rec-dismiss-btn');
     if (dismissBtn) {
       const id = dismissBtn.dataset.recDismiss;

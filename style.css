@@ -1242,7 +1242,31 @@ button.danger:hover { opacity: .85; }
 .rec-info { padding: 10px 10px 6px; flex: 1; }
 .rec-title { font-size: .82rem; font-weight: 600; color: var(--text); line-height: 1.3; margin-bottom: 3px; }
 .rec-year  { font-size: .74rem; color: var(--muted); margin-bottom: 5px; }
-.rec-overview { font-size: .73rem; color: var(--muted); line-height: 1.4; }
+.rec-overview {
+  font-size: .73rem;
+  color: var(--muted);
+  line-height: 1.4;
+  max-height: 4.2em;
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+  transition: max-height .25s ease;
+}
+.rec-overview::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 1.4em;
+  background: linear-gradient(to bottom, transparent, var(--surface));
+  pointer-events: none;
+  transition: opacity .2s ease;
+}
+@media (hover: hover) {
+  .rec-card:hover .rec-overview { max-height: 32em; overflow-y: auto; }
+  .rec-card:hover .rec-overview::after { opacity: 0; }
+}
+.rec-card.expanded .rec-overview { max-height: 32em; overflow-y: auto; }
+.rec-card.expanded .rec-overview::after { opacity: 0; }
 .rec-add-btn {
   margin: 8px 10px 10px;
   padding: 5px 10px; font-size: .78rem; font-weight: 600;
