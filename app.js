@@ -42,7 +42,7 @@ let sb              = null;
 let currentUser     = null;
 let offlineMode     = false;
 let currentUsername = null;
-let sharingEnabled  = false;
+let sharingEnabled  = localStorage.getItem('cinetrack_sharing') === 'true';
 
 // ── Sync indicator ──────────────────────────────────────
 function setSyncState(state, detail = '') {
@@ -78,6 +78,7 @@ async function loadProfile() {
     if (data) {
       currentUsername = data.username || null;
       sharingEnabled  = !!data.sharing_enabled;
+      localStorage.setItem('cinetrack_sharing', sharingEnabled);
     }
     updateUserMenu();
   } catch {}
@@ -1558,6 +1559,7 @@ document.getElementById('username-input').addEventListener('keydown', async e =>
 // ── Sharing toggle ──────────────────────────────────────
 document.getElementById('sharing-toggle').addEventListener('change', async e => {
   sharingEnabled = e.target.checked;
+  localStorage.setItem('cinetrack_sharing', sharingEnabled);
   await saveProfile({ sharing_enabled: sharingEnabled });
 });
 
@@ -1576,6 +1578,7 @@ signoutBtn.addEventListener('click', async () => {
   sharingEnabled  = false;
   movies          = [];
   localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem('cinetrack_sharing');
   document.getElementById('user-dropdown').classList.add('hidden');
   updateUserMenu();
   showAuthOverlay('form');
