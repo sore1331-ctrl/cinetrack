@@ -337,6 +337,26 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 20px 0; }
 .btn-sm:hover { border-color: var(--accent); color: var(--text); }
 .btn-sm.danger:hover { border-color: #c0392b; color: #c0392b; }
 
+/* ── Button label tiers (SM / MD / LG) ── */
+.lbl-sm { display: none; }
+.lbl-md { display: none; }
+/* lbl-lg shown by default */
+
+.grid-sm .card-actions { padding: 6px 8px 0; gap: 4px; }
+.grid-sm .btn-sm { padding: 5px 0; font-size: .72rem; }
+.grid-sm .lbl-md, .grid-sm .lbl-lg { display: none; }
+.grid-sm .lbl-sm { display: inline; }
+
+.grid-md .lbl-lg { display: none; }
+.grid-md .lbl-md { display: inline; }
+
+/* ── Small grid: show only year + country ── */
+.grid-sm .meta-genre,
+.grid-sm .meta-director,
+.grid-sm .meta-runtime { display: none; }
+.grid-sm .card-stars,
+.grid-sm .card-notes { display: none; }
+
 /* ── Poster click-to-edit overlay ── */
 .movie-grid:not(.select-mode) .card-poster { cursor: pointer; }
 
