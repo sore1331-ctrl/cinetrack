@@ -604,6 +604,9 @@ function renderStats() {
   const maxYear  = yearEntries.length ? Math.max(...yearEntries.map(e => e[1])) : 1;
   const maxType  = typeEntries.length ? Math.max(...typeEntries.map(e => e[1])) : 1;
 
+  const inProgressN = movies.filter(m => m.status === 'in_progress').length;
+  const watchlistN  = movies.filter(m => m.status === 'watchlist').length;
+
   panel.innerHTML = `
     <div class="stats-overview">
       <div class="stat-card">
@@ -611,7 +614,11 @@ function renderStats() {
         <div class="stat-card-label">Watched</div>
       </div>
       <div class="stat-card">
-        <div class="stat-card-value">${total - watchedN}</div>
+        <div class="stat-card-value">${inProgressN}</div>
+        <div class="stat-card-label">In Progress</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-value">${watchlistN}</div>
         <div class="stat-card-label">On Watchlist</div>
       </div>
       <div class="stat-card">
@@ -902,6 +909,7 @@ CREATE POLICY "user_data_shared" ON public.user_data FOR SELECT USING (
     const cards = sharingProfiles.map(profile => {
       const userMovies = dataMap[profile.user_id] || [];
       const watched    = userMovies.filter(m => m.status === 'watched');
+      const inProgress = userMovies.filter(m => m.status === 'in_progress');
       const watchlist  = userMovies.filter(m => m.status === 'watchlist');
       const username   = profile.username || 'Anonymous';
       const initial    = username[0].toUpperCase();
@@ -926,6 +934,7 @@ CREATE POLICY "user_data_shared" ON public.user_data FOR SELECT USING (
               <div class="community-username">${esc(username)}</div>
               <div class="community-stats-mini">
                 <span>✓ ${watched.length} watched</span>
+                ${inProgress.length ? `<span>▶ ${inProgress.length} in progress</span>` : ''}
                 <span>⏳ ${watchlist.length} on list</span>
               </div>
               ${topGenres ? `<div class="community-genres">${esc(topGenres)}</div>` : ''}
@@ -962,9 +971,10 @@ function renderProfile() {
   // Per-type counts
   const byType = ['movie', 'tv', 'anime'].map(t => ({
     label: t === 'movie' ? '🎬 Films' : t === 'tv' ? '📺 TV Shows' : '🎌 Anime',
-    watched:   movies.filter(m => m.mediaType === t && m.status === 'watched').length,
-    watchlist: movies.filter(m => m.mediaType === t && m.status === 'watchlist').length,
-  })).filter(t => t.watched + t.watchlist > 0);
+    watched:    movies.filter(m => m.mediaType === t && m.status === 'watched').length,
+    inProgress: movies.filter(m => m.mediaType === t && m.status === 'in_progress').length,
+    watchlist:  movies.filter(m => m.mediaType === t && m.status === 'watchlist').length,
+  })).filter(t => t.watched + t.inProgress + t.watchlist > 0);
 
   // Top genres across all types
   const genreCounts = {};
@@ -1037,6 +1047,7 @@ function renderProfile() {
             <div class="profile-type-label">${t.label}</div>
             <div class="profile-type-stats">
               <span>✓ ${t.watched} watched</span>
+              ${t.inProgress ? `<span>▶ ${t.inProgress} in progress</span>` : ''}
               <span>⏳ ${t.watchlist} on list</span>
             </div>
           </div>
@@ -1497,9 +1508,12 @@ function normaliseRow(row) {
   const rawType   = (row.mediaType || '').toLowerCase();
   const mediaType = (rawType === 'tv' || rawType === 'tv show' || rawType === 'show') ? 'tv'
                   : rawType === 'anime' ? 'anime' : 'movie';
-  const rawStatus = (row.status || '').toLowerCase();
-  const status    = rawStatus === 'watched' ? 'watched' : 'watchlist';
-  const rating    = status === 'watched' ? Math.min(10, Math.max(0, parseInt(row.rating) || 0)) : 0;
+  const rawStatus = (row.status || '').toLowerCase().trim();
+  const status    = rawStatus === 'watched' ? 'watched'
+                  : (rawStatus === 'in_progress' || rawStatus === 'in progress' || rawStatus === 'inprogress') ? 'in_progress'
+                  : 'watchlist';
+  const rating    = (status === 'watched' || status === 'in_progress')
+                    ? Math.min(10, Math.max(0, parseInt(row.rating) || 0)) : 0;
   const year      = (row.year || '').toString().slice(0, 4);
   const runtime   = parseInt(row.runtime) || 0;
   return { mediaType, status, rating, year, runtime };
