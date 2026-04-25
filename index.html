@@ -42,7 +42,7 @@
 
   <!-- Header -->
   <header>
-    <h1>CineTrack</h1>
+    <h1 id="logo" title="Go to Profile">CineTrack</h1>
     <div id="sync-indicator" class="sync-indicator" data-state="loading" title="Loading…"></div>
     <div id="user-menu" class="user-menu hidden">
       <button class="user-avatar-btn" id="user-avatar-btn">
@@ -74,6 +74,7 @@
       <button class="type-tab" data-type="anime">🎌 Anime</button>
       <button class="type-tab" data-type="stats">📊 Stats</button>
       <button class="type-tab" data-type="community">👥 Community</button>
+      <button class="type-tab" data-type="profile">👤 Profile</button>
     </div>
   </div>
 
@@ -147,6 +148,9 @@
 
     <!-- Stats panel -->
     <div id="stats-panel" class="stats-panel hidden"></div>
+
+    <!-- Profile panel -->
+    <div id="profile-panel" class="profile-panel hidden"></div>
 
     <!-- Community panel -->
     <div id="community-panel" class="community-panel hidden">

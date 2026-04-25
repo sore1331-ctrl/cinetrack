@@ -195,6 +195,7 @@ const tmdbSearchLabel = document.getElementById('tmdb-search-label');
 // ── View switching ──────────────────────────────────────
 function refreshCurrentView() {
   if (activeView === 'stats') renderStats();
+  else if (activeView === 'profile') renderProfile();
   else if (activeView === 'community') { /* don't auto-reload community */ }
   else render();
 }
@@ -209,6 +210,7 @@ function switchView(view, type) {
   const isContent   = view === 'content';
   const isStats     = view === 'stats';
   const isCommunity = view === 'community';
+  const isProfile   = view === 'profile';
 
   document.querySelector('.controls').classList.toggle('hidden', !isContent);
   statsBar.classList.toggle('hidden', !isContent);
@@ -218,6 +220,7 @@ function switchView(view, type) {
   document.getElementById('bulk-bar').classList.add('hidden');
   document.getElementById('stats-panel').classList.toggle('hidden', !isStats);
   document.getElementById('community-panel').classList.toggle('hidden', !isCommunity);
+  document.getElementById('profile-panel').classList.toggle('hidden', !isProfile);
 
   if (isContent) {
     selectMode = false;
@@ -229,6 +232,8 @@ function switchView(view, type) {
     renderStats();
   } else if (isCommunity) {
     renderCommunity();
+  } else if (isProfile) {
+    renderProfile();
   }
 }
 
@@ -257,10 +262,19 @@ document.querySelectorAll('.type-tab').forEach(btn => {
       switchView('stats');
     } else if (t === 'community') {
       switchView('community');
+    } else if (t === 'profile') {
+      switchView('profile');
     } else {
       switchView('content', t);
     }
   });
+});
+
+// Clicking the CineTrack logo navigates to Profile
+document.getElementById('logo').addEventListener('click', () => {
+  document.querySelectorAll('.type-tab').forEach(b => b.classList.remove('active'));
+  document.querySelector('.type-tab[data-type="profile"]').classList.add('active');
+  switchView('profile');
 });
 
 // ── Status tabs ─────────────────────────────────────────
@@ -739,6 +753,149 @@ async function renderCommunity() {
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+// ── Profile panel ───────────────────────────────────────
+function renderProfile() {
+  const panel = document.getElementById('profile-panel');
+  if (!panel) return;
+
+  const watched   = movies.filter(m => m.status === 'watched');
+  const watchlist = movies.filter(m => m.status === 'watchlist');
+  const totalMins = watched.reduce((s, m) => s + (m.runtime || 0), 0);
+  const ratings   = watched.filter(m => m.rating > 0).map(m => m.rating);
+  const avgRating = ratings.length
+    ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1)
+    : null;
+
+  // Per-type counts
+  const byType = ['movie', 'tv', 'anime'].map(t => ({
+    label: t === 'movie' ? '🎬 Films' : t === 'tv' ? '📺 TV Shows' : '🎌 Anime',
+    watched:   movies.filter(m => m.mediaType === t && m.status === 'watched').length,
+    watchlist: movies.filter(m => m.mediaType === t && m.status === 'watchlist').length,
+  })).filter(t => t.watched + t.watchlist > 0);
+
+  // Top genres across all types
+  const genreCounts = {};
+  watched.forEach(m => {
+    (m.genre || '').split(',').map(g => g.trim()).filter(Boolean)
+      .forEach(g => { genreCounts[g] = (genreCounts[g] || 0) + 1; });
+  });
+  const topGenres = Object.entries(genreCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
+
+  // Top countries
+  const countryCounts = {};
+  watched.forEach(m => {
+    if (m.country) countryCounts[m.country] = (countryCounts[m.country] || 0) + 1;
+  });
+  const topCountries = Object.entries(countryCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+
+  // Rating distribution
+  const ratingDist = Array.from({ length: 10 }, (_, i) => {
+    const star = 10 - i;
+    return [star, ratings.filter(r => r === star).length];
+  }).filter(([, c]) => c > 0);
+
+  // Recently added (last 8 across all types)
+  const recent = [...movies]
+    .sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0))
+    .slice(0, 8);
+
+  const displayName = currentUsername || currentUser?.email?.split('@')[0] || 'You';
+  const initial     = displayName[0].toUpperCase();
+
+  const maxGenre   = topGenres[0]?.[1]   || 1;
+  const maxCountry = topCountries[0]?.[1] || 1;
+  const maxRating  = ratingDist[0]?.[1]   || 1;
+
+  panel.innerHTML = `
+    <div class="profile-hero">
+      <div class="profile-avatar-lg">${esc(initial)}</div>
+      <div class="profile-hero-info">
+        <div class="profile-display-name">${esc(displayName)}</div>
+        ${currentUser ? `<div class="profile-email-sm">${esc(currentUser.email)}</div>` : ''}
+        ${sharingEnabled ? '<div class="profile-sharing-badge">🌐 Sharing enabled</div>' : ''}
+      </div>
+    </div>
+
+    <div class="stats-overview">
+      <div class="stat-card">
+        <div class="stat-card-value">${watched.length}</div>
+        <div class="stat-card-label">Watched</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-value">${watchlist.length}</div>
+        <div class="stat-card-label">Watchlist</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-value">${formatRuntime(totalMins) || '—'}</div>
+        <div class="stat-card-label">Time Spent</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-value">${avgRating ? '★ ' + avgRating : '—'}</div>
+        <div class="stat-card-label">Avg Rating</div>
+      </div>
+    </div>
+
+    ${byType.length ? `
+    <div class="profile-section">
+      <h3>By Type</h3>
+      <div class="profile-type-grid">
+        ${byType.map(t => `
+          <div class="profile-type-card">
+            <div class="profile-type-label">${t.label}</div>
+            <div class="profile-type-stats">
+              <span>✓ ${t.watched} watched</span>
+              <span>⏳ ${t.watchlist} on list</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>` : ''}
+
+    <div class="stats-charts">
+      ${topGenres.length ? `
+      <div class="chart-section">
+        <h3>Top Genres</h3>
+        <div class="chart-bars">${renderBarChart(topGenres, maxGenre, '#e2405a')}</div>
+      </div>` : ''}
+
+      ${topCountries.length ? `
+      <div class="chart-section">
+        <h3>Top Countries</h3>
+        <div class="chart-bars">${renderBarChart(topCountries, maxCountry, '#3b9eff')}</div>
+      </div>` : ''}
+
+      ${ratingDist.length ? `
+      <div class="chart-section chart-section-sm">
+        <h3>Ratings</h3>
+        <div class="chart-bars">${renderBarChart(ratingDist.map(([s, c]) => ['★'.repeat(s), c]), maxRating, '#f5a623')}</div>
+      </div>` : ''}
+    </div>
+
+    ${recent.length ? `
+    <div class="profile-section">
+      <h3>Recently Added</h3>
+      <div class="profile-recent">
+        ${recent.map(m => `
+          <div class="profile-recent-card" data-edit="${m.id}" title="${esc(m.title)}">
+            ${m.posterUrl
+              ? `<img class="profile-recent-poster" src="${esc(m.posterUrl)}" alt="${esc(m.title)}" loading="lazy" />`
+              : `<div class="profile-recent-poster profile-recent-emoji">${m.mediaType === 'anime' ? '🎌' : m.mediaType === 'tv' ? '📺' : '🎬'}</div>`}
+            <div class="profile-recent-title">${esc(m.title)}</div>
+            <div class="profile-recent-year">${m.year || ''}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>` : ''}
+
+    ${movies.length === 0 ? '<p class="profile-empty">Add some titles to see your profile stats.</p>' : ''}
+  `;
+
+  // Clicking a recent card opens the edit modal
+  panel.querySelectorAll('.profile-recent-card[data-edit]').forEach(card => {
+    card.addEventListener('click', () => openModal(movies.find(m => m.id === card.dataset.edit)));
+  });
 }
 
 // ── Export CSV ──────────────────────────────────────────
