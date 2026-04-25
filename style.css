@@ -1241,6 +1241,42 @@ button.danger:hover { opacity: .85; }
 .community-poster { width: 46px; height: 69px; object-fit: cover; border-radius: 5px; background: var(--surface2); }
 .community-empty { color: var(--muted); font-size: .9rem; padding: 16px 0; }
 .community-empty.error { color: #e07070; }
+
+.supabase-setup-error {
+  background: var(--surface);
+  border: 1px solid #c0392b55;
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  max-width: 680px;
+}
+.setup-error-title { font-weight: 700; color: #e07070; margin-bottom: 8px; }
+.setup-error-body  { font-size: .88rem; color: var(--muted); margin-bottom: 6px; }
+.setup-error-list  { font-size: .85rem; color: var(--text); padding-left: 18px; line-height: 1.7; margin-bottom: 14px; }
+.setup-error-list a { color: var(--accent); }
+.setup-sql-block {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: .75rem;
+  font-family: monospace;
+  overflow-x: auto;
+  white-space: pre;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+.setup-copy-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 7px 16px;
+  border-radius: 8px;
+  font-size: .82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.setup-copy-btn:hover { opacity: .85; }
 .community-loading { color: var(--muted); font-size: .9rem; padding: 16px 0; font-style: italic; }
 .community-empty-state { text-align: center; padding: 40px 20px; color: var(--muted); }
 .community-empty-icon { font-size: 2.5rem; margin-bottom: 12px; }

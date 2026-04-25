@@ -670,12 +670,48 @@ async function renderCommunity() {
 
   communityGrid.innerHTML = '<p class="community-loading">Loading community…</p>';
 
-  // Timeout fallback — never stay permanently stuck on loading
+  const SETUP_SQL = `CREATE TABLE IF NOT EXISTS public.profiles (
+  user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  username text, sharing_enabled boolean DEFAULT false,
+  updated_at timestamptz DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS public.user_data (
+  user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  movies jsonb DEFAULT '[]'::jsonb,
+  updated_at timestamptz DEFAULT now()
+);
+ALTER TABLE public.profiles  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_data ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "profiles_select" ON public.profiles FOR SELECT USING (true);
+CREATE POLICY "profiles_modify" ON public.profiles FOR ALL   USING (auth.uid() = user_id);
+CREATE POLICY "user_data_own"   ON public.user_data FOR ALL  USING (auth.uid() = user_id);
+CREATE POLICY "user_data_shared" ON public.user_data FOR SELECT USING (
+  EXISTS (SELECT 1 FROM public.profiles WHERE profiles.user_id = user_data.user_id AND profiles.sharing_enabled = true)
+);`;
+
+  // Timeout fallback — fires if Supabase project is paused or tables are missing
   const timeoutId = setTimeout(() => {
-    if (communityGrid.textContent.includes('Loading community')) {
-      communityGrid.innerHTML = '<p class="community-empty error">Timed out — check your Supabase setup and run the SQL from the README.</p>';
-    }
-  }, 12000);
+    if (!communityGrid.textContent.includes('Loading community')) return;
+    communityGrid.innerHTML = `
+      <div class="supabase-setup-error">
+        <p class="setup-error-title">⚠️ Could not reach the database</p>
+        <p class="setup-error-body">Two likely causes:</p>
+        <ol class="setup-error-list">
+          <li><strong>Supabase project is paused</strong> — free-tier projects pause after 7 days of inactivity.
+              <a href="https://app.supabase.com" target="_blank" rel="noopener">Open Supabase dashboard</a> and click <em>Restore project</em>.</li>
+          <li><strong>Tables not yet created</strong> — paste the SQL below into
+              <a href="https://app.supabase.com" target="_blank" rel="noopener">Supabase → SQL Editor</a> and run it once.</li>
+        </ol>
+        <pre class="setup-sql-block" id="setup-sql-pre">${esc(SETUP_SQL)}</pre>
+        <button class="setup-copy-btn" id="setup-copy-btn">Copy SQL</button>
+      </div>`;
+    document.getElementById('setup-copy-btn')?.addEventListener('click', () => {
+      navigator.clipboard.writeText(SETUP_SQL).then(() => {
+        const btn = document.getElementById('setup-copy-btn');
+        if (btn) { btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Copy SQL'; }, 2000); }
+      });
+    });
+  }, 10000);
 
   try {
     const { data: sharingProfiles, error: pe } = await sb
