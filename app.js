@@ -848,18 +848,22 @@ function render() {
       </span>
       <div class="card-title">${esc(m.title)}</div>
       <div class="card-meta">
-        ${m.year       ? `<span>${m.year}</span>` : ''}
-        ${m.country    ? `<span>🌍 ${esc(m.country)}</span>` : ''}
-        ${m.genre      ? `<span>${esc(m.genre)}</span>` : ''}
-        ${m.director   ? `<span>${isTV ? 'Created by' : 'Dir.'} ${esc(m.director)}</span>` : ''}
-        ${runtimeStr   ? `<span>⏱ ${runtimeStr}</span>` : ''}
+        ${m.year       ? `<span class="meta-year">${m.year}</span>` : ''}
+        ${m.country    ? `<span class="meta-country">🌍 ${esc(m.country)}</span>` : ''}
+        ${m.genre      ? `<span class="meta-genre">${esc(m.genre)}</span>` : ''}
+        ${m.director   ? `<span class="meta-director">${isTV ? 'Created by' : 'Dir.'} ${esc(m.director)}</span>` : ''}
+        ${runtimeStr   ? `<span class="meta-runtime">⏱ ${runtimeStr}</span>` : ''}
       </div>
       ${m.rating ? starsHTML(m.rating) : ''}
       ${m.notes ? `<div class="card-notes">${esc(m.notes)}</div>` : ''}
       <div class="card-actions">
-        <button class="btn-sm" data-edit="${m.id}">Edit</button>
+        <button class="btn-sm" data-edit="${m.id}">
+          <span class="lbl-md lbl-lg">Edit</span><span class="lbl-sm">✎</span>
+        </button>
         <button class="btn-sm" data-toggle="${m.id}">
-          ${m.status === 'watched' ? 'Watchlist' : 'Mark Watched'}
+          <span class="lbl-lg">${m.status === 'watched' ? 'Watchlist' : 'Mark Watched'}</span>
+          <span class="lbl-md">${m.status === 'watched' ? 'List' : 'Watched'}</span>
+          <span class="lbl-sm">${m.status === 'watched' ? '⏳' : '✓'}</span>
         </button>
         <button class="btn-sm danger" data-delete="${m.id}">✕</button>
       </div>
