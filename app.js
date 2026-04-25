@@ -643,7 +643,99 @@ function renderStats() {
         <div class="chart-bars">${renderBarChart(typeEntries, maxType, '#a855f7')}</div>
       </div>` : ''}
     </div>
+
+    <div id="recs-section" class="recs-section">
+      <div class="recs-loading"><span class="recs-spinner"></span> Loading recommendations…</div>
+    </div>
   `;
+
+  loadRecommendations();
+}
+
+async function loadRecommendations() {
+  const section = document.getElementById('recs-section');
+  if (!section) return;
+
+  const seeds = movies
+    .filter(m => m.status === 'watched' && m.tmdbId)
+    .sort((a, b) => (b.rating || 0) - (a.rating || 0) || (b.addedAt || 0) - (a.addedAt || 0))
+    .slice(0, 8);
+
+  if (!seeds.length) {
+    section.innerHTML = '<p class="recs-empty">Watch and rate some titles to get personalised recommendations.</p>';
+    return;
+  }
+
+  const trackedTmdbIds = new Set(movies.map(m => String(m.tmdbId)).filter(Boolean));
+  const idParam = seeds.map(m => `${m.tmdbId}:${m.mediaType === 'anime' ? 'tv' : m.mediaType}`).join(',');
+
+  let data;
+  try {
+    const r = await fetch(`/api/recommend?ids=${encodeURIComponent(idParam)}`);
+    if (!r.ok) throw new Error(r.status);
+    data = await r.json();
+  } catch {
+    section.innerHTML = '<p class="recs-empty">Recommendations require Vercel deployment with a TMDB API key.</p>';
+    return;
+  }
+
+  const recs = (data.results || []).filter(r => !trackedTmdbIds.has(String(r.id)));
+
+  if (!recs.length) {
+    section.innerHTML = '<p class="recs-empty">No new recommendations found — try watching more titles!</p>';
+    return;
+  }
+
+  section.innerHTML = `
+    <h3 class="recs-heading">✨ Recommended For You</h3>
+    <p class="recs-sub">Based on your highest-rated titles</p>
+    <div class="recs-grid">
+      ${recs.map(r => `
+        <div class="rec-card">
+          <div class="rec-poster">
+            ${r.poster_path
+              ? `<img src="${POSTER_BASE}${r.poster_path}" alt="${esc(r.title)}" loading="lazy" />`
+              : `<div class="rec-poster-placeholder">${r.media_type === 'tv' ? '📺' : '🎬'}</div>`}
+          </div>
+          <div class="rec-info">
+            <div class="rec-title">${esc(r.title)}</div>
+            ${r.year ? `<div class="rec-year">${r.year}</div>` : ''}
+            ${r.overview ? `<div class="rec-overview">${esc(r.overview)}${r.overview.length >= 150 ? '…' : ''}</div>` : ''}
+          </div>
+          <button class="rec-add-btn" data-rec-id="${r.id}" data-rec-type="${r.media_type}"
+            data-rec-title="${esc(r.title)}" data-rec-year="${r.year || ''}"
+            data-rec-poster="${r.poster_path || ''}" title="Add to Watchlist">＋ Watchlist</button>
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  section.addEventListener('click', e => {
+    const btn = e.target.closest('.rec-add-btn');
+    if (!btn) return;
+    const recId     = btn.dataset.recId;
+    const recType   = btn.dataset.recType;
+    const recTitle  = btn.dataset.recTitle;
+    const recYear   = btn.dataset.recYear;
+    const recPoster = btn.dataset.recPoster;
+    if (movies.some(m => String(m.tmdbId) === recId)) { btn.textContent = '✓ Added'; btn.disabled = true; return; }
+    movies.unshift({
+      id:        genId(),
+      addedAt:   Date.now(),
+      title:     recTitle,
+      year:      recYear,
+      status:    'watchlist',
+      rating:    0,
+      mediaType: recType === 'tv' ? 'tv' : 'movie',
+      tmdbId:    Number(recId),
+      posterUrl: recPoster ? POSTER_BASE + recPoster : '',
+      genre: '', director: '', country: '', notes: '', runtime: 0,
+    });
+    save(); updateCountryDropdown();
+    btn.textContent = '✓ Added';
+    btn.disabled = true;
+    trackedTmdbIds.add(recId);
+  });
 }
 
 function renderBarChart(entries, maxVal, color) {
