@@ -99,21 +99,25 @@ async function loadUserData() {
   if (!sb || !currentUser) return;
   setSyncState('loading');
   try {
-    const { data, error } = await sb
+    // order + limit(1) instead of maybeSingle() so duplicate rows (if any exist
+    // due to a table without a unique user_id constraint) don't cause an error
+    const { data: rows, error } = await sb
       .from('user_data')
       .select('movies')
       .eq('user_id', currentUser.id)
-      .maybeSingle();
+      .order('updated_at', { ascending: false })
+      .limit(1);
     if (error) throw error;
-    if (data?.movies && Array.isArray(data.movies)) {
-      movies = data.movies;
+    const row = rows?.[0] ?? null;
+    if (row?.movies && Array.isArray(row.movies)) {
+      movies = row.movies;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
     }
     setSyncState('saved');
   } catch (e) {
     console.error('Failed to load data from cloud:', e);
     setSyncState('error', e.message);
-    showToast('Could not load your data from the cloud. Check your connection.', true);
+    showToast('Could not load your data from the cloud: ' + e.message, true);
   }
   updateCountryDropdown();
   refreshCurrentView();
@@ -122,10 +126,19 @@ async function loadUserData() {
 async function saveUserData() {
   if (!sb || !currentUser) return;
   try {
-    const { error } = await sb
+    const payload = { user_id: currentUser.id, movies, updated_at: new Date().toISOString() };
+    // Try update first; if nothing was updated, insert (avoids duplicate rows
+    // when the table's primary key is not user_id)
+    const { count, error: ue } = await sb
       .from('user_data')
-      .upsert({ user_id: currentUser.id, movies, updated_at: new Date().toISOString() });
-    if (error) throw error;
+      .update(payload)
+      .eq('user_id', currentUser.id)
+      .select('user_id', { count: 'exact', head: true });
+    if (ue) throw ue;
+    if (count === 0) {
+      const { error: ie } = await sb.from('user_data').insert(payload);
+      if (ie) throw ie;
+    }
     setSyncState('saved');
   } catch (e) {
     console.error('Failed to save data to cloud:', e);
