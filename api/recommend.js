@@ -44,7 +44,7 @@ export default async function handler(req, res) {
   const results = Object.entries(scoreMap)
     .filter(([key]) => !seedSet.has(key.split(':')[0]))
     .sort((a, b) => b[1] - a[1] || (infoMap[b[0]].popularity - infoMap[a[0]].popularity))
-    .slice(0, 24)
+    .slice(0, 20)
     .map(([key]) => infoMap[key]);
 
   res.setHeader('Cache-Control', 'public, max-age=3600');

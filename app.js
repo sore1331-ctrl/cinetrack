@@ -45,11 +45,16 @@ let currentUsername = null;
 let sharingEnabled  = localStorage.getItem('cinetrack_sharing') === 'true';
 
 // ── Sync indicator ──────────────────────────────────────
+let currentSyncState = 'loading';
+let currentSyncTitle = 'Loading…';
+
 function setSyncState(state, detail = '') {
+  currentSyncState = state;
+  currentSyncTitle = { loading: 'Loading…', saving: 'Saving…', saved: 'Synced ✓', error: detail || 'Offline — saved locally' }[state] || '';
   const el = document.getElementById('sync-indicator');
   if (!el) return;
   el.dataset.state = state;
-  el.title = { loading: 'Loading…', saving: 'Saving…', saved: 'Synced ✓', error: detail || 'Offline — saved locally' }[state] || '';
+  el.title = currentSyncTitle;
 }
 
 // ── Supabase init ───────────────────────────────────────
@@ -1019,7 +1024,10 @@ function renderProfile() {
     <div class="profile-hero">
       <div class="profile-avatar-lg">${esc(initial)}</div>
       <div class="profile-hero-info">
-        <div class="profile-display-name">${esc(displayName)}</div>
+        <div class="profile-display-name">
+          ${esc(displayName)}
+          <span id="sync-indicator" class="sync-indicator" data-state="${currentSyncState}" title="${currentSyncTitle}"></span>
+        </div>
         ${currentUser ? `<div class="profile-email-sm">${esc(currentUser.email)}</div>` : ''}
         ${sharingEnabled ? '<div class="profile-sharing-badge">🌐 Sharing enabled</div>' : ''}
       </div>
@@ -1098,12 +1106,32 @@ function renderProfile() {
     </div>` : ''}
 
     ${movies.length === 0 ? '<p class="profile-empty">Add some titles to see your profile stats.</p>' : ''}
+
+    <div class="profile-section profile-csv-section">
+      <h3>
+        Import / Export
+        <button type="button" class="info-btn" id="csv-info-btn" aria-label="What is this?"
+          title="Export your library as a CSV spreadsheet, or import one to bulk-add titles. Imported rows are matched against TMDB to fill in posters, runtimes, and genres automatically. Use the template link for the expected column format.">ⓘ</button>
+      </h3>
+      <p class="profile-csv-hint">Back up your library or move it between accounts.</p>
+      <div class="profile-csv-actions">
+        <button id="profile-import-btn" class="csv-action-btn" title="Import from CSV">⬆ Import CSV</button>
+        <button id="profile-export-btn" class="csv-action-btn" title="Export to CSV">⬇ Export CSV</button>
+        <a id="profile-csv-template" class="csv-template-link" href="#" download="cinetrack-template.csv">Download template</a>
+      </div>
+    </div>
   `;
 
   // Clicking a recent card opens the edit modal
   panel.querySelectorAll('.profile-recent-card[data-edit]').forEach(card => {
     card.addEventListener('click', () => openModal(movies.find(m => m.id === card.dataset.edit)));
   });
+
+  // Wire CSV controls (re-rendered every renderProfile)
+  panel.querySelector('#profile-import-btn')?.addEventListener('click', () => csvInput.click());
+  panel.querySelector('#profile-export-btn')?.addEventListener('click', exportCSV);
+  const tplLink = panel.querySelector('#profile-csv-template');
+  if (tplLink) tplLink.href = TEMPLATE_URL;
 }
 
 // ── Export CSV ──────────────────────────────────────────
@@ -1129,7 +1157,6 @@ function exportCSV() {
   showToast(`Exported ${list.length} title${list.length !== 1 ? 's' : ''}.`);
 }
 
-document.getElementById('export-btn').addEventListener('click', exportCSV);
 
 // ── Pagination ──────────────────────────────────────────
 function renderPagination(totalItems) {
@@ -1387,6 +1414,9 @@ searchInput.addEventListener('input', () => { searchQuery = searchInput.value; c
 countryFilterEl.addEventListener('change', () => { countryFilter = countryFilterEl.value; currentPage = 0; render(); });
 
 grid.addEventListener('click', e => {
+  const noteEl = e.target.closest('.card-notes');
+  if (noteEl) { noteEl.classList.toggle('expanded'); return; }
+
   const editId   = e.target.dataset.edit;
   const toggleId = e.target.dataset.toggle;
   const deleteId = e.target.dataset.delete;
@@ -1446,9 +1476,7 @@ function seedData() {
 }
 
 // ── CSV Import ──────────────────────────────────────────
-const importBtn      = document.getElementById('import-btn');
 const csvInput       = document.getElementById('csv-input');
-const csvTemplate    = document.getElementById('csv-template');
 const importToast    = document.getElementById('import-toast');
 const importProgress = document.getElementById('import-progress');
 const progressBar    = document.getElementById('progress-bar');
@@ -1573,7 +1601,6 @@ async function importRows(rows) {
 }
 
 progressCancel.addEventListener('click', () => { cancelImport = true; });
-importBtn.addEventListener('click', () => csvInput.click());
 csvInput.addEventListener('change', () => {
   const file = csvInput.files[0];
   if (!file) return;
@@ -1590,7 +1617,7 @@ csvInput.addEventListener('change', () => {
 });
 
 const TEMPLATE_CSV = `title,year,genre,director,country,status,rating,runtime,notes,type\nInception,2010,"Sci-Fi, Thriller",Christopher Nolan,United States,watched,9,148,Mind-bending film,movie\nBreaking Bad,2008,"Crime, Drama",Vince Gilligan,United States,watched,10,2700,Greatest TV drama,tv\n`;
-csvTemplate.href = URL.createObjectURL(new Blob([TEMPLATE_CSV], { type: 'text/csv' }));
+const TEMPLATE_URL = URL.createObjectURL(new Blob([TEMPLATE_CSV], { type: 'text/csv' }));
 
 // ── Auth UI ──────────────────────────────────────────────
 const authOverlay  = document.getElementById('auth-overlay');

@@ -43,7 +43,6 @@
   <!-- Header -->
   <header>
     <h1 id="logo" title="Go to Profile">CineTrack</h1>
-    <div id="sync-indicator" class="sync-indicator" data-state="loading" title="Loading…"></div>
     <div id="user-menu" class="user-menu hidden">
       <button class="user-avatar-btn" id="user-avatar-btn">
         <span id="user-avatar">?</span>
@@ -104,14 +103,10 @@
         <option value="200">200 / pg</option>
         <option value="300">300 / pg</option>
       </select>
-      <div class="import-wrap">
-        <button id="import-btn" title="Import CSV">⬆ CSV</button>
-        <input type="file" id="csv-input" accept=".csv,text/csv" style="display:none" />
-        <a id="csv-template" href="#" download="cinetrack-template.csv">template</a>
-      </div>
-      <button id="export-btn" class="export-btn" title="Export CSV">⬇ CSV</button>
       <button id="add-btn">+ Add</button>
     </section>
+
+    <input type="file" id="csv-input" accept=".csv,text/csv" style="display:none" />
 
     <div id="stats-bar" class="stats-bar"></div>
     <div id="import-toast" class="import-toast hidden"></div>
