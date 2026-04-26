@@ -56,6 +56,7 @@
             <button id="signout-btn" class="signout-btn">Sign out</button>
           </div>
         </div>
+        <span id="header-sync-indicator" class="sync-indicator header-sync" data-state="loading" title="Loading…"></span>
         <button id="header-profile-btn" class="header-profile-btn" title="Profile">👤</button>
         <button id="theme-toggle" class="theme-toggle" title="Toggle light/dark mode">🌙</button>
       </div>
@@ -137,7 +138,7 @@
 
     <!-- Content grid -->
     <div id="movie-grid" class="movie-grid grid-md"></div>
-    <p id="empty-msg" class="empty-msg hidden">No titles found. Add one!</p>
+    <div id="empty-msg" class="empty-msg hidden"></div>
     <div id="pagination" class="pagination hidden"></div>
 
     <!-- Stats panel -->

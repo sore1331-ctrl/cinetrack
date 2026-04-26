@@ -51,10 +51,12 @@ let currentSyncTitle = 'Loading…';
 function setSyncState(state, detail = '') {
   currentSyncState = state;
   currentSyncTitle = { loading: 'Loading…', saving: 'Saving…', saved: 'Synced ✓', error: detail || 'Offline — saved locally' }[state] || '';
-  const el = document.getElementById('sync-indicator');
-  if (!el) return;
-  el.dataset.state = state;
-  el.title = currentSyncTitle;
+  ['sync-indicator', 'header-sync-indicator'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.dataset.state = state;
+    el.title = currentSyncTitle;
+  });
 }
 
 // ── Supabase init ───────────────────────────────────────
@@ -122,8 +124,8 @@ async function loadUserData() {
     setSyncState('saved');
   } catch (e) {
     console.error('Failed to load data from cloud:', e);
-    setSyncState('error', e.message);
-    showToast('Could not load your data from the cloud: ' + e.message, true);
+    setSyncState('error', 'Could not reach the cloud — using local copy');
+    showToast('Could not load your data from the cloud. Using your local copy instead.', true);
   }
   updateCountryDropdown();
   refreshCurrentView();
@@ -148,8 +150,8 @@ async function saveUserData() {
     setSyncState('saved');
   } catch (e) {
     console.error('Failed to save data to cloud:', e);
-    setSyncState('error', e.message);
-    showToast('Cloud sync failed — your changes are saved locally only. (' + e.message + ')', true);
+    setSyncState('error', 'Cloud sync failed — saved locally');
+    showToast('Cloud sync failed — your changes are saved locally only.', true);
   }
 }
 
@@ -673,15 +675,17 @@ function renderStats() {
 }
 
 const DISMISSED_RECS_KEY = 'cinetrack_dismissed_recs';
+const DISMISSED_RECS_CAP = 500;
 
 function getDismissedRecs() {
   try { return new Set(JSON.parse(localStorage.getItem(DISMISSED_RECS_KEY) || '[]').map(String)); }
   catch { return new Set(); }
 }
 function dismissRec(id) {
-  const set = getDismissedRecs();
-  set.add(String(id));
-  localStorage.setItem(DISMISSED_RECS_KEY, JSON.stringify([...set]));
+  const list = [...getDismissedRecs(), String(id)];
+  // Keep most-recent N — Set preserves insertion order, oldest entries get dropped first.
+  const trimmed = list.length > DISMISSED_RECS_CAP ? list.slice(-DISMISSED_RECS_CAP) : list;
+  localStorage.setItem(DISMISSED_RECS_KEY, JSON.stringify(trimmed));
 }
 
 const RECS_LIMIT = 10; // 2 rows of 5
@@ -1434,7 +1438,25 @@ function render() {
   grid.className = `movie-grid grid-${gridSize}` + (selectMode ? ' select-mode' : '');
 
   if (list.length === 0) {
+    const isFirstRun = movies.length === 0;
+    const typeLabel  = activeType === 'tv' ? 'TV shows' : activeType === 'anime' ? 'anime' : 'films';
+    emptyMsg.innerHTML = isFirstRun
+      ? `<div class="empty-hero">
+          <div class="empty-hero-icon">🎬</div>
+          <h2 class="empty-hero-title">Welcome to CineTrack</h2>
+          <p class="empty-hero-sub">Track films, TV shows, and anime in one place. Get started by adding a title or importing your library.</p>
+          <div class="empty-hero-actions">
+            <button type="button" class="empty-cta primary" data-empty-add>+ Add your first title</button>
+            <button type="button" class="empty-cta" data-empty-import>⬆ Import CSV</button>
+          </div>
+        </div>`
+      : `<div class="empty-simple">
+          <p>No ${typeLabel} match your filters.</p>
+          <p class="empty-hint">Try clearing the search or switching tabs.</p>
+        </div>`;
     emptyMsg.classList.remove('hidden');
+    emptyMsg.querySelector('[data-empty-add]')?.addEventListener('click', () => openModal());
+    emptyMsg.querySelector('[data-empty-import]')?.addEventListener('click', () => csvInput.click());
     renderPagination(0);
     return;
   }
@@ -1702,11 +1724,10 @@ function seedData() {
     { id: genId(), title: 'Inception', year: '2010', genre: 'Sci-Fi, Thriller', director: 'Christopher Nolan', country: 'United States', status: 'watched', rating: 9, runtime: 148, notes: 'Mind-bending. The spinning top...', posterUrl: 'https://image.tmdb.org/t/p/w200/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg', mediaType: 'movie', addedAt: Date.now() },
     { id: genId(), title: 'The Grand Budapest Hotel', year: '2014', genre: 'Comedy, Drama', director: 'Wes Anderson', country: 'Germany', status: 'watched', rating: 8, runtime: 99, notes: 'Gorgeous cinematography.', posterUrl: 'https://image.tmdb.org/t/p/w200/nX5XotM9yprCKarRFDtgpaKzkjr.jpg', mediaType: 'movie', addedAt: Date.now() },
     { id: genId(), title: 'Dune: Part Two', year: '2024', genre: 'Sci-Fi', director: 'Denis Villeneuve', country: 'United States', status: 'watchlist', rating: 0, runtime: 166, notes: '', posterUrl: 'https://image.tmdb.org/t/p/w200/8b8R8l88Qje9dn9OE8PY05Nxl1X.jpg', mediaType: 'movie', addedAt: Date.now() },
-    { id: genId(), title: 'Spirited Away', year: '2001', genre: 'Animation, Fantasy', director: 'Hayao Miyazaki', country: 'Japan', status: 'watched', rating: 10, runtime: 125, notes: 'A masterpiece of imagination.', posterUrl: 'https://image.tmdb.org/t/p/w200/39wmItIWsg5sZMyRUHLkWBcuVCM.jpg', mediaType: 'movie', addedAt: Date.now() },
+    { id: genId(), title: 'Spirited Away', year: '2001', genre: 'Animation, Fantasy', director: 'Hayao Miyazaki', country: 'Japan', status: 'watched', rating: 10, runtime: 125, notes: 'A masterpiece of imagination.', posterUrl: 'https://image.tmdb.org/t/p/w200/39wmItIWsg5sZMyRUHLkWBcuVCM.jpg', mediaType: 'anime', addedAt: Date.now() },
     { id: genId(), title: 'Breaking Bad', year: '2008', genre: 'Crime, Drama', director: 'Vince Gilligan', country: 'United States', status: 'watched', rating: 10, runtime: 2700, notes: 'One of the greatest TV dramas ever made.', posterUrl: 'https://image.tmdb.org/t/p/w200/ggFHVNu6YYI5L9pCfOacjizRGt.jpg', mediaType: 'tv', addedAt: Date.now() },
     { id: genId(), title: 'Dark', year: '2017', genre: 'Sci-Fi, Thriller', director: 'Baran bo Odar', country: 'Germany', status: 'watched', rating: 9, runtime: 1530, notes: 'Intricate time-travel mystery.', posterUrl: 'https://image.tmdb.org/t/p/w200/apbrbWs8M9lyOpJYU5WXrpFbk1Z.jpg', mediaType: 'tv', addedAt: Date.now() },
     { id: genId(), title: 'Shogun', year: '2024', genre: 'Drama, History', director: 'Rachel Kondo', country: 'Japan', status: 'watchlist', rating: 0, runtime: 0, notes: '', posterUrl: 'https://image.tmdb.org/t/p/w200/7O4iVfOMQmdCSxhOg1WnzG1AgYT.jpg', mediaType: 'tv', addedAt: Date.now() },
-    { id: genId(), title: 'Spirited Away', year: '2001', genre: 'Animation, Fantasy', director: 'Hayao Miyazaki', country: 'Japan', status: 'watched', rating: 10, runtime: 125, notes: 'A masterpiece.', posterUrl: 'https://image.tmdb.org/t/p/w200/39wmItIWsg5sZMyRUHLkWBcuVCM.jpg', mediaType: 'anime', addedAt: Date.now() },
     { id: genId(), title: 'Attack on Titan', year: '2013', genre: 'Action, Drama', director: 'Tetsuro Araki', country: 'Japan', status: 'watched', rating: 9, runtime: 4050, notes: 'Gripping from start to finish.', posterUrl: 'https://image.tmdb.org/t/p/w200/hTP1DtLGFamjfu8WqjnuQdP1n4i.jpg', mediaType: 'anime', addedAt: Date.now() },
     { id: genId(), title: 'Demon Slayer', year: '2019', genre: 'Action, Fantasy', director: 'Haruo Sotozaki', country: 'Japan', status: 'watchlist', rating: 0, runtime: 0, notes: '', posterUrl: 'https://image.tmdb.org/t/p/w200/xUfRZu2mi8jH6SzQEJGP6tjBuYj.jpg', mediaType: 'anime', addedAt: Date.now() },
   ];
