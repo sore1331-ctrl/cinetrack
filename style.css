@@ -9,18 +9,27 @@
   --accent2: #f5a623;
   --text: #e8e8f0;
   --muted: #7a7a96;
-  --radius: 12px;
+  --radius: 14px;
+  --radius-sm: 8px;
+  --radius-lg: 18px;
   --shadow: 0 4px 24px rgba(0,0,0,.5);
+  --shadow-hover: 0 14px 32px -8px rgba(0,0,0,.55);
+  --header-bg: rgba(20,20,28,.78);
+  --accent-soft: rgba(226,64,90,.12);
+  --ease: cubic-bezier(.4, 0, .2, 1);
 }
 
 :root.light {
   --bg: #f4f4f8;
   --surface: #ffffff;
   --surface2: #eeeef4;
-  --border: #d0d0de;
+  --border: #d6d6e2;
   --text: #1a1a2e;
   --muted: #6b6b88;
   --shadow: 0 4px 24px rgba(0,0,0,.12);
+  --shadow-hover: 0 12px 28px -8px rgba(0,0,0,.18);
+  --header-bg: rgba(255,255,255,.78);
+  --accent-soft: rgba(226,64,90,.08);
 }
 
 body {
@@ -32,10 +41,12 @@ body {
 
 /* ── Header ── */
 header {
-  background: var(--surface);
+  background: var(--header-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-bottom: 1px solid var(--border);
   padding: 0 24px;
-  height: 52px;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -117,10 +128,12 @@ header h1 {
 
 /* ── Type tab bar ── */
 .type-tabs-bar {
-  background: var(--surface);
-  border-bottom: 2px solid var(--border);
+  background: var(--header-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid var(--border);
   position: sticky;
-  top: 52px;
+  top: 56px;
   z-index: 10;
 }
 
@@ -141,18 +154,19 @@ header h1 {
 .type-tab {
   background: transparent;
   border: none;
-  border-bottom: 3px solid transparent;
+  border-bottom: 2px solid transparent;
   color: var(--muted);
-  padding: 14px 28px;
+  padding: 14px 24px;
   cursor: pointer;
   font-size: .95rem;
   font-weight: 500;
-  transition: color .15s, border-color .15s;
+  transition: color .2s, border-color .2s, background .15s;
   white-space: nowrap;
-  margin-bottom: -2px;
+  margin-bottom: -1px;
   letter-spacing: .01em;
+  border-radius: 6px 6px 0 0;
 }
-.type-tab:hover { color: var(--text); }
+.type-tab:hover { color: var(--text); background: var(--accent-soft); }
 .type-tab.active            { color: var(--accent);  border-bottom-color: var(--accent);  font-weight: 700; }
 .type-tab[data-type="tv"].active     { color: #3b9eff; border-bottom-color: #3b9eff; }
 .type-tab[data-type="anime"].active  { color: #a855f7; border-bottom-color: #a855f7; }
@@ -253,18 +267,23 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 20px 0; }
 #type-filter option, #country-filter option { background: var(--surface2); }
 
 #add-btn {
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--accent) 0%, #c93450 100%);
   color: #fff;
   border: none;
   padding: 10px 20px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   font-size: .95rem;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  transition: opacity .15s;
+  box-shadow: 0 4px 14px rgba(226,64,90,.3);
+  transition: transform .15s var(--ease), box-shadow .2s var(--ease);
 }
-#add-btn:hover { opacity: .85; }
+#add-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(226,64,90,.45);
+}
+#add-btn:active { transform: translateY(0); }
 
 /* ── Grid ── */
 .movie-grid {
@@ -283,10 +302,14 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 20px 0; }
   display: flex;
   flex-direction: column;
   gap: 8px;
-  transition: transform .15s, box-shadow .15s;
+  transition: transform .25s var(--ease), box-shadow .25s var(--ease), border-color .2s;
   overflow: hidden;
 }
-.movie-card:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+.movie-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-hover);
+  border-color: rgba(226,64,90,.35);
+}
 
 .card-poster {
   width: 100%;
@@ -1255,14 +1278,32 @@ button.danger:hover { opacity: .85; }
   .stats-overview { grid-template-columns: repeat(2, 1fr); }
 }
 .stat-card {
+  position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 20px 18px;
+  padding: 22px 18px;
   text-align: center;
+  overflow: hidden;
+  transition: transform .2s var(--ease), box-shadow .2s var(--ease), border-color .2s;
 }
-.stat-card-value { font-size: 1.8rem; font-weight: 800; color: var(--accent); line-height: 1.1; }
-.stat-card-label { font-size: .78rem; color: var(--muted); margin-top: 4px; }
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  opacity: 0;
+  transition: opacity .2s;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px -4px rgba(0,0,0,.3);
+  border-color: rgba(226,64,90,.25);
+}
+.stat-card:hover::before { opacity: 1; }
+.stat-card-value { font-size: 1.85rem; font-weight: 800; color: var(--accent); line-height: 1.1; letter-spacing: -.5px; }
+.stat-card-label { font-size: .78rem; color: var(--muted); margin-top: 6px; font-weight: 500; }
 .stats-charts {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1341,9 +1382,19 @@ button.danger:hover { opacity: .85; }
   display: flex; flex-direction: column;
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius); overflow: hidden;
-  transition: transform .15s, box-shadow .15s, opacity .2s;
+  transition: transform .25s var(--ease), box-shadow .25s var(--ease), border-color .2s, opacity .2s;
 }
-.rec-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+.rec-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-hover);
+  border-color: rgba(226,64,90,.35);
+}
+.rec-title-link {
+  color: inherit;
+  text-decoration: none;
+  transition: color .15s;
+}
+.rec-title-link:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
 .rec-card-removing { opacity: 0; transform: scale(.9); pointer-events: none; }
 .rec-dismiss-btn {
   position: absolute; top: 6px; right: 6px; z-index: 2;

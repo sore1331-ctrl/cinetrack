@@ -756,7 +756,9 @@ async function loadRecommendations() {
               : `<div class="rec-poster-placeholder">${r.media_type === 'tv' ? '📺' : '🎬'}</div>`}
           </div>
           <div class="rec-info">
-            <div class="rec-title">${esc(r.title)}</div>
+            <div class="rec-title">
+              <a class="rec-title-link" href="https://www.themoviedb.org/${r.media_type === 'movie' ? 'movie' : 'tv'}/${r.id}" target="_blank" rel="noopener noreferrer" title="View on TMDB">${esc(r.title)}</a>
+            </div>
             ${r.year ? `<div class="rec-year">${r.year}</div>` : ''}
             ${r.overview ? `<div class="rec-overview" title="Tap to expand">${esc(r.overview)}</div>` : ''}
           </div>
