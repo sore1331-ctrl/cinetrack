@@ -1299,7 +1299,11 @@ function render() {
       <span class="badge badge-${m.status} card-status-badge">
         ${m.status === 'watched' ? '✓ Watched' : m.status === 'in_progress' ? '▶ In Progress' : '⏳ Watchlist'}
       </span>
-      <div class="card-title">${esc(m.title)}</div>
+      <div class="card-title">${
+        m.tmdbId
+          ? `<a class="card-title-link" href="https://www.themoviedb.org/${m.mediaType === 'movie' ? 'movie' : 'tv'}/${m.tmdbId}" target="_blank" rel="noopener noreferrer" title="View on TMDB">${esc(m.title)}</a>`
+          : esc(m.title)
+      }</div>
       <div class="card-meta">
         ${m.year       ? `<span class="meta-year">${m.year}</span>` : ''}
         ${m.country    ? `<span class="meta-country">🌍 ${esc(m.country)}</span>` : ''}
