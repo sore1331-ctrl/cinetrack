@@ -218,6 +218,9 @@ function switchView(view, type) {
   const isCommunity = view === 'community';
   const isProfile   = view === 'profile';
 
+  // Sync header profile button active state
+  document.getElementById('header-profile-btn')?.classList.toggle('active', isProfile);
+
   document.querySelector('.controls').classList.toggle('hidden', !isContent);
   statsBar.classList.toggle('hidden', !isContent);
   grid.classList.toggle('hidden', !isContent);
@@ -279,7 +282,12 @@ document.querySelectorAll('.type-tab').forEach(btn => {
 // Clicking the CineTrack logo navigates to Profile
 document.getElementById('logo').addEventListener('click', () => {
   document.querySelectorAll('.type-tab').forEach(b => b.classList.remove('active'));
-  document.querySelector('.type-tab[data-type="profile"]').classList.add('active');
+  switchView('profile');
+});
+
+// Header profile button
+document.getElementById('header-profile-btn').addEventListener('click', () => {
+  document.querySelectorAll('.type-tab').forEach(b => b.classList.remove('active'));
   switchView('profile');
 });
 
@@ -1227,9 +1235,19 @@ function render() {
       : `<div class="card-poster-emoji">${m.mediaType === 'anime' ? '🎌' : isTV ? '📺' : posterEmoji(m.title)}</div>`;
     const runtimeStr = formatRuntime(m.runtime);
 
+    const hoverInfoParts = [
+      m.genre    && `<div class="chi-genre">${esc(m.genre)}</div>`,
+      m.director && `<div class="chi-dir">${isTV ? 'Created by' : 'Dir.'} ${esc(m.director)}</div>`,
+      m.country  && `<div class="chi-loc">🌍 ${esc(m.country)}</div>`,
+    ].filter(Boolean);
+    const hoverInfoHTML = hoverInfoParts.length
+      ? `<div class="card-hover-info">${hoverInfoParts.join('')}</div>`
+      : '';
+
     card.innerHTML = `
       <div class="card-poster">
         ${posterHTML}
+        ${hoverInfoHTML}
         <label class="card-checkbox" title="Select">
           <input type="checkbox" data-check="${m.id}" ${checked ? 'checked' : ''} />
           <span class="card-checkbox-box"></span>
