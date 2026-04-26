@@ -2,7 +2,8 @@ export default async function handler(req, res) {
   const { ids } = req.query;
   if (!ids) return res.status(400).json({ error: 'Missing ids' });
 
-  const key = process.env.TMDB_API_KEY;
+  const key  = process.env.TMDB_API_KEY;
+  const page = Math.max(1, Math.min(5, parseInt(req.query.page) || 1));
   const pairs = ids.split(',').slice(0, 8).map(s => {
     const [id, type] = s.split(':');
     return { id, type: type === 'tv' ? 'tv' : 'movie' };
@@ -18,7 +19,7 @@ export default async function handler(req, res) {
     const weight = Math.max(1, pairs.length - idx);
     try {
       const r = await fetch(
-        `https://api.themoviedb.org/3/${type}/${id}/recommendations?api_key=${key}&language=en-US&page=1`
+        `https://api.themoviedb.org/3/${type}/${id}/recommendations?api_key=${key}&language=en-US&page=${page}`
       );
       if (!r.ok) return;
       const data = await r.json();

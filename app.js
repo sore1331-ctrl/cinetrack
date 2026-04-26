@@ -686,6 +686,9 @@ function dismissRec(id) {
 
 const RECS_LIMIT = 10; // 2 rows of 5
 
+// Refresh state — kept across refreshes within a single Stats visit
+let recsState = { refreshCount: 0, shownIds: new Set(), loading: false };
+
 function buildRecsHeader(genreLabel) {
   return `
     <div class="recs-header">
@@ -711,99 +714,137 @@ function removeRecCard(section, recId) {
   }, 200);
 }
 
-async function loadRecommendations() {
+async function loadRecommendations(refresh = false) {
   const section = document.getElementById('recs-section');
   if (!section) return;
+  if (recsState.loading) return;
 
-  // Genre frequency across watched titles (any rating)
-  const watched = movies.filter(m => m.status === 'watched');
-  const genreCounts = {};
-  watched.forEach(m => {
-    if (!m.genre) return;
-    m.genre.split(',').map(g => g.trim()).filter(Boolean).forEach(g => {
-      genreCounts[g] = (genreCounts[g] || 0) + 1;
-    });
-  });
-
-  // Seeds: watched titles with tmdbId, ranked by sum of their genres' frequency.
-  const seeds = watched
-    .filter(m => m.tmdbId)
-    .map(m => {
-      const genres = (m.genre || '').split(',').map(g => g.trim()).filter(Boolean);
-      const score = genres.length
-        ? genres.reduce((s, g) => s + (genreCounts[g] || 0), 0) / genres.length
-        : 0;
-      return { ...m, _score: score };
-    })
-    .sort((a, b) => b._score - a._score || (b.addedAt || 0) - (a.addedAt || 0))
-    .slice(0, 8);
-
-  if (!seeds.length) {
-    section.innerHTML = '<p class="recs-empty">Mark some titles as watched to get personalised recommendations.</p>';
-    return;
+  if (refresh) {
+    recsState.refreshCount++;
+  } else {
+    recsState.refreshCount = 0;
+    recsState.shownIds.clear();
   }
+  recsState.loading = true;
 
-  const topGenres  = Object.entries(genreCounts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(e => e[0]);
-  const genreLabel = topGenres.length ? topGenres.join(', ') : '';
-  const headerHTML = buildRecsHeader(genreLabel);
-
-  // Show header + loading while we fetch
-  section.innerHTML = headerHTML +
-    '<div class="recs-loading"><span class="recs-spinner"></span> Loading recommendations…</div>';
-
-  const trackedTmdbIds = new Set(movies.map(m => String(m.tmdbId)).filter(Boolean));
-  const dismissed      = getDismissedRecs();
-  const idParam = seeds.map(m => `${m.tmdbId}:${m.mediaType === 'anime' ? 'tv' : m.mediaType}`).join(',');
-
-  let data;
   try {
-    const r = await fetch(`/api/recommend?ids=${encodeURIComponent(idParam)}`);
-    if (!r.ok) throw new Error(r.status);
-    data = await r.json();
-  } catch {
+    // Genre frequency across watched titles (any rating)
+    const watched = movies.filter(m => m.status === 'watched');
+    const genreCounts = {};
+    watched.forEach(m => {
+      if (!m.genre) return;
+      m.genre.split(',').map(g => g.trim()).filter(Boolean).forEach(g => {
+        genreCounts[g] = (genreCounts[g] || 0) + 1;
+      });
+    });
+
+    // Full pool of candidate seeds, ranked by genre-frequency score.
+    const seedPool = watched
+      .filter(m => m.tmdbId)
+      .map(m => {
+        const genres = (m.genre || '').split(',').map(g => g.trim()).filter(Boolean);
+        const score = genres.length
+          ? genres.reduce((s, g) => s + (genreCounts[g] || 0), 0) / genres.length
+          : 0;
+        return { ...m, _score: score };
+      })
+      .sort((a, b) => b._score - a._score || (b.addedAt || 0) - (a.addedAt || 0));
+
+    if (!seedPool.length) {
+      section.innerHTML = '<p class="recs-empty">Mark some titles as watched to get personalised recommendations.</p>';
+      return;
+    }
+
+    // Initial load uses top 8 seeds. Refreshes rotate the window across the pool
+    // so we send a different seed combo to TMDB and get different recommendations.
+    let seeds;
+    if (refresh && seedPool.length > 8) {
+      const offset = (recsState.refreshCount * 3) % seedPool.length;
+      seeds = [...seedPool.slice(offset), ...seedPool.slice(0, offset)].slice(0, 8);
+    } else {
+      seeds = seedPool.slice(0, 8);
+    }
+
+    // Cycle TMDB pages 1→2→3 across refreshes for further variety.
+    const page = (recsState.refreshCount % 3) + 1;
+
+    const topGenres  = Object.entries(genreCounts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(e => e[0]);
+    const genreLabel = topGenres.length ? topGenres.join(', ') : '';
+    const headerHTML = buildRecsHeader(genreLabel);
+
+    // Show header + loading while we fetch
     section.innerHTML = headerHTML +
-      '<p class="recs-empty">Recommendations require Vercel deployment with a TMDB API key.</p>';
-    bindRecsHandlers(section);
-    return;
-  }
+      '<div class="recs-loading"><span class="recs-spinner"></span> Loading recommendations…</div>';
 
-  const recs = (data.results || [])
-    .filter(r => !trackedTmdbIds.has(String(r.id)) && !dismissed.has(String(r.id)))
-    .slice(0, RECS_LIMIT);
+    const trackedTmdbIds = new Set(movies.map(m => String(m.tmdbId)).filter(Boolean));
+    const dismissed      = getDismissedRecs();
+    const idParam = seeds.map(m => `${m.tmdbId}:${m.mediaType === 'anime' ? 'tv' : m.mediaType}`).join(',');
 
-  if (!recs.length) {
-    section.innerHTML = headerHTML +
-      '<p class="recs-empty">No new recommendations found — try watching more titles!</p>';
-    bindRecsHandlers(section);
-    return;
-  }
+    let data;
+    try {
+      const r = await fetch(`/api/recommend?ids=${encodeURIComponent(idParam)}&page=${page}`);
+      if (!r.ok) throw new Error(r.status);
+      data = await r.json();
+    } catch {
+      section.innerHTML = headerHTML +
+        '<p class="recs-empty">Recommendations require Vercel deployment with a TMDB API key.</p>';
+      bindRecsHandlers(section);
+      return;
+    }
 
-  section.innerHTML = headerHTML + `
-    <div class="recs-grid">
-      ${recs.map(r => `
-        <div class="rec-card" data-rec-card="${r.id}">
-          <button class="rec-dismiss-btn" data-rec-dismiss="${r.id}" title="Not interested">✕</button>
-          <div class="rec-poster">
-            ${r.poster_path
-              ? `<img src="${POSTER_BASE}${r.poster_path}" alt="${esc(r.title)}" loading="lazy" />`
-              : `<div class="rec-poster-placeholder">${r.media_type === 'tv' ? '📺' : '🎬'}</div>`}
-          </div>
-          <div class="rec-info">
-            <div class="rec-title">
-              <a class="rec-title-link" href="https://www.themoviedb.org/${r.media_type === 'movie' ? 'movie' : 'tv'}/${r.id}" target="_blank" rel="noopener noreferrer" title="View on TMDB">${esc(r.title)}</a>
+    const candidates = (data.results || []).filter(r =>
+      !trackedTmdbIds.has(String(r.id)) && !dismissed.has(String(r.id))
+    );
+
+    // Prefer items not yet shown in this session; fall back to repeats so the grid stays full.
+    let recs = candidates.filter(r => !recsState.shownIds.has(String(r.id))).slice(0, RECS_LIMIT);
+    if (recs.length < RECS_LIMIT) {
+      const fillers = candidates
+        .filter(r => !recs.some(x => x.id === r.id))
+        .slice(0, RECS_LIMIT - recs.length);
+      recs = recs.concat(fillers);
+    }
+
+    if (!recs.length) {
+      // Wipe shown-tracking so the next refresh has a fresh slate to draw from.
+      recsState.shownIds.clear();
+      section.innerHTML = headerHTML +
+        '<p class="recs-empty">No new recommendations — try watching more titles or hit ↻ again.</p>';
+      bindRecsHandlers(section);
+      return;
+    }
+
+    recs.forEach(r => recsState.shownIds.add(String(r.id)));
+
+    section.innerHTML = headerHTML + `
+      <div class="recs-grid">
+        ${recs.map(r => `
+          <div class="rec-card" data-rec-card="${r.id}">
+            <button class="rec-dismiss-btn" data-rec-dismiss="${r.id}" title="Not interested">✕</button>
+            <div class="rec-poster">
+              ${r.poster_path
+                ? `<img src="${POSTER_BASE}${r.poster_path}" alt="${esc(r.title)}" loading="lazy" />`
+                : `<div class="rec-poster-placeholder">${r.media_type === 'tv' ? '📺' : '🎬'}</div>`}
             </div>
-            ${r.year ? `<div class="rec-year">${r.year}</div>` : ''}
-            ${r.overview ? `<div class="rec-overview" title="Tap to expand">${esc(r.overview)}</div>` : ''}
+            <div class="rec-info">
+              <div class="rec-title">
+                <a class="rec-title-link" href="https://www.themoviedb.org/${r.media_type === 'movie' ? 'movie' : 'tv'}/${r.id}" target="_blank" rel="noopener noreferrer" title="View on TMDB">${esc(r.title)}</a>
+              </div>
+              ${r.year ? `<div class="rec-year">${r.year}</div>` : ''}
+              ${r.overview ? `<div class="rec-overview" title="Tap to expand">${esc(r.overview)}</div>` : ''}
+            </div>
+            <button class="rec-add-btn" data-rec-id="${r.id}" data-rec-type="${r.media_type}"
+              data-rec-title="${esc(r.title)}" data-rec-year="${r.year || ''}"
+              data-rec-poster="${r.poster_path || ''}" title="Add to Watchlist">＋ Watchlist</button>
           </div>
-          <button class="rec-add-btn" data-rec-id="${r.id}" data-rec-type="${r.media_type}"
-            data-rec-title="${esc(r.title)}" data-rec-year="${r.year || ''}"
-            data-rec-poster="${r.poster_path || ''}" title="Add to Watchlist">＋ Watchlist</button>
-        </div>
-      `).join('')}
-    </div>
-  `;
+        `).join('')}
+      </div>
+    `;
 
-  bindRecsHandlers(section);
+    bindRecsHandlers(section);
+  } finally {
+    recsState.loading = false;
+  }
 }
 
 function bindRecsHandlers(section) {
@@ -811,7 +852,7 @@ function bindRecsHandlers(section) {
   section._recsBound = true;
   section.addEventListener('click', e => {
     if (e.target.closest('#recs-refresh-btn')) {
-      loadRecommendations();
+      loadRecommendations(true);
       return;
     }
 
