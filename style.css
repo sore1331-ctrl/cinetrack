@@ -67,6 +67,28 @@ header h1 {
 }
 .theme-toggle:hover { border-color: var(--accent); color: var(--text); }
 
+.header-profile-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: .95rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.header-profile-btn:hover { border-color: var(--accent); color: var(--text); }
+.header-profile-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(226,64,90,.1);
+}
+
 /* ── Sync indicator ── */
 .sync-indicator {
   width: 8px;
@@ -389,19 +411,68 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 20px 0; }
   content: '✏ Edit';
   position: absolute;
   inset: 0;
-  background: rgba(0,0,0,.52);
+  background: rgba(0,0,0,.45);
   color: #fff;
   font-size: .82rem;
   font-weight: 700;
   letter-spacing: .04em;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  padding-top: 14px;
   opacity: 0;
-  transition: opacity .15s;
+  transition: opacity .2s;
   pointer-events: none;
 }
 .movie-grid:not(.select-mode) .movie-card:hover .card-poster::after { opacity: 1; }
+
+/* ── Card hover info overlay ── */
+.card-hover-info {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(transparent 0%, rgba(0,0,0,.7) 35%, rgba(0,0,0,.93) 100%);
+  color: #fff;
+  padding: 28px 9px 8px;
+  transform: translateY(8px);
+  opacity: 0;
+  z-index: 2;
+  pointer-events: none;
+  transition: transform .22s ease, opacity .2s ease;
+}
+@media (hover: hover) {
+  .movie-grid:not(.select-mode) .movie-card:hover .card-hover-info {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.chi-genre {
+  font-size: .7rem;
+  color: rgba(255,255,255,.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+  font-weight: 600;
+}
+.chi-dir {
+  font-size: .67rem;
+  color: rgba(255,255,255,.72);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 1px;
+}
+.chi-loc {
+  font-size: .65rem;
+  color: rgba(255,255,255,.58);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Hide hover info in small grid — cards too narrow */
+.grid-sm .card-hover-info { display: none; }
 
 /* ── Card checkbox (bulk select) ── */
 .card-poster { position: relative; }
@@ -979,6 +1050,7 @@ button.danger:hover { opacity: .85; }
   header { padding: 0 14px; height: 48px; }
   header h1 { font-size: 1.1rem; }
   .theme-toggle { width: 32px; height: 32px; font-size: .85rem; }
+  .header-profile-btn { width: 32px; height: 32px; font-size: .85rem; }
   .user-avatar-btn { width: 32px; height: 32px; }
 
   /* Tab bar: scrollable row, smaller tabs */
