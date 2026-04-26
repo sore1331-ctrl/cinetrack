@@ -119,6 +119,7 @@ async function loadUserData() {
     const row = rows?.[0] ?? null;
     if (row?.movies && Array.isArray(row.movies)) {
       movies = row.movies;
+      backfillWatchedDates();
       localStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
     }
     setSyncState('saved');
@@ -167,6 +168,43 @@ function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
 
+// ── Watch-date helpers ──────────────────────────────────
+function toISODate(ts) {
+  if (!ts) return '';
+  // Use local date so the date input matches what the user expects.
+  const d = new Date(ts);
+  const yr = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const da = String(d.getDate()).padStart(2, '0');
+  return `${yr}-${mo}-${da}`;
+}
+function fromISODate(str) {
+  if (!str) return null;
+  // Anchor at noon local to dodge TZ-day-shift issues
+  const d = new Date(str + 'T12:00:00');
+  return isNaN(d.getTime()) ? null : d.getTime();
+}
+function formatWatchedDate(ts) {
+  if (!ts) return '';
+  return new Date(ts).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+function monthLabel(ts) {
+  return new Date(ts).toLocaleDateString(undefined, { year: 'numeric', month: 'long' });
+}
+
+// One-time backfill: any 'watched' item without watchedAt gets the addedAt
+// timestamp so legacy data has a date for the diary view.
+function backfillWatchedDates() {
+  let changed = 0;
+  movies.forEach(m => {
+    if (m.status === 'watched' && !m.watchedAt) {
+      m.watchedAt = m.addedAt || Date.now();
+      changed++;
+    }
+  });
+  if (changed) localStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
+}
+
 // ── DOM refs ────────────────────────────────────────────
 const grid            = document.getElementById('movie-grid');
 const emptyMsg        = document.getElementById('empty-msg');
@@ -178,6 +216,8 @@ const modalTitle      = document.getElementById('modal-title');
 const form            = document.getElementById('movie-form');
 const cancelBtn       = document.getElementById('cancel-btn');
 const ratingLabel     = document.getElementById('rating-label');
+const watchedDateLabel = document.getElementById('watched-date-label');
+const watchedDateInput = document.getElementById('f-watched-date');
 const starRow         = document.getElementById('star-row');
 const directorLabel   = document.getElementById('director-label');
 const confirmModal    = document.getElementById('confirm-modal');
@@ -1198,6 +1238,25 @@ function renderProfile() {
     .sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0))
     .slice(0, 8);
 
+  // Diary: watched titles with dates, newest first, grouped by month
+  const diaryEntries = movies
+    .filter(m => m.status === 'watched' && m.watchedAt)
+    .sort((a, b) => b.watchedAt - a.watchedAt)
+    .slice(0, 24);
+  const diaryByMonth = {};
+  diaryEntries.forEach(m => {
+    const key = monthLabel(m.watchedAt);
+    if (!diaryByMonth[key]) diaryByMonth[key] = [];
+    diaryByMonth[key].push(m);
+  });
+
+  // Watched-this-month count (full month, not just diary slice)
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const watchedThisMonth = movies.filter(m =>
+    m.status === 'watched' && m.watchedAt && m.watchedAt >= monthStart
+  ).length;
+
   const displayName = currentUsername || currentUser?.email?.split('@')[0] || 'You';
   const initial     = displayName[0].toUpperCase();
 
@@ -1229,6 +1288,10 @@ function renderProfile() {
       <div class="stat-card">
         <div class="stat-card-value">${watched.length}</div>
         <div class="stat-card-label">Watched</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-value">${watchedThisMonth}</div>
+        <div class="stat-card-label">This Month</div>
       </div>
       <div class="stat-card">
         <div class="stat-card-value">${watchlist.length}</div>
@@ -1281,6 +1344,33 @@ function renderProfile() {
       </div>` : ''}
     </div>
 
+    ${diaryEntries.length ? `
+    <div class="profile-section diary-section">
+      <h3>📔 Diary</h3>
+      ${Object.entries(diaryByMonth).map(([month, items]) => `
+        <div class="diary-month">
+          <div class="diary-month-label">${esc(month)}</div>
+          <div class="diary-items">
+            ${items.map(m => `
+              <div class="diary-item" data-edit="${m.id}" title="Edit">
+                <div class="diary-day">${new Date(m.watchedAt).getDate()}</div>
+                ${m.posterUrl
+                  ? `<img class="diary-poster" src="${esc(m.posterUrl)}" alt="${esc(m.title)}" loading="lazy" />`
+                  : `<div class="diary-poster diary-poster-placeholder">${m.mediaType === 'anime' ? '🎌' : m.mediaType === 'tv' ? '📺' : '🎬'}</div>`}
+                <div class="diary-info">
+                  <div class="diary-title">${esc(m.title)}</div>
+                  <div class="diary-meta">
+                    ${m.year ? `<span>${m.year}</span>` : ''}
+                    ${m.rating ? `<span class="diary-rating">★ ${m.rating}</span>` : ''}
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `).join('')}
+    </div>` : ''}
+
     ${recent.length ? `
     <div class="profile-section">
       <h3>Recently Added</h3>
@@ -1314,8 +1404,8 @@ function renderProfile() {
     </div>
   `;
 
-  // Clicking a recent card opens the edit modal
-  panel.querySelectorAll('.profile-recent-card[data-edit]').forEach(card => {
+  // Clicking a recent card or diary item opens the edit modal
+  panel.querySelectorAll('[data-edit]').forEach(card => {
     card.addEventListener('click', () => openModal(movies.find(m => m.id === card.dataset.edit)));
   });
 
@@ -1505,6 +1595,7 @@ function render() {
         ${m.genre      ? `<span class="meta-genre">${esc(m.genre)}</span>` : ''}
         ${m.director   ? `<span class="meta-director">${isTV ? 'Created by' : 'Dir.'} ${esc(m.director)}</span>` : ''}
         ${runtimeStr   ? `<span class="meta-runtime">⏱ ${runtimeStr}</span>` : ''}
+        ${m.status === 'watched' && m.watchedAt ? `<span class="meta-watched">📅 ${formatWatchedDate(m.watchedAt)}</span>` : ''}
       </div>
       ${m.rating ? starsHTML(m.rating) : ''}
       ${m.notes ? `<div class="card-notes">${esc(m.notes)}</div>` : ''}
@@ -1557,7 +1648,12 @@ bulkSelectAll.addEventListener('click', () => { filtered().forEach(m => selected
 bulkDeselect.addEventListener('click', () => { selectedIds.clear(); render(); });
 
 bulkMarkWatched.addEventListener('click', () => {
-  movies.forEach(m => { if (selectedIds.has(m.id)) m.status = 'watched'; });
+  movies.forEach(m => {
+    if (selectedIds.has(m.id)) {
+      m.status = 'watched';
+      if (!m.watchedAt) m.watchedAt = Date.now();
+    }
+  });
   selectedIds.clear(); save(); render();
 });
 
@@ -1610,6 +1706,9 @@ function openModal(movie = null) {
   document.getElementById('f-status').value   = movie?.status   || 'watchlist';
   document.getElementById('f-runtime').value  = movie?.runtime  || '';
   document.getElementById('f-notes').value    = movie?.notes    || '';
+  watchedDateInput.value = movie?.watchedAt
+    ? toISODate(movie.watchedAt)
+    : (movie?.status === 'watched' ? toISODate(Date.now()) : '');
   selectedRating = movie?.rating || 0;
 
   toggleRatingLabel();
@@ -1627,6 +1726,7 @@ function closeModal() {
 function toggleRatingLabel() {
   const s = document.getElementById('f-status').value;
   ratingLabel.classList.toggle('hidden', s !== 'watched' && s !== 'in_progress');
+  watchedDateLabel.classList.toggle('hidden', s !== 'watched');
 }
 
 // ── Form submit ─────────────────────────────────────────
@@ -1640,16 +1740,24 @@ form.addEventListener('submit', e => {
     ? POSTER_BASE + tmdbSelection.poster_path
     : existing?.posterUrl || '';
 
+  const status = document.getElementById('f-status').value;
+  let watchedAt = existing?.watchedAt || null;
+  if (status === 'watched') {
+    const formDate = fromISODate(watchedDateInput.value);
+    watchedAt = formDate || watchedAt || Date.now();
+  }
+
   const data = {
     title,
     year:      document.getElementById('f-year').value     || '',
     genre:     document.getElementById('f-genre').value    || '',
     director:  document.getElementById('f-director').value || '',
     country:   document.getElementById('f-country').value  || '',
-    status:    document.getElementById('f-status').value,
+    status,
     notes:     document.getElementById('f-notes').value    || '',
     runtime:   parseInt(document.getElementById('f-runtime').value) || 0,
-    rating:    ['watched', 'in_progress'].includes(document.getElementById('f-status').value) ? selectedRating : 0,
+    rating:    ['watched', 'in_progress'].includes(status) ? selectedRating : 0,
+    watchedAt,
     mediaType: activeMediaType,
     posterUrl,
     tmdbId: tmdbSelection?.id || existing?.tmdbId || null,
@@ -1697,6 +1805,7 @@ grid.addEventListener('click', e => {
     const m = movies.find(m => m.id === toggleId);
     if (m) {
       m.status = m.status === 'watched' ? 'watchlist' : m.status === 'in_progress' ? 'watched' : 'in_progress';
+      if (m.status === 'watched' && !m.watchedAt) m.watchedAt = Date.now();
       if (m.status === 'watchlist') m.rating = 0;
       save(); render();
     }
@@ -2023,6 +2132,7 @@ document.addEventListener('visibilitychange', () => {
 
 // ── Init ────────────────────────────────────────────────
 applyGridSize(gridSize);
+backfillWatchedDates();
 
 if (movies.length > 0) { updateCountryDropdown(); render(); }
 

@@ -450,7 +450,8 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 20px 0; }
 /* ── Small grid: show only year + country ── */
 .grid-sm .meta-genre,
 .grid-sm .meta-director,
-.grid-sm .meta-runtime { display: none; }
+.grid-sm .meta-runtime,
+.grid-sm .meta-watched { display: none; }
 .grid-sm .card-stars,
 .grid-sm .card-notes { display: none; }
 
@@ -1328,7 +1329,7 @@ button.danger:hover { opacity: .85; }
 }
 .stats-overview {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 14px;
   margin-bottom: 32px;
 }
@@ -1734,6 +1735,101 @@ button.danger:hover { opacity: .85; }
 }
 .profile-recent-year { font-size: .68rem; color: var(--muted); padding: 0 6px 6px; }
 .profile-empty { color: var(--muted); font-size: .9rem; text-align: center; margin-top: 48px; }
+
+/* ── Diary ── */
+.diary-section { }
+.diary-month { margin-bottom: 22px; }
+.diary-month-label {
+  font-size: .8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--muted);
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.diary-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.diary-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color .15s, transform .15s var(--ease), box-shadow .15s var(--ease);
+}
+.diary-item:hover {
+  border-color: rgba(226,64,90,.35);
+  transform: translateX(3px);
+  box-shadow: 0 4px 12px -4px rgba(0,0,0,.25);
+}
+.diary-day {
+  flex-shrink: 0;
+  width: 36px;
+  text-align: center;
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: -.5px;
+}
+.diary-poster {
+  width: 36px;
+  height: 54px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+  background: var(--surface2);
+}
+.diary-poster-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+}
+.diary-info { flex: 1; min-width: 0; }
+.diary-title {
+  font-size: .92rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+.diary-meta {
+  display: flex;
+  gap: 8px;
+  font-size: .76rem;
+  color: var(--muted);
+}
+.diary-rating { color: var(--accent2); font-weight: 600; }
+
+/* ── Watched-on chip in card meta ── */
+.meta-watched {
+  color: var(--accent2);
+}
+
+/* ── Date input ── */
+#f-watched-date {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: .95rem;
+  outline: none;
+  font-family: inherit;
+  transition: border-color .15s;
+  color-scheme: light dark;
+}
+#f-watched-date:focus { border-color: var(--accent); }
 
 #logo { cursor: pointer; }
 #logo:hover { opacity: .75; transition: opacity .15s; }
