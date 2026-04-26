@@ -218,9 +218,11 @@ const cancelBtn       = document.getElementById('cancel-btn');
 const ratingLabel     = document.getElementById('rating-label');
 const watchedDateLabel = document.getElementById('watched-date-label');
 const watchedDateInput = document.getElementById('f-watched-date');
-const episodeFields    = document.getElementById('episode-fields');
-const currentEpInput   = document.getElementById('f-current-episode');
-const totalEpInput     = document.getElementById('f-total-episodes');
+const episodeFields     = document.getElementById('episode-fields');
+const currentEpInput    = document.getElementById('f-current-episode');
+const totalEpInput      = document.getElementById('f-total-episodes');
+const currentSeasonInput = document.getElementById('f-current-season');
+const totalSeasonsInput  = document.getElementById('f-total-seasons');
 const starRow         = document.getElementById('star-row');
 const directorLabel   = document.getElementById('director-label');
 const confirmModal    = document.getElementById('confirm-modal');
@@ -499,7 +501,8 @@ function applyTMDBSelection(details) {
   if (details.runtime) document.getElementById('f-runtime').value = details.runtime;
   if (!document.getElementById('f-notes').value)
     document.getElementById('f-notes').value  = details.overview || '';
-  if (details.total_episodes) totalEpInput.value = details.total_episodes;
+  if (details.total_episodes) totalEpInput.value     = details.total_episodes;
+  if (details.total_seasons)  totalSeasonsInput.value = details.total_seasons;
 }
 
 function resetTMDBUI() {
@@ -514,7 +517,7 @@ function resetTMDBUI() {
 
 tmdbClear.addEventListener('click', () => {
   resetTMDBUI();
-  ['f-title','f-year','f-genre','f-director','f-country','f-runtime','f-total-episodes'].forEach(id =>
+  ['f-title','f-year','f-genre','f-director','f-country','f-runtime','f-total-episodes','f-total-seasons'].forEach(id =>
     document.getElementById(id).value = ''
   );
   tmdbQuery.focus();
@@ -1517,18 +1520,38 @@ function renderPagination(totalItems) {
 function renderEpisodeProgress(m) {
   const isTVish = m.mediaType === 'tv' || m.mediaType === 'anime';
   if (!isTVish) return '';
-  const cur = m.currentEpisode || 0;
-  const tot = m.totalEpisodes  || 0;
+  const cur     = m.currentEpisode || 0;
+  const tot     = m.totalEpisodes  || 0;
+  const season  = m.currentSeason  || 0;
+  const totSeas = m.totalSeasons   || 0;
+
+  // Build a position label like "S2·E4 / 24 ep" or "Episode 4"
+  const posLabel = (() => {
+    if (season && cur) return `S${season}·E${cur}${tot ? ` / ${tot} ep` : ''}`;
+    if (season)        return `S${season}${totSeas ? ` of ${totSeas}` : ''}`;
+    if (cur)           return `Episode ${cur}${tot ? ` / ${tot}` : ''}`;
+    return '';
+  })();
+
   if (m.status === 'in_progress') {
-    if (!tot && !cur) return '';
+    if (!posLabel && !tot) return '';
+    const incBtn = `<button class="card-progress-inc" data-increment="${m.id}" title="Mark next episode watched">+1</button>`;
     if (!tot) {
-      return `<div class="card-progress"><span class="card-progress-label">▶ Episode ${cur}</span></div>`;
+      return `<div class="card-progress">
+        <div class="card-progress-row">
+          <span class="card-progress-label">▶ ${posLabel || 'In progress'}</span>
+          ${incBtn}
+        </div>
+      </div>`;
     }
     const pct = Math.min(100, Math.round((cur / tot) * 100));
     return `<div class="card-progress">
       <div class="card-progress-row">
-        <span class="card-progress-label">▶ ${cur} / ${tot} ep</span>
-        <span class="card-progress-pct">${pct}%</span>
+        <span class="card-progress-label">▶ ${posLabel}</span>
+        <div class="card-progress-right">
+          <span class="card-progress-pct">${pct}%</span>
+          ${incBtn}
+        </div>
       </div>
       <div class="card-progress-track">
         <div class="card-progress-fill" style="width:${pct}%"></div>
@@ -1536,7 +1559,8 @@ function renderEpisodeProgress(m) {
     </div>`;
   }
   if (m.status === 'watched' && tot) {
-    return `<div class="card-progress card-progress-done">✓ All ${tot} episodes</div>`;
+    const seasonLabel = totSeas ? ` · ${totSeas} season${totSeas !== 1 ? 's' : ''}` : '';
+    return `<div class="card-progress card-progress-done">✓ All ${tot} episodes${seasonLabel}</div>`;
   }
   return '';
 }
@@ -1744,8 +1768,10 @@ function openModal(movie = null) {
   watchedDateInput.value = movie?.watchedAt
     ? toISODate(movie.watchedAt)
     : (movie?.status === 'watched' ? toISODate(Date.now()) : '');
-  currentEpInput.value = movie?.currentEpisode || '';
-  totalEpInput.value   = movie?.totalEpisodes  || '';
+  currentEpInput.value     = movie?.currentEpisode || '';
+  totalEpInput.value       = movie?.totalEpisodes  || '';
+  currentSeasonInput.value = movie?.currentSeason  || '';
+  totalSeasonsInput.value  = movie?.totalSeasons   || '';
   selectedRating = movie?.rating || 0;
 
   toggleRatingLabel();
@@ -1784,9 +1810,11 @@ form.addEventListener('submit', e => {
     watchedAt = formDate || watchedAt || Date.now();
   }
 
-  const isTVish = activeMediaType === 'tv' || activeMediaType === 'anime';
-  const currentEp = isTVish ? (parseInt(currentEpInput.value) || 0) : 0;
-  const totalEp   = isTVish ? (parseInt(totalEpInput.value)   || 0) : 0;
+  const isTVish        = activeMediaType === 'tv' || activeMediaType === 'anime';
+  const currentEp      = isTVish ? (parseInt(currentEpInput.value)     || 0) : 0;
+  const totalEp        = isTVish ? (parseInt(totalEpInput.value)       || 0) : 0;
+  const currentSeason  = isTVish ? (parseInt(currentSeasonInput.value) || 0) : 0;
+  const totalSeasons   = isTVish ? (parseInt(totalSeasonsInput.value)  || 0) : 0;
 
   const data = {
     title,
@@ -1801,6 +1829,8 @@ form.addEventListener('submit', e => {
     watchedAt,
     currentEpisode: currentEp,
     totalEpisodes:  totalEp,
+    currentSeason,
+    totalSeasons,
     mediaType: activeMediaType,
     posterUrl,
     tmdbId: tmdbSelection?.id || existing?.tmdbId || null,
@@ -1825,6 +1855,22 @@ searchInput.addEventListener('input', () => { searchQuery = searchInput.value; c
 countryFilterEl.addEventListener('change', () => { countryFilter = countryFilterEl.value; currentPage = 0; render(); });
 
 grid.addEventListener('click', e => {
+  const incBtn = e.target.closest('[data-increment]');
+  if (incBtn) {
+    const m = movies.find(x => x.id === incBtn.dataset.increment);
+    if (m) {
+      m.currentEpisode = (m.currentEpisode || 0) + 1;
+      // Hitting the finale auto-completes the show
+      if (m.totalEpisodes && m.currentEpisode >= m.totalEpisodes) {
+        m.currentEpisode = m.totalEpisodes;
+        m.status = 'watched';
+        if (!m.watchedAt) m.watchedAt = Date.now();
+      }
+      save(); render();
+    }
+    return;
+  }
+
   const noteEl = e.target.closest('.card-notes');
   if (noteEl) { noteEl.classList.toggle('expanded'); return; }
 

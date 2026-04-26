@@ -262,13 +262,23 @@
         <label id="watched-date-label" class="hidden">Watched on
           <input type="date" id="f-watched-date" />
         </label>
-        <div id="episode-fields" class="row-2 hidden">
-          <label>Current episode
-            <input type="number" id="f-current-episode" min="0" max="9999" placeholder="e.g. 4" />
-          </label>
-          <label>Total episodes
-            <input type="number" id="f-total-episodes" min="0" max="9999" placeholder="auto from TMDB" />
-          </label>
+        <div id="episode-fields" class="hidden">
+          <div class="row-2">
+            <label>Current season
+              <input type="number" id="f-current-season" min="0" max="999" placeholder="e.g. 2" />
+            </label>
+            <label>Current episode
+              <input type="number" id="f-current-episode" min="0" max="9999" placeholder="e.g. 4" />
+            </label>
+          </div>
+          <div class="row-2">
+            <label>Total seasons
+              <input type="number" id="f-total-seasons" min="0" max="999" placeholder="auto from TMDB" />
+            </label>
+            <label>Total episodes
+              <input type="number" id="f-total-episodes" min="0" max="9999" placeholder="auto from TMDB" />
+            </label>
+          </div>
         </div>
         <label>Runtime (minutes)
           <input type="number" id="f-runtime" min="0" max="99999" placeholder="e.g. 148 (filled from TMDB)" />
