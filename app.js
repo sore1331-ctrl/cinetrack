@@ -1128,6 +1128,18 @@ function renderProfile() {
         <a id="profile-csv-template" class="csv-template-link" href="#" download="cinetrack-template.csv">Download template</a>
       </div>
     </div>
+
+    <div class="profile-section">
+      <h3>
+        Refresh metadata
+        <button type="button" class="info-btn" aria-label="What is this?"
+          title="Re-fetch the latest TMDB info (posters, episode counts, genres, runtime) for every title with a TMDB link. Useful if older entries are missing newer fields like total episodes.">ⓘ</button>
+      </h3>
+      <p class="profile-csv-hint">Re-pulls posters, episode counts and other TMDB fields for every linked title.</p>
+      <div class="profile-csv-actions">
+        <button id="profile-refresh-tmdb-btn" class="csv-action-btn" title="Refresh from TMDB">🔄 Refresh from TMDB</button>
+      </div>
+    </div>
   `;
 
   // Clicking a recent card opens the edit modal
@@ -1138,6 +1150,7 @@ function renderProfile() {
   // Wire CSV controls (re-rendered every renderProfile)
   panel.querySelector('#profile-import-btn')?.addEventListener('click', () => csvInput.click());
   panel.querySelector('#profile-export-btn')?.addEventListener('click', exportCSV);
+  panel.querySelector('#profile-refresh-tmdb-btn')?.addEventListener('click', refreshAllFromTMDB);
   const tplLink = panel.querySelector('#profile-csv-template');
   if (tplLink) tplLink.href = TEMPLATE_URL;
 }
@@ -1584,6 +1597,7 @@ async function matchWithTMDB(title, year, mediaType) {
 
 async function importRows(rows) {
   cancelImport = false;
+  document.getElementById('progress-title').textContent = 'Matching with TMDB';
   importProgress.classList.remove('hidden');
   let imported = 0, skipped = 0, unmatched = 0;
   const total = rows.length;
@@ -1615,6 +1629,62 @@ async function importRows(rows) {
   if (skipped)   parts.push(`${skipped} skipped`);
   if (unmatched) parts.push(`${unmatched} not on TMDB`);
   if (cancelImport) parts.push('cancelled');
+  showToast(parts.join(' · '));
+}
+
+// ── Bulk refresh from TMDB ──────────────────────────────
+async function refreshAllFromTMDB() {
+  const items = movies.filter(m => m.tmdbId);
+  if (!items.length) {
+    showToast('No TMDB-linked titles to refresh.', true);
+    return;
+  }
+  if (!confirm(`Refresh TMDB data for ${items.length} title${items.length !== 1 ? 's' : ''}? This may take a few minutes.`)) return;
+
+  cancelImport = false;
+  document.getElementById('progress-title').textContent = 'Refreshing from TMDB';
+  importProgress.classList.remove('hidden');
+  let updated = 0, failed = 0;
+  const total = items.length;
+
+  for (let i = 0; i < total; i++) {
+    if (cancelImport) break;
+    const m = items[i];
+    progressText.textContent = `Refreshing "${m.title}" (${i + 1} of ${total})…`;
+    progressBar.style.width = `${Math.round((i / total) * 100)}%`;
+
+    try {
+      const fetchType = m.mediaType === 'anime' ? 'tv' : (m.mediaType === 'tv' ? 'tv' : 'movie');
+      const r = await fetch(`/api/movie?id=${m.tmdbId}&type=${fetchType}`);
+      if (!r.ok) { failed++; continue; }
+      const d = await r.json();
+
+      // Refresh metadata fields. User-edited state (rating, status, notes,
+      // watchedAt, currentEpisode, currentSeason) is preserved.
+      if (d.title)    m.title    = d.title;
+      if (d.year)     m.year     = d.year;
+      if (d.genre)    m.genre    = d.genre;
+      if (d.director) m.director = d.director;
+      if (d.country)  m.country  = d.country;
+      if (d.runtime)  m.runtime  = d.runtime;
+      if (d.poster_path) m.posterUrl = `https://image.tmdb.org/t/p/w200${d.poster_path}`;
+      if (d.total_episodes) m.totalEpisodes = d.total_episodes;
+      if (d.total_seasons)  m.totalSeasons  = d.total_seasons;
+      updated++;
+    } catch {
+      failed++;
+    }
+  }
+
+  progressBar.style.width = '100%';
+  importProgress.classList.add('hidden');
+  save();
+  updateCountryDropdown();
+  refreshCurrentView();
+
+  const parts = [`Refreshed ${updated} title${updated !== 1 ? 's' : ''}`];
+  if (failed)        parts.push(`${failed} failed`);
+  if (cancelImport)  parts.push('cancelled');
   showToast(parts.join(' · '));
 }
 
