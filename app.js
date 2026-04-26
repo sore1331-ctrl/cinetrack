@@ -1032,10 +1032,17 @@ function renderProfile() {
     <div class="profile-hero">
       <div class="profile-avatar-lg">${esc(initial)}</div>
       <div class="profile-hero-info">
-        <div class="profile-display-name">
-          ${esc(displayName)}
+        <div class="profile-display-name" id="profile-name-display">
+          <span class="profile-name-text">${esc(displayName)}</span>
+          ${currentUser ? `<button type="button" class="profile-name-edit" id="profile-name-edit-btn" title="Edit username">✏ Edit</button>` : ''}
           <span id="sync-indicator" class="sync-indicator" data-state="${currentSyncState}" title="${currentSyncTitle}"></span>
         </div>
+        ${currentUser ? `
+        <form class="profile-name-form hidden" id="profile-name-form">
+          <input type="text" id="profile-name-input" maxlength="30" placeholder="Your display name" />
+          <button type="submit" id="profile-name-save" class="profile-name-save">Save</button>
+          <button type="button" id="profile-name-cancel" class="profile-name-cancel">Cancel</button>
+        </form>` : ''}
         ${currentUser ? `<div class="profile-email-sm">${esc(currentUser.email)}</div>` : ''}
         ${sharingEnabled ? '<div class="profile-sharing-badge">🌐 Sharing enabled</div>' : ''}
       </div>
@@ -1140,6 +1147,42 @@ function renderProfile() {
   panel.querySelector('#profile-export-btn')?.addEventListener('click', exportCSV);
   const tplLink = panel.querySelector('#profile-csv-template');
   if (tplLink) tplLink.href = TEMPLATE_URL;
+
+  // Wire username editor
+  const nameDisplay = panel.querySelector('#profile-name-display');
+  const nameForm    = panel.querySelector('#profile-name-form');
+  const nameInput   = panel.querySelector('#profile-name-input');
+  const nameSave    = panel.querySelector('#profile-name-save');
+  const nameCancel  = panel.querySelector('#profile-name-cancel');
+  const nameEditBtn = panel.querySelector('#profile-name-edit-btn');
+
+  function showNameForm() {
+    if (!nameForm || !nameInput) return;
+    nameDisplay?.classList.add('hidden');
+    nameForm.classList.remove('hidden');
+    nameInput.value = currentUsername || '';
+    nameInput.focus();
+    nameInput.select();
+  }
+  function hideNameForm() {
+    nameForm?.classList.add('hidden');
+    nameDisplay?.classList.remove('hidden');
+  }
+  async function saveName() {
+    const val = (nameInput?.value || '').trim();
+    if (!val) return;
+    currentUsername = val;
+    updateUserMenu();
+    await saveProfile({ username: val });
+    renderProfile();
+  }
+
+  nameEditBtn?.addEventListener('click', showNameForm);
+  nameCancel?.addEventListener('click', hideNameForm);
+  nameForm?.addEventListener('submit', e => { e.preventDefault(); saveName(); });
+  nameInput?.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { e.preventDefault(); hideNameForm(); }
+  });
 }
 
 // ── Export CSV ──────────────────────────────────────────
@@ -1727,11 +1770,6 @@ function updateUserMenu() {
   const displayName = currentUsername || currentUser.email.split('@')[0];
   userAvatar.textContent  = displayName[0].toUpperCase();
   userEmailEl.textContent = currentUser.email;
-  const usernameDisplay = document.getElementById('username-display');
-  if (usernameDisplay) {
-    usernameDisplay.textContent = currentUsername || 'Set username';
-    usernameDisplay.classList.toggle('username-placeholder', !currentUsername);
-  }
   const sharingToggle = document.getElementById('sharing-toggle');
   if (sharingToggle) sharingToggle.checked = sharingEnabled;
 }
@@ -1745,40 +1783,6 @@ document.getElementById('user-avatar-btn').addEventListener('click', e => {
 document.addEventListener('click', e => {
   if (!e.target.closest('#user-menu')) {
     document.getElementById('user-dropdown').classList.add('hidden');
-    closeUsernameForm();
-  }
-});
-
-// ── Username edit ───────────────────────────────────────
-function closeUsernameForm() {
-  document.getElementById('username-form')?.classList.add('hidden');
-}
-
-document.getElementById('username-edit-btn').addEventListener('click', e => {
-  e.stopPropagation();
-  const form = document.getElementById('username-form');
-  form.classList.toggle('hidden');
-  if (!form.classList.contains('hidden')) {
-    const input = document.getElementById('username-input');
-    input.value = currentUsername || '';
-    input.focus();
-  }
-});
-
-document.getElementById('username-save-btn').addEventListener('click', async e => {
-  e.stopPropagation();
-  const val = document.getElementById('username-input').value.trim();
-  if (!val) return;
-  currentUsername = val;
-  updateUserMenu();
-  closeUsernameForm();
-  await saveProfile({ username: val });
-});
-
-document.getElementById('username-input').addEventListener('keydown', async e => {
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    document.getElementById('username-save-btn').click();
   }
 });
 

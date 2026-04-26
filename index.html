@@ -43,27 +43,21 @@
   <!-- Header -->
   <header>
     <h1 id="logo" title="Go to Profile">CineTrack</h1>
-    <div id="user-menu" class="user-menu hidden">
-      <button class="user-avatar-btn" id="user-avatar-btn">
-        <span id="user-avatar">?</span>
-      </button>
-      <div class="user-dropdown hidden" id="user-dropdown">
-        <div class="user-name-row">
-          <span id="username-display" class="username-display">Set username</span>
-          <button id="username-edit-btn" class="username-edit-btn" title="Edit username">✏</button>
+    <div class="header-actions">
+      <div id="user-menu" class="user-menu hidden">
+        <button class="user-avatar-btn" id="user-avatar-btn">
+          <span id="user-avatar">?</span>
+        </button>
+        <div class="user-dropdown hidden" id="user-dropdown">
+          <span id="user-email" class="user-email-label"></span>
+          <hr class="dropdown-divider" />
+          <button id="reload-cloud-btn" class="reload-cloud-btn">↻ Reload from cloud</button>
+          <button id="signout-btn" class="signout-btn">Sign out</button>
         </div>
-        <div id="username-form" class="username-form hidden">
-          <input type="text" id="username-input" placeholder="Your display name" maxlength="30" />
-          <button id="username-save-btn" class="username-save-btn">Save</button>
-        </div>
-        <span id="user-email" class="user-email-label"></span>
-        <hr class="dropdown-divider" />
-        <button id="reload-cloud-btn" class="reload-cloud-btn">↻ Reload from cloud</button>
-        <button id="signout-btn" class="signout-btn">Sign out</button>
       </div>
+      <button id="header-profile-btn" class="header-profile-btn" title="Profile">👤</button>
+      <button id="theme-toggle" class="theme-toggle" title="Toggle light/dark mode">🌙</button>
     </div>
-    <button id="header-profile-btn" class="header-profile-btn" title="Profile">👤</button>
-    <button id="theme-toggle" class="theme-toggle" title="Toggle light/dark mode">🌙</button>
   </header>
 
   <!-- Type tab bar -->
