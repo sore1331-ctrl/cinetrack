@@ -684,6 +684,33 @@ function dismissRec(id) {
   localStorage.setItem(DISMISSED_RECS_KEY, JSON.stringify([...set]));
 }
 
+const RECS_LIMIT = 10; // 2 rows of 5
+
+function buildRecsHeader(genreLabel) {
+  return `
+    <div class="recs-header">
+      <div class="recs-header-text">
+        <h3 class="recs-heading">✨ Recommended For You</h3>
+        <p class="recs-sub">Based on what you've watched${genreLabel ? ` · favouring ${esc(genreLabel)}` : ''}</p>
+      </div>
+      <button class="recs-refresh-btn" id="recs-refresh-btn" title="Refresh recommendations" aria-label="Refresh">↻</button>
+    </div>
+  `;
+}
+
+function removeRecCard(section, recId) {
+  const card = section.querySelector(`.rec-card[data-rec-card="${recId}"]`);
+  if (!card) return;
+  card.classList.add('rec-card-removing');
+  setTimeout(() => {
+    card.remove();
+    if (!section.querySelector('.rec-card')) {
+      const grid = section.querySelector('.recs-grid');
+      if (grid) grid.outerHTML = '<p class="recs-empty">All caught up — hit ↻ to refresh.</p>';
+    }
+  }, 200);
+}
+
 async function loadRecommendations() {
   const section = document.getElementById('recs-section');
   if (!section) return;
@@ -699,7 +726,6 @@ async function loadRecommendations() {
   });
 
   // Seeds: watched titles with tmdbId, ranked by sum of their genres' frequency.
-  // Titles whose genres dominate your watch history get more weight.
   const seeds = watched
     .filter(m => m.tmdbId)
     .map(m => {
@@ -717,6 +743,14 @@ async function loadRecommendations() {
     return;
   }
 
+  const topGenres  = Object.entries(genreCounts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(e => e[0]);
+  const genreLabel = topGenres.length ? topGenres.join(', ') : '';
+  const headerHTML = buildRecsHeader(genreLabel);
+
+  // Show header + loading while we fetch
+  section.innerHTML = headerHTML +
+    '<div class="recs-loading"><span class="recs-spinner"></span> Loading recommendations…</div>';
+
   const trackedTmdbIds = new Set(movies.map(m => String(m.tmdbId)).filter(Boolean));
   const dismissed      = getDismissedRecs();
   const idParam = seeds.map(m => `${m.tmdbId}:${m.mediaType === 'anime' ? 'tv' : m.mediaType}`).join(',');
@@ -727,25 +761,24 @@ async function loadRecommendations() {
     if (!r.ok) throw new Error(r.status);
     data = await r.json();
   } catch {
-    section.innerHTML = '<p class="recs-empty">Recommendations require Vercel deployment with a TMDB API key.</p>';
+    section.innerHTML = headerHTML +
+      '<p class="recs-empty">Recommendations require Vercel deployment with a TMDB API key.</p>';
+    bindRecsHandlers(section);
     return;
   }
 
-  const recs = (data.results || []).filter(r =>
-    !trackedTmdbIds.has(String(r.id)) && !dismissed.has(String(r.id))
-  );
+  const recs = (data.results || [])
+    .filter(r => !trackedTmdbIds.has(String(r.id)) && !dismissed.has(String(r.id)))
+    .slice(0, RECS_LIMIT);
 
   if (!recs.length) {
-    section.innerHTML = '<p class="recs-empty">No new recommendations found — try watching more titles!</p>';
+    section.innerHTML = headerHTML +
+      '<p class="recs-empty">No new recommendations found — try watching more titles!</p>';
+    bindRecsHandlers(section);
     return;
   }
 
-  const topGenres = Object.entries(genreCounts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(e => e[0]);
-  const genreLabel = topGenres.length ? topGenres.join(', ') : 'your watch history';
-
-  section.innerHTML = `
-    <h3 class="recs-heading">✨ Recommended For You</h3>
-    <p class="recs-sub">Based on what you've watched · favouring ${esc(genreLabel)}</p>
+  section.innerHTML = headerHTML + `
     <div class="recs-grid">
       ${recs.map(r => `
         <div class="rec-card" data-rec-card="${r.id}">
@@ -770,7 +803,18 @@ async function loadRecommendations() {
     </div>
   `;
 
+  bindRecsHandlers(section);
+}
+
+function bindRecsHandlers(section) {
+  if (section._recsBound) return;
+  section._recsBound = true;
   section.addEventListener('click', e => {
+    if (e.target.closest('#recs-refresh-btn')) {
+      loadRecommendations();
+      return;
+    }
+
     const overview = e.target.closest('.rec-overview');
     if (overview) {
       overview.closest('.rec-card')?.classList.toggle('expanded');
@@ -781,47 +825,34 @@ async function loadRecommendations() {
     if (dismissBtn) {
       const id = dismissBtn.dataset.recDismiss;
       dismissRec(id);
-      const card = section.querySelector(`.rec-card[data-rec-card="${id}"]`);
-      if (card) {
-        card.classList.add('rec-card-removing');
-        setTimeout(() => {
-          card.remove();
-          if (!section.querySelector('.rec-card')) {
-            section.querySelector('.recs-grid')?.remove();
-            section.querySelector('.recs-heading')?.remove();
-            section.querySelector('.recs-sub')?.remove();
-            section.insertAdjacentHTML('beforeend',
-              '<p class="recs-empty">All caught up — dismissed everything for now.</p>');
-          }
-        }, 200);
-      }
+      removeRecCard(section, id);
       return;
     }
 
-    const btn = e.target.closest('.rec-add-btn');
-    if (!btn) return;
-    const recId     = btn.dataset.recId;
-    const recType   = btn.dataset.recType;
-    const recTitle  = btn.dataset.recTitle;
-    const recYear   = btn.dataset.recYear;
-    const recPoster = btn.dataset.recPoster;
-    if (movies.some(m => String(m.tmdbId) === recId)) { btn.textContent = '✓ Added'; btn.disabled = true; return; }
-    movies.unshift({
-      id:        genId(),
-      addedAt:   Date.now(),
-      title:     recTitle,
-      year:      recYear,
-      status:    'watchlist',
-      rating:    0,
-      mediaType: recType === 'tv' ? 'tv' : 'movie',
-      tmdbId:    Number(recId),
-      posterUrl: recPoster ? POSTER_BASE + recPoster : '',
-      genre: '', director: '', country: '', notes: '', runtime: 0,
-    });
-    save(); updateCountryDropdown();
-    btn.textContent = '✓ Added';
-    btn.disabled = true;
-    trackedTmdbIds.add(recId);
+    const addBtn = e.target.closest('.rec-add-btn');
+    if (!addBtn) return;
+    const recId     = addBtn.dataset.recId;
+    const recType   = addBtn.dataset.recType;
+    const recTitle  = addBtn.dataset.recTitle;
+    const recYear   = addBtn.dataset.recYear;
+    const recPoster = addBtn.dataset.recPoster;
+    if (!movies.some(m => String(m.tmdbId) === recId)) {
+      movies.unshift({
+        id:        genId(),
+        addedAt:   Date.now(),
+        title:     recTitle,
+        year:      recYear,
+        status:    'watchlist',
+        rating:    0,
+        mediaType: recType === 'tv' ? 'tv' : 'movie',
+        tmdbId:    Number(recId),
+        posterUrl: recPoster ? POSTER_BASE + recPoster : '',
+        genre: '', director: '', country: '', notes: '', runtime: 0,
+      });
+      save();
+      updateCountryDropdown();
+    }
+    removeRecCard(section, recId);
   });
 }
 
