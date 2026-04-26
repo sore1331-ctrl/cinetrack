@@ -384,6 +384,40 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 20px 0; }
 
 .card-stars { color: var(--accent2); font-size: .85rem; letter-spacing: 1px; padding: 0 14px; }
 
+/* ── Episode progress on TV / anime cards ── */
+.card-progress {
+  padding: 0 14px;
+  margin-top: 2px;
+  font-size: .76rem;
+  color: var(--muted);
+}
+.card-progress-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.card-progress-label { color: #5ba3f5; font-weight: 600; }
+.card-progress-pct   { color: var(--muted); font-weight: 500; }
+.card-progress-track {
+  height: 4px;
+  background: var(--surface2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.card-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #5ba3f5, #3b9eff);
+  border-radius: 2px;
+  transition: width .4s ease;
+}
+.card-progress-done {
+  color: #4caf82;
+  font-weight: 600;
+  font-size: .74rem;
+}
+.grid-sm .card-progress { display: none; }
+
 .card-notes {
   font-size: .78rem;
   color: var(--muted);

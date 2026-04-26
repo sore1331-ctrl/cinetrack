@@ -37,6 +37,8 @@ export default async function handler(req, res) {
       country,
       media_type:  mediaType,
       runtime,
+      total_episodes: mediaType === 'tv' ? (data.number_of_episodes || 0) : 0,
+      total_seasons:  mediaType === 'tv' ? (data.number_of_seasons  || 0) : 0,
     });
   } catch (e) {
     res.status(500).json({ error: 'Failed to reach TMDB' });

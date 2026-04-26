@@ -23,6 +23,8 @@ async function fetchDetails(id, mediaType, key) {
     overview:    data.overview || '',
     poster_path: data.poster_path || null,
     runtime,
+    total_episodes: mediaType === 'tv' ? (data.number_of_episodes || 0) : 0,
+    total_seasons:  mediaType === 'tv' ? (data.number_of_seasons  || 0) : 0,
   };
 }
 

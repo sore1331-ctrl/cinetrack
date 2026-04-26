@@ -218,6 +218,9 @@ const cancelBtn       = document.getElementById('cancel-btn');
 const ratingLabel     = document.getElementById('rating-label');
 const watchedDateLabel = document.getElementById('watched-date-label');
 const watchedDateInput = document.getElementById('f-watched-date');
+const episodeFields    = document.getElementById('episode-fields');
+const currentEpInput   = document.getElementById('f-current-episode');
+const totalEpInput     = document.getElementById('f-total-episodes');
 const starRow         = document.getElementById('star-row');
 const directorLabel   = document.getElementById('director-label');
 const confirmModal    = document.getElementById('confirm-modal');
@@ -405,6 +408,8 @@ function updateModalForType() {
   tmdbQuery.placeholder = placeholders[activeMediaType] || 'Type a title...';
   directorLabel.childNodes[0].textContent = (isTV || isAnime) ? 'Creator / Director' : 'Director';
   document.getElementById('f-director').placeholder = isAnime ? 'e.g. Hayao Miyazaki' : isTV ? 'e.g. Vince Gilligan' : 'e.g. Christopher Nolan';
+  // Episode tracker only makes sense for TV / anime
+  episodeFields.classList.toggle('hidden', !(isTV || isAnime));
 }
 
 // ── TMDB search UI ──────────────────────────────────────
@@ -494,6 +499,7 @@ function applyTMDBSelection(details) {
   if (details.runtime) document.getElementById('f-runtime').value = details.runtime;
   if (!document.getElementById('f-notes').value)
     document.getElementById('f-notes').value  = details.overview || '';
+  if (details.total_episodes) totalEpInput.value = details.total_episodes;
 }
 
 function resetTMDBUI() {
@@ -508,7 +514,7 @@ function resetTMDBUI() {
 
 tmdbClear.addEventListener('click', () => {
   resetTMDBUI();
-  ['f-title','f-year','f-genre','f-director','f-country','f-runtime'].forEach(id =>
+  ['f-title','f-year','f-genre','f-director','f-country','f-runtime','f-total-episodes'].forEach(id =>
     document.getElementById(id).value = ''
   );
   tmdbQuery.focus();
@@ -1507,6 +1513,34 @@ function renderPagination(totalItems) {
   document.getElementById('page-next')?.addEventListener('click', () => { currentPage++; render(); window.scrollTo(0, 0); });
 }
 
+// ── Episode progress chip / bar ─────────────────────────
+function renderEpisodeProgress(m) {
+  const isTVish = m.mediaType === 'tv' || m.mediaType === 'anime';
+  if (!isTVish) return '';
+  const cur = m.currentEpisode || 0;
+  const tot = m.totalEpisodes  || 0;
+  if (m.status === 'in_progress') {
+    if (!tot && !cur) return '';
+    if (!tot) {
+      return `<div class="card-progress"><span class="card-progress-label">▶ Episode ${cur}</span></div>`;
+    }
+    const pct = Math.min(100, Math.round((cur / tot) * 100));
+    return `<div class="card-progress">
+      <div class="card-progress-row">
+        <span class="card-progress-label">▶ ${cur} / ${tot} ep</span>
+        <span class="card-progress-pct">${pct}%</span>
+      </div>
+      <div class="card-progress-track">
+        <div class="card-progress-fill" style="width:${pct}%"></div>
+      </div>
+    </div>`;
+  }
+  if (m.status === 'watched' && tot) {
+    return `<div class="card-progress card-progress-done">✓ All ${tot} episodes</div>`;
+  }
+  return '';
+}
+
 // ── Render ──────────────────────────────────────────────
 function render() {
   const list = filtered();
@@ -1597,6 +1631,7 @@ function render() {
         ${runtimeStr   ? `<span class="meta-runtime">⏱ ${runtimeStr}</span>` : ''}
         ${m.status === 'watched' && m.watchedAt ? `<span class="meta-watched">📅 ${formatWatchedDate(m.watchedAt)}</span>` : ''}
       </div>
+      ${renderEpisodeProgress(m)}
       ${m.rating ? starsHTML(m.rating) : ''}
       ${m.notes ? `<div class="card-notes">${esc(m.notes)}</div>` : ''}
       <div class="card-actions">
@@ -1709,6 +1744,8 @@ function openModal(movie = null) {
   watchedDateInput.value = movie?.watchedAt
     ? toISODate(movie.watchedAt)
     : (movie?.status === 'watched' ? toISODate(Date.now()) : '');
+  currentEpInput.value = movie?.currentEpisode || '';
+  totalEpInput.value   = movie?.totalEpisodes  || '';
   selectedRating = movie?.rating || 0;
 
   toggleRatingLabel();
@@ -1747,6 +1784,10 @@ form.addEventListener('submit', e => {
     watchedAt = formDate || watchedAt || Date.now();
   }
 
+  const isTVish = activeMediaType === 'tv' || activeMediaType === 'anime';
+  const currentEp = isTVish ? (parseInt(currentEpInput.value) || 0) : 0;
+  const totalEp   = isTVish ? (parseInt(totalEpInput.value)   || 0) : 0;
+
   const data = {
     title,
     year:      document.getElementById('f-year').value     || '',
@@ -1758,6 +1799,8 @@ form.addEventListener('submit', e => {
     runtime:   parseInt(document.getElementById('f-runtime').value) || 0,
     rating:    ['watched', 'in_progress'].includes(status) ? selectedRating : 0,
     watchedAt,
+    currentEpisode: currentEp,
+    totalEpisodes:  totalEp,
     mediaType: activeMediaType,
     posterUrl,
     tmdbId: tmdbSelection?.id || existing?.tmdbId || null,
@@ -1950,7 +1993,7 @@ async function importRows(rows) {
     progressBar.style.width = `${Math.round((i / total) * 100)}%`;
     const tmdb = await matchWithTMDB(title, year, mediaType);
     if (tmdb) {
-      movies.push({ id: genId(), addedAt: Date.now(), title: tmdb.title, year: tmdb.year, genre: tmdb.genre, director: tmdb.director, country: tmdb.country, notes: row.notes || tmdb.overview || '', posterUrl: tmdb.poster_path ? `https://image.tmdb.org/t/p/w200${tmdb.poster_path}` : '', tmdbId: tmdb.tmdbId, runtime: tmdb.runtime || runtime, mediaType, status, rating });
+      movies.push({ id: genId(), addedAt: Date.now(), title: tmdb.title, year: tmdb.year, genre: tmdb.genre, director: tmdb.director, country: tmdb.country, notes: row.notes || tmdb.overview || '', posterUrl: tmdb.poster_path ? `https://image.tmdb.org/t/p/w200${tmdb.poster_path}` : '', tmdbId: tmdb.tmdbId, runtime: tmdb.runtime || runtime, totalEpisodes: tmdb.total_episodes || 0, mediaType, status, rating, watchedAt: status === 'watched' ? Date.now() : null });
     } else {
       unmatched++;
       movies.push({ id: genId(), addedAt: Date.now(), title, year, genre: row.genre || '', director: row.director || '', country: row.country || '', notes: row.notes || '', posterUrl: row.posterUrl || '', tmdbId: null, runtime, mediaType, status, rating });
