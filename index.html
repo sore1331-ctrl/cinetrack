@@ -42,21 +42,23 @@
 
   <!-- Header -->
   <header>
-    <h1 id="logo" title="Go to Profile">CineTrack</h1>
-    <div class="header-actions">
-      <div id="user-menu" class="user-menu hidden">
-        <button class="user-avatar-btn" id="user-avatar-btn">
-          <span id="user-avatar">?</span>
-        </button>
-        <div class="user-dropdown hidden" id="user-dropdown">
-          <span id="user-email" class="user-email-label"></span>
-          <hr class="dropdown-divider" />
-          <button id="reload-cloud-btn" class="reload-cloud-btn">↻ Reload from cloud</button>
-          <button id="signout-btn" class="signout-btn">Sign out</button>
+    <div class="header-inner">
+      <h1 id="logo" title="Go to Profile">CineTrack</h1>
+      <div class="header-actions">
+        <div id="user-menu" class="user-menu hidden">
+          <button class="user-avatar-btn" id="user-avatar-btn">
+            <span id="user-avatar">?</span>
+          </button>
+          <div class="user-dropdown hidden" id="user-dropdown">
+            <span id="user-email" class="user-email-label"></span>
+            <hr class="dropdown-divider" />
+            <button id="reload-cloud-btn" class="reload-cloud-btn">↻ Reload from cloud</button>
+            <button id="signout-btn" class="signout-btn">Sign out</button>
+          </div>
         </div>
+        <button id="header-profile-btn" class="header-profile-btn" title="Profile">👤</button>
+        <button id="theme-toggle" class="theme-toggle" title="Toggle light/dark mode">🌙</button>
       </div>
-      <button id="header-profile-btn" class="header-profile-btn" title="Profile">👤</button>
-      <button id="theme-toggle" class="theme-toggle" title="Toggle light/dark mode">🌙</button>
     </div>
   </header>
 
@@ -91,6 +93,7 @@
       </div>
       <button id="select-mode-btn" class="select-mode-btn" title="Toggle selection mode">☑ Select</button>
       <select id="page-size-select" class="page-size-select" title="Items per page">
+        <option value="25">25 / pg</option>
         <option value="50">50 / pg</option>
         <option value="100">100 / pg</option>
         <option value="150">150 / pg</option>

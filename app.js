@@ -689,14 +689,86 @@ const RECS_LIMIT = 10; // 2 rows of 5
 // Refresh state — kept across refreshes within a single Stats visit
 let recsState = { refreshCount: 0, shownIds: new Set(), loading: false };
 
-function buildRecsHeader(genreLabel) {
+// Country recommendation toggle — persisted in localStorage
+let recsByCountryEnabled = localStorage.getItem('cinetrack_recs_country') === 'true';
+
+// Country name → ISO 3166-1 alpha-2. Covers the country datalist + a few extras.
+const COUNTRY_TO_ISO = {
+  'United States': 'US', 'United Kingdom': 'GB', 'Japan': 'JP', 'France': 'FR',
+  'Germany': 'DE', 'South Korea': 'KR', 'Italy': 'IT', 'Spain': 'ES',
+  'China': 'CN', 'India': 'IN', 'Australia': 'AU', 'Canada': 'CA',
+  'Brazil': 'BR', 'Mexico': 'MX', 'Argentina': 'AR', 'Russia': 'RU',
+  'Sweden': 'SE', 'Denmark': 'DK', 'Norway': 'NO', 'Finland': 'FI',
+  'Poland': 'PL', 'Czech Republic': 'CZ', 'Hungary': 'HU', 'Romania': 'RO',
+  'Austria': 'AT', 'Switzerland': 'CH', 'Belgium': 'BE', 'Netherlands': 'NL',
+  'Portugal': 'PT', 'Greece': 'GR', 'Turkey': 'TR', 'Israel': 'IL',
+  'Iran': 'IR', 'Egypt': 'EG', 'Nigeria': 'NG', 'South Africa': 'ZA',
+  'Morocco': 'MA', 'Kenya': 'KE', 'Ethiopia': 'ET', 'Ghana': 'GH',
+  'Thailand': 'TH', 'Vietnam': 'VN', 'Indonesia': 'ID', 'Malaysia': 'MY',
+  'Philippines': 'PH', 'Taiwan': 'TW', 'Hong Kong': 'HK', 'Singapore': 'SG',
+  'Pakistan': 'PK', 'Bangladesh': 'BD', 'Sri Lanka': 'LK', 'New Zealand': 'NZ',
+  'Ireland': 'IE', 'Serbia': 'RS', 'Croatia': 'HR', 'Ukraine': 'UA',
+  'Kazakhstan': 'KZ', 'Colombia': 'CO', 'Chile': 'CL', 'Peru': 'PE',
+  'Venezuela': 'VE', 'Cuba': 'CU', 'Jordan': 'JO', 'Saudi Arabia': 'SA',
+  'Iraq': 'IQ', 'Lebanon': 'LB', 'Algeria': 'DZ', 'Tunisia': 'TN',
+  'Senegal': 'SN', 'Cambodia': 'KH',
+};
+
+function getMostWatchedCountry() {
+  const data = {};
+  movies
+    .filter(m => (m.status === 'watched' || m.status === 'in_progress') && m.country)
+    .forEach(m => {
+      if (!data[m.country]) data[m.country] = { count: 0, types: {} };
+      data[m.country].count++;
+      data[m.country].types[m.mediaType] = (data[m.country].types[m.mediaType] || 0) + 1;
+    });
+  const top = Object.entries(data).sort((a, b) => b[1].count - a[1].count)[0];
+  if (!top) return null;
+  const iso = COUNTRY_TO_ISO[top[0]];
+  if (!iso) return null;
+  const topType = Object.entries(top[1].types).sort((a, b) => b[1] - a[1])[0][0];
+  return { name: top[0], iso, count: top[1].count, type: topType === 'anime' ? 'tv' : topType };
+}
+
+function buildRecsHeader(genreLabel, country) {
+  const toggleHTML = country
+    ? `<button class="recs-toggle-btn ${recsByCountryEnabled ? 'active' : ''}" id="recs-country-toggle"
+         title="Show top picks from ${esc(country.name)}">🌍 ${esc(country.name)}</button>`
+    : '';
   return `
     <div class="recs-header">
       <div class="recs-header-text">
         <h3 class="recs-heading">✨ Recommended For You</h3>
         <p class="recs-sub">Based on what you've watched${genreLabel ? ` · favouring ${esc(genreLabel)}` : ''}</p>
       </div>
-      <button class="recs-refresh-btn" id="recs-refresh-btn" title="Refresh recommendations" aria-label="Refresh">↻</button>
+      <div class="recs-actions">
+        ${toggleHTML}
+        <button class="recs-refresh-btn" id="recs-refresh-btn" title="Refresh recommendations" aria-label="Refresh">↻</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderRecCard(r) {
+  return `
+    <div class="rec-card" data-rec-card="${r.id}">
+      <button class="rec-dismiss-btn" data-rec-dismiss="${r.id}" title="Not interested">✕</button>
+      <div class="rec-poster">
+        ${r.poster_path
+          ? `<img src="${POSTER_BASE}${r.poster_path}" alt="${esc(r.title)}" loading="lazy" />`
+          : `<div class="rec-poster-placeholder">${r.media_type === 'tv' ? '📺' : '🎬'}</div>`}
+      </div>
+      <div class="rec-info">
+        <div class="rec-title">
+          <a class="rec-title-link" href="https://www.themoviedb.org/${r.media_type === 'movie' ? 'movie' : 'tv'}/${r.id}" target="_blank" rel="noopener noreferrer" title="View on TMDB">${esc(r.title)}</a>
+        </div>
+        ${r.year ? `<div class="rec-year">${r.year}</div>` : ''}
+        ${r.overview ? `<div class="rec-overview" title="Tap to expand">${esc(r.overview)}</div>` : ''}
+      </div>
+      <button class="rec-add-btn" data-rec-id="${r.id}" data-rec-type="${r.media_type}"
+        data-rec-title="${esc(r.title)}" data-rec-year="${r.year || ''}"
+        data-rec-poster="${r.poster_path || ''}" title="Add to Watchlist">＋ Watchlist</button>
     </div>
   `;
 }
@@ -728,24 +800,36 @@ async function loadRecommendations(refresh = false) {
   recsState.loading = true;
 
   try {
-    // Genre frequency across watched titles (any rating)
-    const watched = movies.filter(m => m.status === 'watched');
+    // Pool: titles you've watched OR are currently watching.
+    const engaged = movies.filter(m => m.status === 'watched' || m.status === 'in_progress');
+
+    // Genre frequency across engaged titles
     const genreCounts = {};
-    watched.forEach(m => {
+    engaged.forEach(m => {
       if (!m.genre) return;
       m.genre.split(',').map(g => g.trim()).filter(Boolean).forEach(g => {
         genreCounts[g] = (genreCounts[g] || 0) + 1;
       });
     });
 
-    // Full pool of candidate seeds, ranked by genre-frequency score.
-    const seedPool = watched
+    // Most-watched country among TV/anime titles (used to boost TV seed scores)
+    const tvCountryCounts = {};
+    engaged.filter(m => m.mediaType === 'tv' || m.mediaType === 'anime').forEach(m => {
+      if (m.country) tvCountryCounts[m.country] = (tvCountryCounts[m.country] || 0) + 1;
+    });
+    const topTVCountry = Object.entries(tvCountryCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+
+    // Build seed pool: genre score, plus boosts for in-progress and TV-from-top-country.
+    const seedPool = engaged
       .filter(m => m.tmdbId)
       .map(m => {
         const genres = (m.genre || '').split(',').map(g => g.trim()).filter(Boolean);
-        const score = genres.length
+        let score = genres.length
           ? genres.reduce((s, g) => s + (genreCounts[g] || 0), 0) / genres.length
           : 0;
+        if (m.status === 'in_progress') score *= 1.5; // currently engaging viewer
+        const isTVish = m.mediaType === 'tv' || m.mediaType === 'anime';
+        if (isTVish && topTVCountry && m.country === topTVCountry) score *= 1.3;
         return { ...m, _score: score };
       })
       .sort((a, b) => b._score - a._score || (b.addedAt || 0) - (a.addedAt || 0));
@@ -770,7 +854,8 @@ async function loadRecommendations(refresh = false) {
 
     const topGenres  = Object.entries(genreCounts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(e => e[0]);
     const genreLabel = topGenres.length ? topGenres.join(', ') : '';
-    const headerHTML = buildRecsHeader(genreLabel);
+    const country    = getMostWatchedCountry();
+    const headerHTML = buildRecsHeader(genreLabel, country);
 
     // Show header + loading while we fetch
     section.innerHTML = headerHTML +
@@ -805,45 +890,52 @@ async function loadRecommendations(refresh = false) {
       recs = recs.concat(fillers);
     }
 
+    let mainHTML;
     if (!recs.length) {
-      // Wipe shown-tracking so the next refresh has a fresh slate to draw from.
       recsState.shownIds.clear();
-      section.innerHTML = headerHTML +
-        '<p class="recs-empty">No new recommendations — try watching more titles or hit ↻ again.</p>';
-      bindRecsHandlers(section);
-      return;
+      mainHTML = '<p class="recs-empty">No new recommendations — try watching more titles or hit ↻ again.</p>';
+    } else {
+      recs.forEach(r => recsState.shownIds.add(String(r.id)));
+      mainHTML = `<div class="recs-grid">${recs.map(renderRecCard).join('')}</div>`;
     }
 
-    recs.forEach(r => recsState.shownIds.add(String(r.id)));
+    // Country section (if enabled and a country is detected)
+    let countryHTML = '';
+    if (recsByCountryEnabled && country) {
+      countryHTML = await buildCountrySectionHTML(country, page, trackedTmdbIds, dismissed);
+    }
 
-    section.innerHTML = headerHTML + `
-      <div class="recs-grid">
-        ${recs.map(r => `
-          <div class="rec-card" data-rec-card="${r.id}">
-            <button class="rec-dismiss-btn" data-rec-dismiss="${r.id}" title="Not interested">✕</button>
-            <div class="rec-poster">
-              ${r.poster_path
-                ? `<img src="${POSTER_BASE}${r.poster_path}" alt="${esc(r.title)}" loading="lazy" />`
-                : `<div class="rec-poster-placeholder">${r.media_type === 'tv' ? '📺' : '🎬'}</div>`}
-            </div>
-            <div class="rec-info">
-              <div class="rec-title">
-                <a class="rec-title-link" href="https://www.themoviedb.org/${r.media_type === 'movie' ? 'movie' : 'tv'}/${r.id}" target="_blank" rel="noopener noreferrer" title="View on TMDB">${esc(r.title)}</a>
-              </div>
-              ${r.year ? `<div class="rec-year">${r.year}</div>` : ''}
-              ${r.overview ? `<div class="rec-overview" title="Tap to expand">${esc(r.overview)}</div>` : ''}
-            </div>
-            <button class="rec-add-btn" data-rec-id="${r.id}" data-rec-type="${r.media_type}"
-              data-rec-title="${esc(r.title)}" data-rec-year="${r.year || ''}"
-              data-rec-poster="${r.poster_path || ''}" title="Add to Watchlist">＋ Watchlist</button>
-          </div>
-        `).join('')}
-      </div>
-    `;
-
+    section.innerHTML = headerHTML + mainHTML + countryHTML;
     bindRecsHandlers(section);
   } finally {
     recsState.loading = false;
+  }
+}
+
+async function buildCountrySectionHTML(country, page, trackedTmdbIds, dismissed) {
+  try {
+    const r = await fetch(`/api/by-country?code=${country.iso}&type=${country.type}&page=${page}`);
+    if (!r.ok) throw new Error(r.status);
+    const data = await r.json();
+    const recs = (data.results || [])
+      .filter(x => !trackedTmdbIds.has(String(x.id)) && !dismissed.has(String(x.id)))
+      .slice(0, RECS_LIMIT);
+    if (!recs.length) {
+      return `<div class="recs-country-section">
+        <h3 class="recs-country-heading">🌍 Top from ${esc(country.name)}</h3>
+        <p class="recs-empty">No new picks from ${esc(country.name)} right now.</p>
+      </div>`;
+    }
+    const typeLabel = country.type === 'tv' ? 'TV shows' : 'films';
+    return `<div class="recs-country-section">
+      <h3 class="recs-country-heading">🌍 Top ${typeLabel} from ${esc(country.name)}</h3>
+      <p class="recs-country-sub">Most-voted on TMDB · based on ${country.count} watched title${country.count !== 1 ? 's' : ''}</p>
+      <div class="recs-grid">${recs.map(renderRecCard).join('')}</div>
+    </div>`;
+  } catch {
+    return `<div class="recs-country-section">
+      <p class="recs-empty">Could not load country picks.</p>
+    </div>`;
   }
 }
 
@@ -853,6 +945,13 @@ function bindRecsHandlers(section) {
   section.addEventListener('click', e => {
     if (e.target.closest('#recs-refresh-btn')) {
       loadRecommendations(true);
+      return;
+    }
+
+    if (e.target.closest('#recs-country-toggle')) {
+      recsByCountryEnabled = !recsByCountryEnabled;
+      localStorage.setItem('cinetrack_recs_country', recsByCountryEnabled);
+      loadRecommendations();
       return;
     }
 
