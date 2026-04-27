@@ -1435,9 +1435,9 @@ grid.addEventListener('click', e => {
   const noteEl = e.target.closest('.card-notes');
   if (noteEl) { noteEl.classList.toggle('expanded'); return; }
 
-  const editId   = e.target.dataset.edit;
-  const toggleId = e.target.dataset.toggle;
-  const deleteId = e.target.dataset.delete;
+  const editId   = e.target.closest('[data-edit]')?.dataset.edit;
+  const toggleId = e.target.closest('[data-toggle]')?.dataset.toggle;
+  const deleteId = e.target.closest('[data-delete]')?.dataset.delete;
 
   // Click poster to edit (skip in select mode or when clicking checkbox)
   if (!editId && !toggleId && !deleteId && !selectMode && !e.target.closest('.card-checkbox')) {
@@ -1792,13 +1792,17 @@ document.getElementById('sharing-toggle').addEventListener('change', async e => 
 // ── Reload from cloud ───────────────────────────────────
 reloadCloudBtn.addEventListener('click', async () => {
   document.getElementById('user-dropdown').classList.add('hidden');
+  reloadCloudBtn.disabled = true;
+  reloadCloudBtn.textContent = '↻ Loading…';
   await loadUserData();
-  showToast('Reloaded from cloud');
+  reloadCloudBtn.disabled = false;
+  reloadCloudBtn.textContent = '↻ Reload from cloud';
+  showToast('Reloaded from cloud ✓');
 });
 
 // ── Sign out ────────────────────────────────────────────
 signoutBtn.addEventListener('click', async () => {
-  await sb.auth.signOut();
+  try { if (sb) await sb.auth.signOut(); } catch {}
   currentUser     = null;
   currentUsername = null;
   sharingEnabled  = false;

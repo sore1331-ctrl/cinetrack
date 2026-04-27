@@ -1062,30 +1062,33 @@ button.danger:hover { opacity: .85; }
   /* Main content */
   main { padding: 12px 12px 0; }
 
-  /* Controls: two-row layout */
+  /* Controls: search + add on top row, filters scroll below */
   .controls {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    grid-template-areas:
-      "search  addbtn"
-      "filters filters";
+    display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     padding-top: 12px;
     margin-bottom: 12px;
+    align-items: center;
   }
-  #search-input  { grid-area: search;  min-width: 0; padding: 9px 12px; font-size: .88rem; }
-  #add-btn       { grid-area: addbtn; padding: 9px 14px; font-size: .88rem; }
-  .status-tabs, .size-toggle, #country-filter,
-  .select-mode-btn, .page-size-select {
-    grid-area: filters;
+  #search-input  { flex: 1; min-width: 140px; order: 1; padding: 9px 12px; font-size: .88rem; }
+  #add-btn       { order: 2; flex-shrink: 0; padding: 9px 14px; font-size: .88rem; }
+  /* Status tabs: full-width scrollable row */
+  .status-tabs {
+    order: 3;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-shrink: 0;
   }
-  /* Filters row: wrap tightly */
-  .controls > :not(#search-input):not(#add-btn) {
-    font-size: .75rem;
-  }
+  .status-tabs::-webkit-scrollbar { display: none; }
+  /* Secondary controls beneath */
+  .size-toggle   { order: 4; flex-shrink: 0; }
+  #country-filter { order: 5; flex-shrink: 0; padding: 6px 8px; font-size: .78rem; }
+  .select-mode-btn { order: 6; flex-shrink: 0; }
   .status-btn { padding: 5px 8px; font-size: .75rem; }
-  #country-filter { padding: 6px 8px; font-size: .78rem; }
-  .select-mode-btn, .page-size-select { padding: 5px 8px; font-size: .75rem; }
+  .select-mode-btn { padding: 5px 8px; font-size: .75rem; }
 
   /* Hide lowest-priority controls */
   .page-info { display: none; }
