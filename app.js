@@ -1303,7 +1303,7 @@ function render() {
       ${m.notes ? `<div class="card-notes">${esc(m.notes)}</div>` : ''}
       <div class="card-actions">
         <button class="btn-sm" data-edit="${m.id}">
-          <span class="lbl-md lbl-lg">Edit</span><span class="lbl-sm">✎</span>
+          <span class="lbl-lg">Edit</span><span class="lbl-md">Edit</span><span class="lbl-sm">✎</span>
         </button>
         ${(isTV || m.mediaType === 'anime') && m.status !== 'watched' ? `<button class="btn-sm btn-ep-plus" data-ep-plus="${m.id}" title="Mark next episode watched">+1 Ep</button>` : ''}
         <button class="btn-sm" data-toggle="${m.id}">
