@@ -186,11 +186,17 @@ header h1 {
   white-space: nowrap;
   margin-bottom: -2px;
   letter-spacing: .01em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .type-tab:hover { color: var(--text); }
 .type-tab.active                     { color: var(--accent);  border-bottom-color: var(--accent);  font-weight: 700; }
 .type-tab[data-type="tv"].active     { color: #3b9eff; border-bottom-color: #3b9eff; }
 .type-tab[data-type="anime"].active  { color: #a855f7; border-bottom-color: #a855f7; }
+
+.tab-icon  { font-size: 1rem; flex-shrink: 0; }
+.tab-label { }
 
 /* ── Main ── */
 main { max-width: 1200px; margin: 0 auto; padding: 20px 20px 0; }
@@ -541,6 +547,39 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 20px 0; }
   text-overflow: ellipsis;
 }
 .grid-sm .card-hover-info { display: none; }
+
+/* ── Episode progress bar ── */
+.card-ep-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 18px 8px 7px;
+  background: linear-gradient(transparent, rgba(0,0,0,.82));
+  z-index: 3;
+  pointer-events: none;
+}
+.card-ep-bar {
+  height: 3px;
+  background: rgba(255,255,255,.2);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+.card-ep-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #ff6b85);
+  border-radius: 2px;
+  box-shadow: 0 0 6px rgba(255,77,106,.6);
+}
+.card-ep-label {
+  font-size: .65rem;
+  font-weight: 600;
+  color: rgba(255,255,255,.9);
+  letter-spacing: .02em;
+}
+.ep-total { opacity: .6; font-weight: 400; }
+.grid-sm .card-ep-label { font-size: .58rem; }
 
 /* ── Card checkbox (bulk select) ── */
 .card-poster { position: relative; }
@@ -1167,14 +1206,46 @@ button.danger:hover { opacity: .85; }
   .header-profile-btn { width: 32px; height: 32px; font-size: .85rem; }
   .user-avatar-btn { width: 32px; height: 32px; }
 
-  /* Tab bar: scrollable row, smaller tabs */
-  .type-tabs-bar { top: 48px; }
-  .type-tabs-inner { padding: 0 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
-  .type-tabs-inner::-webkit-scrollbar { display: none; }
-  .type-tab { padding: 10px 13px; font-size: .78rem; white-space: nowrap; }
+  /* Tab bar → fixed bottom nav */
+  .type-tabs-bar {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    border-top: 1px solid var(--border);
+    border-bottom: none;
+    z-index: 100;
+  }
+  .type-tabs-inner {
+    padding: 0;
+    justify-content: space-around;
+    overflow-x: visible;
+  }
+  .type-tab {
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 8px 2px env(safe-area-inset-bottom, 8px);
+    font-size: .58rem;
+    border-bottom: none;
+    border-top: 2px solid transparent;
+    margin-bottom: 0;
+    white-space: normal;
+  }
+  .type-tab.active { border-top-color: var(--accent); border-bottom-color: transparent; }
+  .type-tab[data-type="tv"].active    { border-top-color: #3b9eff; }
+  .type-tab[data-type="anime"].active { border-top-color: #a855f7; }
+  .tab-icon  { font-size: 1.3rem; }
+  .tab-label { font-size: .58rem; }
 
-  /* Main content */
-  main { padding: 12px 12px 0; }
+  /* Main content — pad bottom so bottom nav doesn't cover content */
+  main { padding: 12px 12px 0; padding-bottom: 72px; }
+
+  /* Shift floating bars above bottom nav */
+  .bulk-bar     { bottom: 80px; }
+  .import-toast { bottom: 80px; }
 
   /* Controls: search + add on top row, filters scroll below */
   .controls {

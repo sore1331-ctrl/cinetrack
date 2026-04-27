@@ -17,7 +17,7 @@ themeToggle.addEventListener('click', () => {
 
 // ── State ──────────────────────────────────────────────
 const STORAGE_KEY = 'cinetrack_movies';
-const POSTER_BASE = 'https://image.tmdb.org/t/p/w200';
+const POSTER_BASE = 'https://image.tmdb.org/t/p/w342';
 
 let movies          = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
 let activeType      = 'movie';   // 'movie' | 'tv' | 'anime'
@@ -1243,8 +1243,9 @@ function render() {
     card.className = 'movie-card' + (checked ? ' selected' : '');
     card.dataset.id = m.id;
     const isTV = m.mediaType === 'tv';
-    const posterHTML = m.posterUrl
-      ? `<img class="card-poster-img" src="${m.posterUrl}" alt="${esc(m.title)}" loading="lazy" />`
+    const posterSrc = (m.posterUrl || '').replace('/w200/', '/w342/');
+    const posterHTML = posterSrc
+      ? `<img class="card-poster-img" src="${posterSrc}" alt="${esc(m.title)}" loading="lazy" />`
       : `<div class="card-poster-emoji">${m.mediaType === 'anime' ? '🎌' : isTV ? '📺' : posterEmoji(m.title)}</div>`;
     const runtimeStr = formatRuntime(m.runtime);
 
@@ -1257,10 +1258,26 @@ function render() {
       ? `<div class="card-hover-info">${hoverInfoParts.join('')}</div>`
       : '';
 
+    const epProgressHTML = (() => {
+      if (m.mediaType !== 'tv' && m.mediaType !== 'anime') return '';
+      if (!m.totalEpisodes) return '';
+      const cur   = m.currentEpisode || 0;
+      const total = m.totalEpisodes;
+      const pct   = cur > 0 ? Math.min(100, Math.round((cur / total) * 100)) : 0;
+      const label = cur > 0
+        ? `S${m.currentSeason || 1} E${cur} <span class="ep-total">/ ${total}</span>`
+        : `<span class="ep-total">${total} eps</span>`;
+      return `<div class="card-ep-progress">
+        ${cur > 0 ? `<div class="card-ep-bar"><div class="card-ep-fill" style="width:${pct}%"></div></div>` : ''}
+        <div class="card-ep-label">${label}</div>
+      </div>`;
+    })();
+
     card.innerHTML = `
       <div class="card-poster">
         ${posterHTML}
         ${hoverInfoHTML}
+        ${epProgressHTML}
         <label class="card-checkbox" title="Select">
           <input type="checkbox" data-check="${m.id}" ${checked ? 'checked' : ''} />
           <span class="card-checkbox-box"></span>
