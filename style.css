@@ -581,6 +581,29 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 20px 0; }
 .ep-total { opacity: .6; font-weight: 400; }
 .grid-sm .card-ep-label { font-size: .58rem; }
 
+/* ── Episode fields in modal ── */
+.episode-fields { margin-top: 2px; }
+.ep-hint {
+  font-size: .78rem;
+  color: var(--muted);
+  margin: 2px 0 0;
+  min-height: 1.1em;
+}
+
+/* ── +1 Ep card button ── */
+.btn-ep-plus {
+  background: linear-gradient(135deg, rgba(59,158,255,.18), rgba(59,158,255,.08));
+  border-color: rgba(59,158,255,.35);
+  color: #7ec8ff;
+  font-weight: 600;
+  flex: 0 0 auto;
+}
+.btn-ep-plus:hover {
+  background: linear-gradient(135deg, rgba(59,158,255,.32), rgba(59,158,255,.16));
+  border-color: #3b9eff;
+  color: #c2e4ff;
+}
+
 /* ── Card checkbox (bulk select) ── */
 .card-poster { position: relative; }
 

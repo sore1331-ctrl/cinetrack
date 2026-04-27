@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(git fetch *)",
+      "Bash(git merge *)",
+      "WebSearch",
+      "WebFetch(domain:letterboxd.com)",
+      "WebFetch(domain:trakt.tv)",
+      "WebFetch(domain:tvtime.com)",
+      "WebFetch(domain:simkl.com)",
+      "WebFetch(domain:justwatch.com)"
+    ]
+  }
+}

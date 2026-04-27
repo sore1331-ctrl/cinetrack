@@ -27,16 +27,18 @@ export default async function handler(req, res) {
       : Math.round((data.episode_run_time?.[0] || 0) * (data.number_of_episodes || 0));
 
     res.json({
-      id:          data.id,
-      title:       data.title || data.name || '',
-      year:        (data.release_date || data.first_air_date || '').slice(0, 4),
-      genre:       genres,
+      id:             data.id,
+      title:          data.title || data.name || '',
+      year:           (data.release_date || data.first_air_date || '').slice(0, 4),
+      genre:          genres,
       director,
-      overview:    data.overview || '',
-      poster_path: data.poster_path || null,
+      overview:       data.overview || '',
+      poster_path:    data.poster_path || null,
       country,
-      media_type:  mediaType,
+      media_type:     mediaType,
       runtime,
+      total_episodes: mediaType === 'tv' ? (data.number_of_episodes || null) : null,
+      total_seasons:  mediaType === 'tv' ? (data.number_of_seasons  || null) : null,
     });
   } catch (e) {
     res.status(500).json({ error: 'Failed to reach TMDB' });

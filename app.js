@@ -363,6 +363,7 @@ function updateModalForType() {
   tmdbQuery.placeholder = placeholders[activeMediaType] || 'Type a title...';
   directorLabel.childNodes[0].textContent = (isTV || isAnime) ? 'Creator / Director' : 'Director';
   document.getElementById('f-director').placeholder = isAnime ? 'e.g. Hayao Miyazaki' : isTV ? 'e.g. Vince Gilligan' : 'e.g. Christopher Nolan';
+  document.getElementById('episode-fields').classList.toggle('hidden', activeMediaType === 'movie');
 }
 
 // ── TMDB search UI ──────────────────────────────────────
@@ -452,6 +453,10 @@ function applyTMDBSelection(details) {
   if (details.runtime) document.getElementById('f-runtime').value = details.runtime;
   if (!document.getElementById('f-notes').value)
     document.getElementById('f-notes').value  = details.overview || '';
+  const epHint = document.getElementById('ep-total-hint');
+  if (epHint && details.total_episodes) {
+    epHint.textContent = `${details.total_episodes} episodes total${details.total_seasons ? ` · ${details.total_seasons} season${details.total_seasons > 1 ? 's' : ''}` : ''}`;
+  }
 }
 
 function resetTMDBUI() {
@@ -1300,6 +1305,7 @@ function render() {
         <button class="btn-sm" data-edit="${m.id}">
           <span class="lbl-md lbl-lg">Edit</span><span class="lbl-sm">✎</span>
         </button>
+        ${(isTV || m.mediaType === 'anime') && m.status !== 'watched' ? `<button class="btn-sm btn-ep-plus" data-ep-plus="${m.id}" title="Mark next episode watched">+1 Ep</button>` : ''}
         <button class="btn-sm" data-toggle="${m.id}">
           <span class="lbl-lg">${m.status === 'watched' ? '⏳ Watchlist' : m.status === 'in_progress' ? '✓ Watched' : '▶ In Progress'}</span>
           <span class="lbl-md">${m.status === 'watched' ? 'List' : m.status === 'in_progress' ? 'Watched' : 'In Prog'}</span>
@@ -1400,6 +1406,17 @@ function openModal(movie = null) {
   document.getElementById('f-notes').value    = movie?.notes    || '';
   selectedRating = movie?.rating || 0;
 
+  document.getElementById('f-season').value  = movie?.currentSeason  || '';
+  document.getElementById('f-episode').value = movie?.currentEpisode || '';
+  const epHint = document.getElementById('ep-total-hint');
+  if (epHint) {
+    if (movie?.totalEpisodes) {
+      epHint.textContent = `${movie.totalEpisodes} episodes total${movie.totalSeasons ? ` · ${movie.totalSeasons} season${movie.totalSeasons > 1 ? 's' : ''}` : ''}`;
+    } else {
+      epHint.textContent = '';
+    }
+  }
+
   toggleRatingLabel();
   buildStars();
   modal.classList.remove('hidden');
@@ -1428,6 +1445,7 @@ form.addEventListener('submit', e => {
     ? POSTER_BASE + tmdbSelection.poster_path
     : existing?.posterUrl || '';
 
+  const isSeriesType = activeMediaType === 'tv' || activeMediaType === 'anime';
   const data = {
     title,
     year:      document.getElementById('f-year').value     || '',
@@ -1440,7 +1458,11 @@ form.addEventListener('submit', e => {
     rating:    ['watched', 'in_progress'].includes(document.getElementById('f-status').value) ? selectedRating : 0,
     mediaType: activeMediaType,
     posterUrl,
-    tmdbId: tmdbSelection?.id || existing?.tmdbId || null,
+    tmdbId:        tmdbSelection?.id || existing?.tmdbId || null,
+    currentSeason:  isSeriesType ? (parseInt(document.getElementById('f-season').value)  || null) : null,
+    currentEpisode: isSeriesType ? (parseInt(document.getElementById('f-episode').value) || null) : null,
+    totalEpisodes:  isSeriesType ? (tmdbSelection?.total_episodes || existing?.totalEpisodes || null) : null,
+    totalSeasons:   isSeriesType ? (tmdbSelection?.total_seasons  || existing?.totalSeasons  || null) : null,
   };
 
   if (editingId) {
@@ -1464,6 +1486,23 @@ countryFilterEl.addEventListener('change', () => { countryFilter = countryFilter
 grid.addEventListener('click', e => {
   const noteEl = e.target.closest('.card-notes');
   if (noteEl) { noteEl.classList.toggle('expanded'); return; }
+
+  const epPlusId = e.target.closest('[data-ep-plus]')?.dataset.epPlus;
+  if (epPlusId) {
+    const m = movies.find(m => m.id === epPlusId);
+    if (m) {
+      m.currentEpisode = (m.currentEpisode || 0) + 1;
+      m.currentSeason  = m.currentSeason || 1;
+      if (m.status === 'watchlist') m.status = 'in_progress';
+      if (m.totalEpisodes && m.currentEpisode >= m.totalEpisodes) {
+        showToast(`🎉 Finished ${m.title}!`);
+      } else {
+        showToast(`S${m.currentSeason} E${m.currentEpisode} logged`);
+      }
+      save(); render();
+    }
+    return;
+  }
 
   const editId   = e.target.closest('[data-edit]')?.dataset.edit;
   const toggleId = e.target.closest('[data-toggle]')?.dataset.toggle;
