@@ -238,7 +238,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 20px 0; }
 #search-input:focus { border-color: var(--accent); }
 #search-input::placeholder { color: var(--muted); }
 
-#type-filter, #country-filter {
+#type-filter, #country-filter, #genre-filter, #sort-order {
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text);
@@ -250,9 +250,9 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 20px 0; }
   transition: border-color .15s;
   color-scheme: dark;
 }
-#type-filter:focus, #country-filter:focus { border-color: var(--accent); }
-#type-filter option, #country-filter option { background: var(--surface2); color: var(--text); }
-:root.light #type-filter, :root.light #country-filter { color-scheme: light; }
+#type-filter:focus, #country-filter:focus, #genre-filter:focus, #sort-order:focus { border-color: var(--accent); }
+#type-filter option, #country-filter option, #genre-filter option, #sort-order option { background: var(--surface2); color: var(--text); }
+:root.light #type-filter, :root.light #country-filter, :root.light #genre-filter, :root.light #sort-order { color-scheme: light; }
 
 #add-btn {
   background: var(--accent);
@@ -1210,7 +1210,7 @@ button.danger:hover { opacity: .85; }
   .status-tabs::-webkit-scrollbar { display: none; }
   /* Secondary controls beneath */
   .size-toggle   { order: 4; flex-shrink: 0; }
-  #country-filter { order: 5; flex-shrink: 0; padding: 6px 8px; font-size: .78rem; }
+  #country-filter, #genre-filter, #sort-order { order: 5; flex-shrink: 0; padding: 6px 8px; font-size: .78rem; }
   .select-mode-btn { order: 6; flex-shrink: 0; }
   .status-btn { padding: 5px 8px; font-size: .75rem; }
   .select-mode-btn { padding: 5px 8px; font-size: .75rem; }
@@ -1272,7 +1272,7 @@ button.danger:hover { opacity: .85; }
   .movie-grid.grid-lg { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
   .row-2 { grid-template-columns: 1fr; }
   .controls { gap: 7px; }
-  #country-filter { font-size: .8rem; padding: 8px 10px; }
+  #country-filter, #genre-filter, #sort-order { font-size: .8rem; padding: 8px 10px; }
   .page-info { display: none; }
   .select-mode-btn { font-size: .78rem; padding: 6px 9px; }
   .page-size-select { font-size: .78rem; padding: 6px 9px; }

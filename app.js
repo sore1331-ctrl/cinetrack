@@ -25,6 +25,8 @@ let activeView      = 'content'; // 'content' | 'stats' | 'community'
 let activeStatus    = 'all';
 let searchQuery     = '';
 let countryFilter   = '';
+let genreFilter     = '';
+let sortOrder       = localStorage.getItem('cinetrack_sort') || 'added';
 let gridSize        = localStorage.getItem('cinetrack_grid') || 'md';
 let editingId       = null;
 let pendingDeleteId = null;
@@ -211,6 +213,8 @@ function switchView(view, type) {
   if (type && view === 'content') {
     activeType      = type;
     activeMediaType = type;
+    genreFilter     = '';
+    genreFilterEl.value = '';
   }
 
   const isContent   = view === 'content';
@@ -308,6 +312,9 @@ selectModeBtn.addEventListener('click', () => {
   selectModeBtn.classList.toggle('active', selectMode);
   render();
 });
+
+// ── Sort order init ─────────────────────────────────────
+document.getElementById('sort-order').value = sortOrder;
 
 // ── Page size ───────────────────────────────────────────
 pageSizeSelect.value = String(pageSize);
@@ -504,14 +511,35 @@ function updateCountryDropdown() {
   const current = countryFilterEl.value;
   countryFilterEl.innerHTML = '<option value="">All Countries</option>' +
     countries.map(c => `<option value="${esc(c)}"${c === current ? ' selected' : ''}>${esc(c)}</option>`).join('');
+
+  updateGenreDropdown();
+}
+
+// ── Genre dropdown ───────────────────────────────────────
+const genreFilterEl = document.getElementById('genre-filter');
+
+function updateGenreDropdown() {
+  const genres = [...new Set(
+    movies
+      .filter(m => m.mediaType === activeType)
+      .flatMap(m => (m.genre || '').split(',').map(g => g.trim()).filter(Boolean))
+  )].sort();
+
+  const current = genreFilterEl.value;
+  genreFilterEl.innerHTML = '<option value="">All Genres</option>' +
+    genres.map(g => `<option value="${esc(g)}"${g === current ? ' selected' : ''}>${esc(g)}</option>`).join('');
 }
 
 // ── Filtering ───────────────────────────────────────────
 function filtered() {
-  return movies.filter(m => {
+  const list = movies.filter(m => {
     if (m.mediaType !== activeType) return false;
     if (activeStatus !== 'all' && m.status !== activeStatus) return false;
     if (countryFilter && m.country !== countryFilter) return false;
+    if (genreFilter) {
+      const genres = (m.genre || '').split(',').map(g => g.trim());
+      if (!genres.includes(genreFilter)) return false;
+    }
     const q = searchQuery.toLowerCase();
     if (q) {
       const hay = [m.title, m.genre, m.director, m.country].join(' ').toLowerCase();
@@ -519,6 +547,17 @@ function filtered() {
     }
     return true;
   });
+
+  list.sort((a, b) => {
+    switch (sortOrder) {
+      case 'title':  return a.title.localeCompare(b.title);
+      case 'year':   return (parseInt(b.year) || 0) - (parseInt(a.year) || 0);
+      case 'rating': return (b.rating || 0) - (a.rating || 0);
+      default:       return (b.addedAt || 0) - (a.addedAt || 0);
+    }
+  });
+
+  return list;
 }
 
 // ── Helpers ─────────────────────────────────────────────
@@ -1448,6 +1487,13 @@ modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
 document.getElementById('f-status').addEventListener('change', () => { toggleRatingLabel(); buildStars(); });
 searchInput.addEventListener('input', () => { searchQuery = searchInput.value; currentPage = 0; render(); });
 countryFilterEl.addEventListener('change', () => { countryFilter = countryFilterEl.value; currentPage = 0; render(); });
+genreFilterEl.addEventListener('change', () => { genreFilter = genreFilterEl.value; currentPage = 0; render(); });
+document.getElementById('sort-order').addEventListener('change', e => {
+  sortOrder = e.target.value;
+  localStorage.setItem('cinetrack_sort', sortOrder);
+  currentPage = 0;
+  render();
+});
 
 grid.addEventListener('click', e => {
   const noteEl = e.target.closest('.card-notes');

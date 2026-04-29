@@ -89,8 +89,17 @@
         <button class="status-btn" data-status="watchlist">⏳ List</button>
       </div>
       <input type="text" id="search-input" placeholder="Search titles, genres, directors..." />
+      <select id="genre-filter">
+        <option value="">All Genres</option>
+      </select>
       <select id="country-filter">
         <option value="">All Countries</option>
+      </select>
+      <select id="sort-order">
+        <option value="added">Date Added</option>
+        <option value="title">Title (A–Z)</option>
+        <option value="year">Year (Newest)</option>
+        <option value="rating">My Rating</option>
       </select>
       <div class="size-toggle">
         <button class="size-btn" data-size="sm">S</button>
