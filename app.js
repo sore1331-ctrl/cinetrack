@@ -315,6 +315,31 @@ selectModeBtn.addEventListener('click', () => {
   render();
 });
 
+// ── Clear filters ───────────────────────────────────────
+const clearFiltersBtn = document.getElementById('clear-filters-btn');
+
+function hasActiveFilters() {
+  return !!(searchQuery || genreFilter || countryFilter || activeStatus !== 'all');
+}
+
+function updateClearFiltersBtn() {
+  const active = hasActiveFilters();
+  clearFiltersBtn.classList.toggle('hidden', !active);
+  selectModeBtn.classList.toggle('hidden', active);
+}
+
+clearFiltersBtn.addEventListener('click', () => {
+  searchQuery   = '';
+  genreFilter   = '';
+  countryFilter = '';
+  activeStatus  = 'all';
+  searchInput.value     = '';
+  genreFilterEl.value   = '';
+  countryFilterEl.value = '';
+  currentPage = 0;
+  render();
+});
+
 // ── Sort order init ─────────────────────────────────────
 document.getElementById('sort-order').value = sortOrder;
 
@@ -1408,6 +1433,7 @@ function render() {
   }
   updateBulkBar();
   updateStats();
+  updateClearFiltersBtn();
 
   const totalPages = Math.max(1, Math.ceil(list.length / pageSize));
   if (currentPage >= totalPages) currentPage = totalPages - 1;

@@ -1044,6 +1044,22 @@ button.danger:hover { opacity: .85; }
 .select-mode-btn:hover { border-color: var(--accent); color: var(--text); }
 .select-mode-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
+/* ── Clear filters button ── */
+.clear-filters-btn {
+  background: var(--surface2);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  font-size: .85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.clear-filters-btn:hover { background: var(--accent); color: #fff; }
+
 /* Always show checkboxes in select mode */
 .movie-grid.select-mode .card-checkbox { opacity: 1; }
 
