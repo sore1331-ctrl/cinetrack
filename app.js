@@ -25,6 +25,8 @@ let activeView      = 'content'; // 'content' | 'stats' | 'community'
 let activeStatus    = 'all';
 let searchQuery     = '';
 let countryFilter   = '';
+let genreFilter     = '';
+let sortOrder       = localStorage.getItem('cinetrack_sort') || 'added';
 let gridSize        = localStorage.getItem('cinetrack_grid') || 'md';
 let editingId       = null;
 let pendingDeleteId = null;
@@ -211,6 +213,9 @@ function switchView(view, type) {
   if (type && view === 'content') {
     activeType      = type;
     activeMediaType = type;
+    activeStatus    = 'all';
+    genreFilter     = '';
+    genreFilterEl.value = '';
   }
 
   const isContent   = view === 'content';
@@ -226,6 +231,7 @@ function switchView(view, type) {
   grid.classList.toggle('hidden', !isContent);
   emptyMsg.classList.add('hidden');
   paginationEl.classList.add('hidden');
+  pageSizeSelect.classList.add('hidden');
   document.getElementById('bulk-bar').classList.add('hidden');
   document.getElementById('stats-panel').classList.toggle('hidden', !isStats);
   document.getElementById('community-panel').classList.toggle('hidden', !isCommunity);
@@ -291,14 +297,14 @@ document.getElementById('header-profile-btn').addEventListener('click', () => {
   switchView('profile');
 });
 
-// ── Status tabs ─────────────────────────────────────────
-document.querySelectorAll('.status-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.status-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    activeStatus = btn.dataset.status;
-    currentPage = 0;
-    render();
+// ── Status filter via stats bar ──────────────────────────
+statsBar.addEventListener('click', e => {
+  const btn = e.target.closest('[data-filter-status]');
+  if (!btn) return;
+  const s = btn.dataset.filterStatus;
+  activeStatus = (activeStatus === s) ? 'all' : s;
+  currentPage = 0;
+  render();
   });
 });
 
@@ -308,6 +314,9 @@ selectModeBtn.addEventListener('click', () => {
   selectModeBtn.classList.toggle('active', selectMode);
   render();
 });
+
+// ── Sort order init ─────────────────────────────────────
+document.getElementById('sort-order').value = sortOrder;
 
 // ── Page size ───────────────────────────────────────────
 pageSizeSelect.value = String(pageSize);
@@ -504,14 +513,35 @@ function updateCountryDropdown() {
   const current = countryFilterEl.value;
   countryFilterEl.innerHTML = '<option value="">All Countries</option>' +
     countries.map(c => `<option value="${esc(c)}"${c === current ? ' selected' : ''}>${esc(c)}</option>`).join('');
+
+  updateGenreDropdown();
+}
+
+// ── Genre dropdown ───────────────────────────────────────
+const genreFilterEl = document.getElementById('genre-filter');
+
+function updateGenreDropdown() {
+  const genres = [...new Set(
+    movies
+      .filter(m => m.mediaType === activeType)
+      .flatMap(m => (m.genre || '').split(',').map(g => g.trim()).filter(Boolean))
+  )].sort();
+
+  const current = genreFilterEl.value;
+  genreFilterEl.innerHTML = '<option value="">All Genres</option>' +
+    genres.map(g => `<option value="${esc(g)}"${g === current ? ' selected' : ''}>${esc(g)}</option>`).join('');
 }
 
 // ── Filtering ───────────────────────────────────────────
 function filtered() {
-  return movies.filter(m => {
+  const list = movies.filter(m => {
     if (m.mediaType !== activeType) return false;
     if (activeStatus !== 'all' && m.status !== activeStatus) return false;
     if (countryFilter && m.country !== countryFilter) return false;
+    if (genreFilter) {
+      const genres = (m.genre || '').split(',').map(g => g.trim());
+      if (!genres.includes(genreFilter)) return false;
+    }
     const q = searchQuery.toLowerCase();
     if (q) {
       const hay = [m.title, m.genre, m.director, m.country].join(' ').toLowerCase();
@@ -519,6 +549,17 @@ function filtered() {
     }
     return true;
   });
+
+  list.sort((a, b) => {
+    switch (sortOrder) {
+      case 'title':  return a.title.localeCompare(b.title);
+      case 'year':   return (parseInt(b.year) || 0) - (parseInt(a.year) || 0);
+      case 'rating': return (b.rating || 0) - (a.rating || 0);
+      default:       return (b.addedAt || 0) - (a.addedAt || 0);
+    }
+  });
+
+  return list;
 }
 
 // ── Helpers ─────────────────────────────────────────────
@@ -550,20 +591,35 @@ function formatRuntime(mins) {
 
 // ── Stats bar ───────────────────────────────────────────
 function updateStats() {
-  const allOfType    = movies.filter(m => m.mediaType === activeType);
-  const watchedList    = allOfType.filter(m => m.status === 'watched');
-  const inProgressCnt  = allOfType.filter(m => m.status === 'in_progress').length;
-  const watchlistCnt   = allOfType.filter(m => m.status === 'watchlist').length;
-  const totalMins      = watchedList.reduce((s, m) => s + (m.runtime || 0), 0);
-  const timeStr        = formatRuntime(totalMins);
+  const allOfType     = movies.filter(m => m.mediaType === activeType);
+  const watchedCnt    = allOfType.filter(m => m.status === 'watched').length;
+  const inProgressCnt = allOfType.filter(m => m.status === 'in_progress').length;
+  const watchlistCnt  = allOfType.filter(m => m.status === 'watchlist').length;
+
+  const a = s => activeStatus === s ? ' stat-active' : '';
+
+  let countryHTML = '';
+  if (countryFilter) {
+    const byCountry   = allOfType.filter(m => m.country === countryFilter);
+    const cWatched    = byCountry.filter(m => m.status === 'watched').length;
+    const cInProgress = byCountry.filter(m => m.status === 'in_progress').length;
+    const cWatchlist  = byCountry.filter(m => m.status === 'watchlist').length;
+    countryHTML =
+      `<span class="country-stats">` +
+      `🌍 <strong>${esc(countryFilter)}</strong>` +
+      `<span class="stat-sep">·</span><span class="cs-watched">✓ ${cWatched}</span>` +
+      (cInProgress ? `<span class="stat-sep">·</span><span class="cs-progress">▶ ${cInProgress}</span>` : '') +
+      (cWatchlist  ? `<span class="stat-sep">·</span><span class="cs-watchlist">⏳ ${cWatchlist}</span>` : '') +
+      `</span>`;
+  }
 
   statsBar.innerHTML =
-    `<span class="stat-item stat-watched">✓ <strong>${watchedList.length}</strong> watched</span>` +
+    `<button class="stat-item stat-watched${a('watched')}" data-filter-status="watched">✓ <strong>${watchedCnt}</strong> watched</button>` +
     `<span class="stat-sep">·</span>` +
-    `<span class="stat-item stat-in-progress">▶ <strong>${inProgressCnt}</strong> in progress</span>` +
+    `<button class="stat-item stat-in-progress${a('in_progress')}" data-filter-status="in_progress">▶ <strong>${inProgressCnt}</strong> in progress</button>` +
     `<span class="stat-sep">·</span>` +
-    `<span class="stat-item stat-watchlist">⏳ <strong>${watchlistCnt}</strong> on watchlist</span>` +
-    (timeStr ? `<span class="stat-sep">·</span><span class="stat-item stat-time">⏱ <strong>${timeStr}</strong> spent watching</span>` : '');
+    `<button class="stat-item stat-watchlist${a('watchlist')}" data-filter-status="watchlist">⏳ <strong>${watchlistCnt}</strong> on watchlist</button>` +
+    countryHTML;
 }
 
 // ── Stats panel ─────────────────────────────────────────
@@ -1169,8 +1225,9 @@ function exportCSV() {
 // ── Pagination ──────────────────────────────────────────
 function renderPagination(totalItems) {
   const totalPages = Math.ceil(totalItems / pageSize);
-  if (totalPages <= 1) { paginationEl.classList.add('hidden'); return; }
+  if (totalPages <= 1) { paginationEl.classList.add('hidden'); pageSizeSelect.classList.add('hidden'); return; }
   paginationEl.classList.remove('hidden');
+  pageSizeSelect.classList.remove('hidden');
 
   const maxVisible = 7;
   let start = Math.max(0, currentPage - Math.floor(maxVisible / 2));
@@ -1256,7 +1313,9 @@ function render() {
       <span class="badge badge-${m.status} card-status-badge">
         ${m.status === 'watched' ? '✓ Watched' : m.status === 'in_progress' ? '▶ In Progress' : '⏳ Watchlist'}
       </span>
-      <div class="card-title">${esc(m.title)}</div>
+      ${m.tmdbId
+        ? `<a class="card-title card-title-link" href="https://www.themoviedb.org/${m.mediaType === 'movie' ? 'movie' : 'tv'}/${m.tmdbId}" target="_blank" rel="noopener noreferrer">${esc(m.title)}</a>`
+        : `<div class="card-title">${esc(m.title)}</div>`}
       <div class="card-meta">
         ${m.year       ? `<span class="meta-year">${m.year}</span>` : ''}
         ${m.country    ? `<span class="meta-country">🌍 ${esc(m.country)}</span>` : ''}
@@ -1430,6 +1489,13 @@ modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
 document.getElementById('f-status').addEventListener('change', () => { toggleRatingLabel(); buildStars(); });
 searchInput.addEventListener('input', () => { searchQuery = searchInput.value; currentPage = 0; render(); });
 countryFilterEl.addEventListener('change', () => { countryFilter = countryFilterEl.value; currentPage = 0; render(); });
+genreFilterEl.addEventListener('change', () => { genreFilter = genreFilterEl.value; currentPage = 0; render(); });
+document.getElementById('sort-order').addEventListener('change', e => {
+  sortOrder = e.target.value;
+  localStorage.setItem('cinetrack_sort', sortOrder);
+  currentPage = 0;
+  render();
+});
 
 grid.addEventListener('click', e => {
   const noteEl = e.target.closest('.card-notes');

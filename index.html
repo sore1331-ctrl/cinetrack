@@ -82,15 +82,18 @@
   <main>
     <!-- Controls row (hidden on stats/community) -->
     <section class="controls">
-      <div class="status-tabs">
-        <button class="status-btn active" data-status="all">All</button>
-        <button class="status-btn" data-status="watched">✓ Watched</button>
-        <button class="status-btn" data-status="in_progress">▶ In Progress</button>
-        <button class="status-btn" data-status="watchlist">⏳ List</button>
-      </div>
       <input type="text" id="search-input" placeholder="Search titles, genres, directors..." />
+      <select id="genre-filter">
+        <option value="">All Genres</option>
+      </select>
       <select id="country-filter">
         <option value="">All Countries</option>
+      </select>
+      <select id="sort-order">
+        <option value="added">Date Added</option>
+        <option value="title">Title (A–Z)</option>
+        <option value="year">Year (Newest)</option>
+        <option value="rating">My Rating</option>
       </select>
       <div class="size-toggle">
         <button class="size-btn" data-size="sm">S</button>
@@ -98,13 +101,6 @@
         <button class="size-btn" data-size="lg">L</button>
       </div>
       <button id="select-mode-btn" class="select-mode-btn" title="Toggle selection mode">☑ Select</button>
-      <select id="page-size-select" class="page-size-select" title="Items per page">
-        <option value="50">50 / pg</option>
-        <option value="100">100 / pg</option>
-        <option value="150">150 / pg</option>
-        <option value="200">200 / pg</option>
-        <option value="300">300 / pg</option>
-      </select>
       <button id="add-btn">+ Add</button>
     </section>
 
@@ -179,7 +175,16 @@
         </div>
       </div>
     </div>
-    <div id="pagination" class="pagination hidden"></div>
+    <div class="pagination-row">
+      <div id="pagination" class="pagination hidden"></div>
+      <select id="page-size-select" class="page-size-select hidden" title="Items per page">
+        <option value="50">50 / pg</option>
+        <option value="100">100 / pg</option>
+        <option value="150">150 / pg</option>
+        <option value="200">200 / pg</option>
+        <option value="300">300 / pg</option>
+      </select>
+    </div>
 
     <!-- Stats panel -->
     <div id="stats-panel" class="stats-panel hidden"></div>
