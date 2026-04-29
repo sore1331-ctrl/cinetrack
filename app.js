@@ -1256,7 +1256,9 @@ function render() {
       <span class="badge badge-${m.status} card-status-badge">
         ${m.status === 'watched' ? '✓ Watched' : m.status === 'in_progress' ? '▶ In Progress' : '⏳ Watchlist'}
       </span>
-      <div class="card-title">${esc(m.title)}</div>
+      ${m.tmdbId
+        ? `<a class="card-title card-title-link" href="https://www.themoviedb.org/${m.mediaType === 'movie' ? 'movie' : 'tv'}/${m.tmdbId}" target="_blank" rel="noopener noreferrer">${esc(m.title)}</a>`
+        : `<div class="card-title">${esc(m.title)}</div>`}
       <div class="card-meta">
         ${m.year       ? `<span class="meta-year">${m.year}</span>` : ''}
         ${m.country    ? `<span class="meta-country">🌍 ${esc(m.country)}</span>` : ''}
