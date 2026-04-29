@@ -679,10 +679,83 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 20px 0; }
 .import-toast.error { background: #3a1e1e; color: #e07070; border-color: #5a2a2a; }
 
 .empty-msg {
+  display: flex;
+  justify-content: center;
+  margin-top: 40px;
+  padding: 0 16px;
+}
+.onboarding-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 40px 48px;
+  max-width: 600px;
+  width: 100%;
   text-align: center;
+}
+.onboarding-icon {
+  font-size: 3rem;
+  margin-bottom: 12px;
+}
+.onboarding-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin: 0 0 8px;
+  color: var(--text);
+}
+.onboarding-subtitle {
   color: var(--muted);
-  margin-top: 60px;
+  margin: 0 0 28px;
   font-size: 1rem;
+}
+.onboarding-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: left;
+}
+.onboarding-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.step-num {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+.onboarding-step div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.92rem;
+  color: var(--text);
+}
+.onboarding-step strong {
+  font-weight: 600;
+}
+.onboarding-step span {
+  color: var(--muted);
+  line-height: 1.4;
+}
+.onboarding-step kbd {
+  display: inline-block;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.8rem;
+  font-family: inherit;
+  color: var(--text);
 }
 .hidden { display: none !important; }
 
