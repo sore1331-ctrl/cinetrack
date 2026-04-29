@@ -248,9 +248,11 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 20px 0; }
   outline: none;
   cursor: pointer;
   transition: border-color .15s;
+  color-scheme: dark;
 }
 #type-filter:focus, #country-filter:focus { border-color: var(--accent); }
-#type-filter option, #country-filter option { background: var(--surface2); }
+#type-filter option, #country-filter option { background: var(--surface2); color: var(--text); }
+:root.light #type-filter, :root.light #country-filter { color-scheme: light; }
 
 #add-btn {
   background: var(--accent);
@@ -743,7 +745,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 20px 0; }
 .onboarding-step strong {
   font-weight: 600;
 }
-.onboarding-step span {
+.onboarding-step div span {
   color: var(--muted);
   line-height: 1.4;
 }
