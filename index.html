@@ -304,6 +304,16 @@
         <label id="rating-label" class="hidden">Rating (1–10)
           <div class="star-row" id="star-row"></div>
         </label>
+        <div id="ep-fields" class="ep-fields hidden">
+          <div class="row-2">
+            <label>Episodes Watched
+              <input type="number" id="f-ep-watched" min="0" max="9999" placeholder="0" />
+            </label>
+            <label>Total Episodes
+              <input type="number" id="f-ep-total" min="0" max="9999" placeholder="e.g. 62" />
+            </label>
+          </div>
+        </div>
         <label>Runtime (minutes)
           <input type="number" id="f-runtime" min="0" max="99999" placeholder="e.g. 148 (filled from TMDB)" />
         </label>

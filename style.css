@@ -401,6 +401,34 @@ a.card-title-link:hover {
 }
 .btn-sm:hover { border-color: var(--accent); color: var(--text); }
 .btn-sm.danger:hover { border-color: #c0392b; color: #c0392b; }
+.btn-sm.btn-ep-inc { border-color: #2a4a6a; color: #5ba3f5; }
+.btn-sm.btn-ep-inc:hover { border-color: #5ba3f5; color: #5ba3f5; }
+
+/* ── Episode progress (TV / anime) ── */
+.ep-progress {
+  padding: 4px 14px 2px;
+  font-size: .72rem;
+  color: var(--muted);
+}
+.ep-progress-bar {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.ep-progress-fill {
+  height: 100%;
+  background: #5ba3f5;
+  transition: width .3s ease;
+}
+.ep-progress-label {
+  margin-top: 3px;
+}
+.grid-sm .ep-progress-label { display: none; }
+.grid-sm .ep-progress { padding: 4px 8px 0; }
+
+/* Episode-count fields in modal */
+.ep-fields.hidden { display: none; }
 
 /* ── Button label tiers (SM / MD / LG) ── */
 .lbl-sm { display: none; }
