@@ -1700,7 +1700,6 @@ authForm.addEventListener('submit', async e => {
 authOffline.addEventListener('click', () => {
   offlineMode = true;
   hideAuthOverlay();
-  if (movies.length === 0) seedData();
   setSyncState('error', 'Offline mode — changes saved locally only');
   updateCountryDropdown();
   render();

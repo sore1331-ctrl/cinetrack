@@ -142,7 +142,43 @@
 
     <!-- Content grid -->
     <div id="movie-grid" class="movie-grid grid-md"></div>
-    <p id="empty-msg" class="empty-msg hidden">No titles found. Add one!</p>
+    <div id="empty-msg" class="empty-msg hidden">
+      <div class="onboarding-card">
+        <div class="onboarding-icon">🎬</div>
+        <h2 class="onboarding-title">Welcome to Cinetrack</h2>
+        <p class="onboarding-subtitle">Your personal tracker for films, TV shows, and anime.</p>
+        <div class="onboarding-steps">
+          <div class="onboarding-step">
+            <span class="step-num">1</span>
+            <div>
+              <strong>Add a title</strong>
+              <span>Click <kbd>+ Add</kbd> and search by name — metadata and posters are filled in automatically via TMDB.</span>
+            </div>
+          </div>
+          <div class="onboarding-step">
+            <span class="step-num">2</span>
+            <div>
+              <strong>Track your status</strong>
+              <span>Mark anything as <em>Watched</em>, <em>In Progress</em>, or <em>Watchlist</em> and filter instantly using the tabs above.</span>
+            </div>
+          </div>
+          <div class="onboarding-step">
+            <span class="step-num">3</span>
+            <div>
+              <strong>Switch tabs for more</strong>
+              <span>Use <kbd>Films</kbd>, <kbd>TV Shows</kbd>, and <kbd>Anime</kbd> tabs to organise by type. Check <kbd>Stats</kbd> for a breakdown of your watching habits.</span>
+            </div>
+          </div>
+          <div class="onboarding-step">
+            <span class="step-num">4</span>
+            <div>
+              <strong>Import a CSV</strong>
+              <span>Already have a list elsewhere? Use the import option in the header to bulk-add titles from a spreadsheet.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
     <div id="pagination" class="pagination hidden"></div>
 
     <!-- Stats panel -->
