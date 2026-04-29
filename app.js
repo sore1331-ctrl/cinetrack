@@ -1929,6 +1929,54 @@ reloadCloudBtn.addEventListener('click', async () => {
   showToast('Reloaded from cloud ✓');
 });
 
+// ── Refresh from TMDB ───────────────────────────────────
+const tmdbRefreshBtn = document.getElementById('tmdb-refresh-btn');
+let cancelTmdbRefresh = false;
+
+tmdbRefreshBtn.addEventListener('click', async () => {
+  document.getElementById('user-dropdown').classList.add('hidden');
+  const targets = movies.filter(m => m.tmdbId);
+  if (!targets.length) { showToast('No TMDB-linked titles to refresh.'); return; }
+
+  cancelTmdbRefresh = false;
+  importProgress.classList.remove('hidden');
+  let updated = 0, failed = 0;
+  for (let i = 0; i < targets.length; i++) {
+    if (cancelTmdbRefresh) break;
+    const m = targets[i];
+    progressText.textContent = `Refreshing "${m.title}" (${i + 1} of ${targets.length})…`;
+    progressBar.style.width = `${Math.round((i / targets.length) * 100)}%`;
+    try {
+      const fetchType = m.mediaType === 'anime' ? 'tv' : (m.mediaType || 'movie');
+      const r = await fetch(`/api/movie?id=${m.tmdbId}&type=${fetchType}`);
+      if (!r.ok) { failed++; continue; }
+      const d = await r.json();
+      if (d.poster_path)             m.posterUrl = POSTER_BASE + d.poster_path;
+      if (d.year)                    m.year      = d.year;
+      if (d.genre)                   m.genre     = d.genre;
+      if (d.director)                m.director  = d.director;
+      if (d.country)                 m.country   = d.country;
+      if (d.runtime)                 m.runtime   = d.runtime;
+      if (d.total_episodes && (m.mediaType === 'tv' || m.mediaType === 'anime')) {
+        m.totalEpisodes = d.total_episodes;
+        if ((m.watchedEpisodes || 0) > m.totalEpisodes) m.watchedEpisodes = m.totalEpisodes;
+        if (m.status === 'watched' && !m.watchedEpisodes) m.watchedEpisodes = m.totalEpisodes;
+      }
+      updated++;
+    } catch { failed++; }
+  }
+  progressBar.style.width = '100%';
+  importProgress.classList.add('hidden');
+  save(); updateCountryDropdown(); render();
+  const parts = [`Refreshed ${updated} title${updated !== 1 ? 's' : ''}`];
+  if (failed)            parts.push(`${failed} failed`);
+  if (cancelTmdbRefresh) parts.push('cancelled');
+  showToast(parts.join(' · '));
+});
+
+// Reuse the import-progress cancel button for the TMDB refresh too
+progressCancel.addEventListener('click', () => { cancelTmdbRefresh = true; });
+
 // ── Sign out ────────────────────────────────────────────
 signoutBtn.addEventListener('click', async () => {
   try { if (sb) await sb.auth.signOut(); } catch {}
