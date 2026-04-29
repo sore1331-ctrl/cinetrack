@@ -1,6 +1,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
+  color-scheme: dark;
   --bg: #07070f;
   --surface: rgba(255,255,255,0.07);
   --surface2: rgba(255,255,255,0.04);
@@ -21,6 +22,7 @@
 }
 
 :root.light {
+  color-scheme: light;
   --bg: #eef0fb;
   --surface: rgba(255,255,255,0.72);
   --surface2: rgba(255,255,255,0.5);
@@ -283,11 +285,12 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 20px 0; }
   outline: none;
   cursor: pointer;
   transition: border-color .15s;
-  color-scheme: dark;
 }
 #type-filter:focus, #country-filter:focus, #genre-filter:focus, #sort-order:focus { border-color: var(--accent); }
-#type-filter option, #country-filter option, #genre-filter option, #sort-order option { background: var(--surface-solid); color: var(--text); }
-:root.light #type-filter, :root.light #country-filter, :root.light #genre-filter, :root.light #sort-order { color-scheme: light; }
+select option {
+  background-color: var(--surface-solid);
+  color: var(--text);
+}
 
 #add-btn {
   background: linear-gradient(135deg, var(--accent) 0%, #ff6b85 100%);
@@ -1153,7 +1156,6 @@ button.danger:hover { opacity: .85; }
   font-size: .83rem;
   outline: none;
   cursor: pointer;
-  color-scheme: dark;
   transition: border-color .15s;
   flex-shrink: 0;
 }
