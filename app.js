@@ -119,6 +119,7 @@ async function loadUserData() {
     const row = rows?.[0] ?? null;
     if (row?.movies && Array.isArray(row.movies)) {
       movies = row.movies;
+      syncEpisodeProgress();
       localStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
     }
     setSyncState('saved');
@@ -155,7 +156,21 @@ async function saveUserData() {
   }
 }
 
+// If a TV/anime entry is marked watched, every episode counts as watched.
+function syncEpisodeProgress() {
+  for (const m of movies) {
+    if (m.mediaType !== 'tv' && m.mediaType !== 'anime') continue;
+    if (m.status === 'watched' && (m.totalEpisodes || 0) > 0) {
+      m.watchedEpisodes = m.totalEpisodes;
+    }
+  }
+}
+
+// One-shot at startup to fix any legacy data missing the invariant.
+syncEpisodeProgress();
+
 function save() {
+  syncEpisodeProgress();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
   if (offlineMode || !currentUser) return;
   setSyncState('saving');
@@ -1488,9 +1503,6 @@ form.addEventListener('submit', e => {
     if (watchedEpisodes >= totalEpisodes) status = 'watched';
     else if (watchedEpisodes > 0)         status = 'in_progress';
   }
-  if (isShow && status === 'watched' && totalEpisodes > 0 && watchedEpisodes === 0) {
-    watchedEpisodes = totalEpisodes;
-  }
 
   const data = {
     title,
@@ -1567,8 +1579,7 @@ grid.addEventListener('click', e => {
     const m = movies.find(m => m.id === toggleId);
     if (m) {
       m.status = m.status === 'watched' ? 'watchlist' : m.status === 'in_progress' ? 'watched' : 'in_progress';
-      if (m.status === 'watchlist')   { m.rating = 0; m.watchedEpisodes = 0; }
-      else if (m.status === 'watched' && (m.totalEpisodes || 0) > 0) m.watchedEpisodes = m.totalEpisodes;
+      if (m.status === 'watchlist') { m.rating = 0; m.watchedEpisodes = 0; }
       save(); render();
     }
   } else if (deleteId) {
@@ -1689,9 +1700,6 @@ function normaliseRow(row) {
     if      (watchedEpisodes >= totalEpisodes) status = 'watched';
     else if (watchedEpisodes > 0)              status = 'in_progress';
   }
-  if (isShow && status === 'watched' && totalEpisodes > 0 && watchedEpisodes === 0) {
-    watchedEpisodes = totalEpisodes;
-  }
   const rating    = (status === 'watched' || status === 'in_progress')
                     ? Math.min(10, Math.max(0, parseInt(row.rating) || 0)) : 0;
   return { mediaType, status, rating, year, runtime, totalEpisodes, watchedEpisodes };
@@ -1727,8 +1735,7 @@ async function importRows(rows) {
     const tmdb = await matchWithTMDB(title, year, mediaType);
     const isShow      = mediaType === 'tv' || mediaType === 'anime';
     const epTotalUsed = isShow ? (totalEpisodes || (tmdb?.total_episodes || 0)) : 0;
-    let   epWatchUsed = isShow ? Math.min(watchedEpisodes, epTotalUsed || watchedEpisodes) : 0;
-    if (isShow && status === 'watched' && epTotalUsed > 0 && epWatchUsed === 0) epWatchUsed = epTotalUsed;
+    const epWatchUsed = isShow ? Math.min(watchedEpisodes, epTotalUsed || watchedEpisodes) : 0;
     if (tmdb) {
       movies.push({ id: genId(), addedAt: Date.now(), title: tmdb.title, year: tmdb.year, genre: tmdb.genre, director: tmdb.director, country: tmdb.country, notes: row.notes || tmdb.overview || '', posterUrl: tmdb.poster_path ? `https://image.tmdb.org/t/p/w200${tmdb.poster_path}` : '', tmdbId: tmdb.tmdbId, runtime: tmdb.runtime || runtime, mediaType, status, rating, totalEpisodes: epTotalUsed, watchedEpisodes: epWatchUsed });
     } else {
@@ -1960,7 +1967,6 @@ tmdbRefreshBtn.addEventListener('click', async () => {
       if (d.total_episodes && (m.mediaType === 'tv' || m.mediaType === 'anime')) {
         m.totalEpisodes = d.total_episodes;
         if ((m.watchedEpisodes || 0) > m.totalEpisodes) m.watchedEpisodes = m.totalEpisodes;
-        if (m.status === 'watched' && !m.watchedEpisodes) m.watchedEpisodes = m.totalEpisodes;
       }
       updated++;
     } catch { failed++; }
