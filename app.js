@@ -213,6 +213,7 @@ function switchView(view, type) {
   if (type && view === 'content') {
     activeType      = type;
     activeMediaType = type;
+    activeStatus    = 'all';
     genreFilter     = '';
     genreFilterEl.value = '';
   }
@@ -295,14 +296,14 @@ document.getElementById('header-profile-btn').addEventListener('click', () => {
   switchView('profile');
 });
 
-// ── Status tabs ─────────────────────────────────────────
-document.querySelectorAll('.status-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.status-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    activeStatus = btn.dataset.status;
-    currentPage = 0;
-    render();
+// ── Status filter via stats bar ──────────────────────────
+statsBar.addEventListener('click', e => {
+  const btn = e.target.closest('[data-filter-status]');
+  if (!btn) return;
+  const s = btn.dataset.filterStatus;
+  activeStatus = (activeStatus === s) ? 'all' : s;
+  currentPage = 0;
+  render();
   });
 });
 
@@ -589,19 +590,19 @@ function formatRuntime(mins) {
 
 // ── Stats bar ───────────────────────────────────────────
 function updateStats() {
-  const allOfType    = movies.filter(m => m.mediaType === activeType);
-  const watchedList    = allOfType.filter(m => m.status === 'watched');
-  const inProgressCnt  = allOfType.filter(m => m.status === 'in_progress').length;
-  const watchlistCnt   = allOfType.filter(m => m.status === 'watchlist').length;
-  const totalMins      = watchedList.reduce((s, m) => s + (m.runtime || 0), 0);
-  const timeStr        = formatRuntime(totalMins);
+  const allOfType     = movies.filter(m => m.mediaType === activeType);
+  const watchedCnt    = allOfType.filter(m => m.status === 'watched').length;
+  const inProgressCnt = allOfType.filter(m => m.status === 'in_progress').length;
+  const watchlistCnt  = allOfType.filter(m => m.status === 'watchlist').length;
+
+  const a = s => activeStatus === s ? ' stat-active' : '';
 
   let countryHTML = '';
   if (countryFilter) {
-    const byCountry    = allOfType.filter(m => m.country === countryFilter);
-    const cWatched     = byCountry.filter(m => m.status === 'watched').length;
-    const cInProgress  = byCountry.filter(m => m.status === 'in_progress').length;
-    const cWatchlist   = byCountry.filter(m => m.status === 'watchlist').length;
+    const byCountry   = allOfType.filter(m => m.country === countryFilter);
+    const cWatched    = byCountry.filter(m => m.status === 'watched').length;
+    const cInProgress = byCountry.filter(m => m.status === 'in_progress').length;
+    const cWatchlist  = byCountry.filter(m => m.status === 'watchlist').length;
     countryHTML =
       `<span class="country-stats">` +
       `🌍 <strong>${esc(countryFilter)}</strong>` +
@@ -612,12 +613,11 @@ function updateStats() {
   }
 
   statsBar.innerHTML =
-    `<span class="stat-item stat-watched">✓ <strong>${watchedList.length}</strong> watched</span>` +
+    `<button class="stat-item stat-watched${a('watched')}" data-filter-status="watched">✓ <strong>${watchedCnt}</strong> watched</button>` +
     `<span class="stat-sep">·</span>` +
-    `<span class="stat-item stat-in-progress">▶ <strong>${inProgressCnt}</strong> in progress</span>` +
+    `<button class="stat-item stat-in-progress${a('in_progress')}" data-filter-status="in_progress">▶ <strong>${inProgressCnt}</strong> in progress</button>` +
     `<span class="stat-sep">·</span>` +
-    `<span class="stat-item stat-watchlist">⏳ <strong>${watchlistCnt}</strong> on watchlist</span>` +
-    (timeStr ? `<span class="stat-sep">·</span><span class="stat-item stat-time">⏱ <strong>${timeStr}</strong> spent watching</span>` : '') +
+    `<button class="stat-item stat-watchlist${a('watchlist')}" data-filter-status="watchlist">⏳ <strong>${watchlistCnt}</strong> on watchlist</button>` +
     countryHTML;
 }
 

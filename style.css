@@ -1073,13 +1073,30 @@ button.danger:hover { opacity: .85; }
   font-size: .84rem;
 }
 
-.stat-item { color: var(--muted); display: flex; align-items: center; gap: 4px; }
+.stat-item {
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 20px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-size: inherit;
+  transition: border-color .15s, background .15s;
+}
+.stat-item:hover { border-color: var(--border); background: var(--surface2); }
 .stat-item strong { color: var(--text); }
 .stat-sep { color: var(--border); }
 
-.stat-watched strong  { color: #4caf82; }
+.stat-watched strong   { color: #4caf82; }
 .stat-watchlist strong { color: var(--accent2); }
-.stat-time strong     { color: #7eb8f7; }
+
+.stat-active { border-color: var(--border) !important; background: var(--surface2) !important; }
+.stat-watched.stat-active strong   { color: #4caf82; }
+.stat-in-progress.stat-active strong { color: #5ba3f5; }
+.stat-watchlist.stat-active strong  { color: var(--accent2); }
 
 /* ── Pagination ── */
 .pagination {
