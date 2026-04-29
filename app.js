@@ -231,6 +231,7 @@ function switchView(view, type) {
   grid.classList.toggle('hidden', !isContent);
   emptyMsg.classList.add('hidden');
   paginationEl.classList.add('hidden');
+  pageSizeSelect.classList.add('hidden');
   document.getElementById('bulk-bar').classList.add('hidden');
   document.getElementById('stats-panel').classList.toggle('hidden', !isStats);
   document.getElementById('community-panel').classList.toggle('hidden', !isCommunity);
@@ -1224,8 +1225,9 @@ function exportCSV() {
 // ── Pagination ──────────────────────────────────────────
 function renderPagination(totalItems) {
   const totalPages = Math.ceil(totalItems / pageSize);
-  if (totalPages <= 1) { paginationEl.classList.add('hidden'); return; }
+  if (totalPages <= 1) { paginationEl.classList.add('hidden'); pageSizeSelect.classList.add('hidden'); return; }
   paginationEl.classList.remove('hidden');
+  pageSizeSelect.classList.remove('hidden');
 
   const maxVisible = 7;
   let start = Math.max(0, currentPage - Math.floor(maxVisible / 2));
