@@ -557,13 +557,29 @@ function updateStats() {
   const totalMins      = watchedList.reduce((s, m) => s + (m.runtime || 0), 0);
   const timeStr        = formatRuntime(totalMins);
 
+  let countryHTML = '';
+  if (countryFilter) {
+    const byCountry    = allOfType.filter(m => m.country === countryFilter);
+    const cWatched     = byCountry.filter(m => m.status === 'watched').length;
+    const cInProgress  = byCountry.filter(m => m.status === 'in_progress').length;
+    const cWatchlist   = byCountry.filter(m => m.status === 'watchlist').length;
+    countryHTML =
+      `<span class="country-stats">` +
+      `🌍 <strong>${esc(countryFilter)}</strong>` +
+      `<span class="stat-sep">·</span><span class="cs-watched">✓ ${cWatched}</span>` +
+      (cInProgress ? `<span class="stat-sep">·</span><span class="cs-progress">▶ ${cInProgress}</span>` : '') +
+      (cWatchlist  ? `<span class="stat-sep">·</span><span class="cs-watchlist">⏳ ${cWatchlist}</span>` : '') +
+      `</span>`;
+  }
+
   statsBar.innerHTML =
     `<span class="stat-item stat-watched">✓ <strong>${watchedList.length}</strong> watched</span>` +
     `<span class="stat-sep">·</span>` +
     `<span class="stat-item stat-in-progress">▶ <strong>${inProgressCnt}</strong> in progress</span>` +
     `<span class="stat-sep">·</span>` +
     `<span class="stat-item stat-watchlist">⏳ <strong>${watchlistCnt}</strong> on watchlist</span>` +
-    (timeStr ? `<span class="stat-sep">·</span><span class="stat-item stat-time">⏱ <strong>${timeStr}</strong> spent watching</span>` : '');
+    (timeStr ? `<span class="stat-sep">·</span><span class="stat-item stat-time">⏱ <strong>${timeStr}</strong> spent watching</span>` : '') +
+    countryHTML;
 }
 
 // ── Stats panel ─────────────────────────────────────────

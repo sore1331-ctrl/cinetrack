@@ -98,13 +98,6 @@
         <button class="size-btn" data-size="lg">L</button>
       </div>
       <button id="select-mode-btn" class="select-mode-btn" title="Toggle selection mode">☑ Select</button>
-      <select id="page-size-select" class="page-size-select" title="Items per page">
-        <option value="50">50 / pg</option>
-        <option value="100">100 / pg</option>
-        <option value="150">150 / pg</option>
-        <option value="200">200 / pg</option>
-        <option value="300">300 / pg</option>
-      </select>
       <button id="add-btn">+ Add</button>
     </section>
 
@@ -179,7 +172,16 @@
         </div>
       </div>
     </div>
-    <div id="pagination" class="pagination hidden"></div>
+    <div class="pagination-row">
+      <div id="pagination" class="pagination hidden"></div>
+      <select id="page-size-select" class="page-size-select" title="Items per page">
+        <option value="50">50 / pg</option>
+        <option value="100">100 / pg</option>
+        <option value="150">150 / pg</option>
+        <option value="200">200 / pg</option>
+        <option value="300">300 / pg</option>
+      </select>
+    </div>
 
     <!-- Stats panel -->
     <div id="stats-panel" class="stats-panel hidden"></div>
