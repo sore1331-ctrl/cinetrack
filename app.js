@@ -305,7 +305,6 @@ statsBar.addEventListener('click', e => {
   activeStatus = (activeStatus === s) ? 'all' : s;
   currentPage = 0;
   render();
-  });
 });
 
 // ── Select mode ─────────────────────────────────────────
