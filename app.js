@@ -1776,10 +1776,14 @@ function captureCurrentSeason() {
 }
 
 seasonSelect.addEventListener('change', () => {
-  // Save current season's edits first, then load the newly-selected season.
+  const newIdx = parseInt(seasonSelect.value);
+  // Save current season's edits, then advance to the new selection
+  // *before* rebuilding — otherwise rebuild's `selected` attribute
+  // resets the dropdown back to the previous season.
   captureCurrentSeason();
+  editingSeasonIdx = newIdx;
+  loadSeasonIntoInputs(editingSeasonIdx);
   rebuildSeasonDropdown();
-  loadSeasonIntoInputs(parseInt(seasonSelect.value));
 });
 
 function openModal(movie = null) {
