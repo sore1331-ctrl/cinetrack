@@ -119,6 +119,7 @@ async function loadUserData() {
     const row = rows?.[0] ?? null;
     if (row?.movies && Array.isArray(row.movies)) {
       movies = row.movies;
+      syncEpisodeProgress();
       localStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
     }
     setSyncState('saved');
@@ -155,7 +156,21 @@ async function saveUserData() {
   }
 }
 
+// If a TV/anime entry is marked watched, every episode counts as watched.
+function syncEpisodeProgress() {
+  for (const m of movies) {
+    if (m.mediaType !== 'tv' && m.mediaType !== 'anime') continue;
+    if (m.status === 'watched' && (m.totalEpisodes || 0) > 0) {
+      m.watchedEpisodes = m.totalEpisodes;
+    }
+  }
+}
+
+// One-shot at startup to fix any legacy data missing the invariant.
+syncEpisodeProgress();
+
 function save() {
+  syncEpisodeProgress();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
   if (offlineMode || !currentUser) return;
   setSyncState('saving');
@@ -305,7 +320,6 @@ statsBar.addEventListener('click', e => {
   activeStatus = (activeStatus === s) ? 'all' : s;
   currentPage = 0;
   render();
-  });
 });
 
 // ── Select mode ─────────────────────────────────────────
@@ -372,6 +386,7 @@ function updateModalForType() {
   tmdbQuery.placeholder = placeholders[activeMediaType] || 'Type a title...';
   directorLabel.childNodes[0].textContent = (isTV || isAnime) ? 'Creator / Director' : 'Director';
   document.getElementById('f-director').placeholder = isAnime ? 'e.g. Hayao Miyazaki' : isTV ? 'e.g. Vince Gilligan' : 'e.g. Christopher Nolan';
+  document.getElementById('ep-fields').classList.toggle('hidden', !(isTV || isAnime));
 }
 
 // ── TMDB search UI ──────────────────────────────────────
@@ -459,6 +474,8 @@ function applyTMDBSelection(details) {
   document.getElementById('f-director').value = details.director || '';
   document.getElementById('f-country').value  = details.country  || '';
   if (details.runtime) document.getElementById('f-runtime').value = details.runtime;
+  if (details.total_episodes && !document.getElementById('f-ep-total').value)
+    document.getElementById('f-ep-total').value = details.total_episodes;
   if (!document.getElementById('f-notes').value)
     document.getElementById('f-notes').value  = details.overview || '';
 }
@@ -1286,11 +1303,26 @@ function render() {
     const checked = selectedIds.has(m.id);
     card.className = 'movie-card' + (checked ? ' selected' : '');
     card.dataset.id = m.id;
-    const isTV = m.mediaType === 'tv';
+    const isTV    = m.mediaType === 'tv';
+    const isShow  = isTV || m.mediaType === 'anime';
     const posterHTML = m.posterUrl
       ? `<img class="card-poster-img" src="${m.posterUrl}" alt="${esc(m.title)}" loading="lazy" />`
       : `<div class="card-poster-emoji">${m.mediaType === 'anime' ? '🎌' : isTV ? '📺' : posterEmoji(m.title)}</div>`;
     const runtimeStr = formatRuntime(m.runtime);
+    const epTotal    = m.totalEpisodes   || 0;
+    const epWatched  = Math.min(m.watchedEpisodes || 0, epTotal);
+    const epPct      = epTotal > 0 ? Math.round((epWatched / epTotal) * 100) : 0;
+    const epHTML     = (isShow && epTotal > 0)
+      ? `<div class="ep-progress" title="${epWatched} of ${epTotal} episodes watched">
+           <div class="ep-progress-bar"><div class="ep-progress-fill" style="width:${epPct}%"></div></div>
+           <div class="ep-progress-label">▶ ${epWatched}/${epTotal} eps · ${epPct}%</div>
+         </div>`
+      : '';
+    const epIncBtn   = (isShow && epTotal > 0 && epWatched < epTotal)
+      ? `<button class="btn-sm btn-ep-inc" data-ep-inc="${m.id}" title="Mark next episode watched">
+           <span class="lbl-md lbl-lg">+1 ep</span><span class="lbl-sm">+1</span>
+         </button>`
+      : '';
 
     const hoverInfoParts = [
       m.genre    && `<div class="chi-genre">${esc(m.genre)}</div>`,
@@ -1324,11 +1356,13 @@ function render() {
         ${runtimeStr   ? `<span class="meta-runtime">⏱ ${runtimeStr}</span>` : ''}
       </div>
       ${m.rating ? starsHTML(m.rating) : ''}
+      ${epHTML}
       ${m.notes ? `<div class="card-notes">${esc(m.notes)}</div>` : ''}
       <div class="card-actions">
         <button class="btn-sm" data-edit="${m.id}">
           <span class="lbl-md lbl-lg">Edit</span><span class="lbl-sm">✎</span>
         </button>
+        ${epIncBtn}
         <button class="btn-sm" data-toggle="${m.id}">
           <span class="lbl-lg">${m.status === 'watched' ? '⏳ Watchlist' : m.status === 'in_progress' ? '✓ Watched' : '▶ In Progress'}</span>
           <span class="lbl-md">${m.status === 'watched' ? 'List' : m.status === 'in_progress' ? 'Watched' : 'In Prog'}</span>
@@ -1427,6 +1461,8 @@ function openModal(movie = null) {
   document.getElementById('f-status').value   = movie?.status   || 'watchlist';
   document.getElementById('f-runtime').value  = movie?.runtime  || '';
   document.getElementById('f-notes').value    = movie?.notes    || '';
+  document.getElementById('f-ep-watched').value = movie?.watchedEpisodes || '';
+  document.getElementById('f-ep-total').value   = movie?.totalEpisodes   || '';
   selectedRating = movie?.rating || 0;
 
   toggleRatingLabel();
@@ -1457,17 +1493,30 @@ form.addEventListener('submit', e => {
     ? POSTER_BASE + tmdbSelection.poster_path
     : existing?.posterUrl || '';
 
+  const isShow        = activeMediaType === 'tv' || activeMediaType === 'anime';
+  const totalEpisodes = isShow ? Math.max(0, parseInt(document.getElementById('f-ep-total').value)   || 0) : 0;
+  let watchedEpisodes = isShow ? Math.max(0, parseInt(document.getElementById('f-ep-watched').value) || 0) : 0;
+  if (totalEpisodes > 0 && watchedEpisodes > totalEpisodes) watchedEpisodes = totalEpisodes;
+
+  let status = document.getElementById('f-status').value;
+  if (isShow && totalEpisodes > 0) {
+    if (watchedEpisodes >= totalEpisodes) status = 'watched';
+    else if (watchedEpisodes > 0)         status = 'in_progress';
+  }
+
   const data = {
     title,
     year:      document.getElementById('f-year').value     || '',
     genre:     document.getElementById('f-genre').value    || '',
     director:  document.getElementById('f-director').value || '',
     country:   document.getElementById('f-country').value  || '',
-    status:    document.getElementById('f-status').value,
+    status,
     notes:     document.getElementById('f-notes').value    || '',
     runtime:   parseInt(document.getElementById('f-runtime').value) || 0,
-    rating:    ['watched', 'in_progress'].includes(document.getElementById('f-status').value) ? selectedRating : 0,
+    rating:    ['watched', 'in_progress'].includes(status) ? selectedRating : 0,
     mediaType: activeMediaType,
+    totalEpisodes,
+    watchedEpisodes,
     posterUrl,
     tmdbId: tmdbSelection?.id || existing?.tmdbId || null,
   };
@@ -1504,9 +1553,10 @@ grid.addEventListener('click', e => {
   const editId   = e.target.closest('[data-edit]')?.dataset.edit;
   const toggleId = e.target.closest('[data-toggle]')?.dataset.toggle;
   const deleteId = e.target.closest('[data-delete]')?.dataset.delete;
+  const epIncId  = e.target.closest('[data-ep-inc]')?.dataset.epInc;
 
   // Click poster to edit (skip in select mode or when clicking checkbox)
-  if (!editId && !toggleId && !deleteId && !selectMode && !e.target.closest('.card-checkbox')) {
+  if (!editId && !toggleId && !deleteId && !epIncId && !selectMode && !e.target.closest('.card-checkbox')) {
     const poster = e.target.closest('.card-poster');
     if (poster) {
       const card = poster.closest('.movie-card');
@@ -1515,13 +1565,21 @@ grid.addEventListener('click', e => {
     }
   }
 
-  if (editId) {
+  if (epIncId) {
+    const m = movies.find(m => m.id === epIncId);
+    if (m && (m.totalEpisodes || 0) > 0) {
+      const next = Math.min((m.watchedEpisodes || 0) + 1, m.totalEpisodes);
+      m.watchedEpisodes = next;
+      m.status = next >= m.totalEpisodes ? 'watched' : 'in_progress';
+      save(); render();
+    }
+  } else if (editId) {
     openModal(movies.find(m => m.id === editId));
   } else if (toggleId) {
     const m = movies.find(m => m.id === toggleId);
     if (m) {
       m.status = m.status === 'watched' ? 'watchlist' : m.status === 'in_progress' ? 'watched' : 'in_progress';
-      if (m.status === 'watchlist') m.rating = 0;
+      if (m.status === 'watchlist') { m.rating = 0; m.watchedEpisodes = 0; }
       save(); render();
     }
   } else if (deleteId) {
@@ -1579,6 +1637,8 @@ const COL_MAP = {
   notes: 'notes', overview: 'notes', description: 'notes',
   type: 'mediaType', media_type: 'mediaType', mediatype: 'mediaType',
   poster: 'posterUrl', poster_url: 'posterUrl', posterurl: 'posterUrl',
+  total_episodes: 'totalEpisodes', totalepisodes: 'totalEpisodes', episodes: 'totalEpisodes', episode_count: 'totalEpisodes',
+  episodes_watched: 'watchedEpisodes', watched_episodes: 'watchedEpisodes', watchedepisodes: 'watchedEpisodes',
 };
 
 function parseCSV(text) {
@@ -1627,14 +1687,22 @@ function normaliseRow(row) {
   const mediaType = (rawType === 'tv' || rawType === 'tv show' || rawType === 'show') ? 'tv'
                   : rawType === 'anime' ? 'anime' : 'movie';
   const rawStatus = (row.status || '').toLowerCase().trim();
-  const status    = rawStatus === 'watched' ? 'watched'
+  let status      = rawStatus === 'watched' ? 'watched'
                   : (rawStatus === 'in_progress' || rawStatus === 'in progress' || rawStatus === 'inprogress') ? 'in_progress'
                   : 'watchlist';
-  const rating    = (status === 'watched' || status === 'in_progress')
-                    ? Math.min(10, Math.max(0, parseInt(row.rating) || 0)) : 0;
   const year      = (row.year || '').toString().slice(0, 4);
   const runtime   = parseInt(row.runtime) || 0;
-  return { mediaType, status, rating, year, runtime };
+  const isShow    = mediaType === 'tv' || mediaType === 'anime';
+  const totalEpisodes   = isShow ? Math.max(0, parseInt(row.totalEpisodes)   || 0) : 0;
+  let   watchedEpisodes = isShow ? Math.max(0, parseInt(row.watchedEpisodes) || 0) : 0;
+  if (totalEpisodes > 0 && watchedEpisodes > totalEpisodes) watchedEpisodes = totalEpisodes;
+  if (isShow && totalEpisodes > 0) {
+    if      (watchedEpisodes >= totalEpisodes) status = 'watched';
+    else if (watchedEpisodes > 0)              status = 'in_progress';
+  }
+  const rating    = (status === 'watched' || status === 'in_progress')
+                    ? Math.min(10, Math.max(0, parseInt(row.rating) || 0)) : 0;
+  return { mediaType, status, rating, year, runtime, totalEpisodes, watchedEpisodes };
 }
 
 async function matchWithTMDB(title, year, mediaType) {
@@ -1659,17 +1727,20 @@ async function importRows(rows) {
     const row = rows[i];
     const title = row.title?.trim();
     if (!title) { skipped++; continue; }
-    const { mediaType, status, rating, year, runtime } = normaliseRow(row);
+    const { mediaType, status, rating, year, runtime, totalEpisodes, watchedEpisodes } = normaliseRow(row);
     const dup = movies.some(m => m.title.toLowerCase() === title.toLowerCase() && m.mediaType === mediaType && (m.year || '') === year);
     if (dup) { skipped++; continue; }
     progressText.textContent = `Matching "${title}" (${i + 1} of ${total})…`;
     progressBar.style.width = `${Math.round((i / total) * 100)}%`;
     const tmdb = await matchWithTMDB(title, year, mediaType);
+    const isShow      = mediaType === 'tv' || mediaType === 'anime';
+    const epTotalUsed = isShow ? (totalEpisodes || (tmdb?.total_episodes || 0)) : 0;
+    const epWatchUsed = isShow ? Math.min(watchedEpisodes, epTotalUsed || watchedEpisodes) : 0;
     if (tmdb) {
-      movies.push({ id: genId(), addedAt: Date.now(), title: tmdb.title, year: tmdb.year, genre: tmdb.genre, director: tmdb.director, country: tmdb.country, notes: row.notes || tmdb.overview || '', posterUrl: tmdb.poster_path ? `https://image.tmdb.org/t/p/w200${tmdb.poster_path}` : '', tmdbId: tmdb.tmdbId, runtime: tmdb.runtime || runtime, mediaType, status, rating });
+      movies.push({ id: genId(), addedAt: Date.now(), title: tmdb.title, year: tmdb.year, genre: tmdb.genre, director: tmdb.director, country: tmdb.country, notes: row.notes || tmdb.overview || '', posterUrl: tmdb.poster_path ? `https://image.tmdb.org/t/p/w200${tmdb.poster_path}` : '', tmdbId: tmdb.tmdbId, runtime: tmdb.runtime || runtime, mediaType, status, rating, totalEpisodes: epTotalUsed, watchedEpisodes: epWatchUsed });
     } else {
       unmatched++;
-      movies.push({ id: genId(), addedAt: Date.now(), title, year, genre: row.genre || '', director: row.director || '', country: row.country || '', notes: row.notes || '', posterUrl: row.posterUrl || '', tmdbId: null, runtime, mediaType, status, rating });
+      movies.push({ id: genId(), addedAt: Date.now(), title, year, genre: row.genre || '', director: row.director || '', country: row.country || '', notes: row.notes || '', posterUrl: row.posterUrl || '', tmdbId: null, runtime, mediaType, status, rating, totalEpisodes: epTotalUsed, watchedEpisodes: epWatchUsed });
     }
     imported++;
   }
@@ -1700,7 +1771,7 @@ csvInput.addEventListener('change', () => {
   reader.readAsText(file);
 });
 
-const TEMPLATE_CSV = `title,year,genre,director,country,status,rating,runtime,notes,type\nInception,2010,"Sci-Fi, Thriller",Christopher Nolan,United States,watched,9,148,Mind-bending film,movie\nBreaking Bad,2008,"Crime, Drama",Vince Gilligan,United States,watched,10,2700,Greatest TV drama,tv\n`;
+const TEMPLATE_CSV = `title,year,genre,director,country,status,rating,runtime,notes,type,total_episodes,episodes_watched\nInception,2010,"Sci-Fi, Thriller",Christopher Nolan,United States,watched,9,148,Mind-bending film,movie,,\nBreaking Bad,2008,"Crime, Drama",Vince Gilligan,United States,watched,10,2700,Greatest TV drama,tv,62,62\nDark,2017,"Sci-Fi, Thriller",Baran bo Odar,Germany,in_progress,9,1530,Time-travel mystery,tv,26,12\n`;
 const TEMPLATE_URL = URL.createObjectURL(new Blob([TEMPLATE_CSV], { type: 'text/csv' }));
 
 // ── Auth UI ──────────────────────────────────────────────
@@ -1864,6 +1935,53 @@ reloadCloudBtn.addEventListener('click', async () => {
   reloadCloudBtn.textContent = '↻ Reload from cloud';
   showToast('Reloaded from cloud ✓');
 });
+
+// ── Refresh from TMDB ───────────────────────────────────
+const tmdbRefreshBtn = document.getElementById('tmdb-refresh-btn');
+let cancelTmdbRefresh = false;
+
+tmdbRefreshBtn.addEventListener('click', async () => {
+  document.getElementById('user-dropdown').classList.add('hidden');
+  const targets = movies.filter(m => m.tmdbId);
+  if (!targets.length) { showToast('No TMDB-linked titles to refresh.'); return; }
+
+  cancelTmdbRefresh = false;
+  importProgress.classList.remove('hidden');
+  let updated = 0, failed = 0;
+  for (let i = 0; i < targets.length; i++) {
+    if (cancelTmdbRefresh) break;
+    const m = targets[i];
+    progressText.textContent = `Refreshing "${m.title}" (${i + 1} of ${targets.length})…`;
+    progressBar.style.width = `${Math.round((i / targets.length) * 100)}%`;
+    try {
+      const fetchType = m.mediaType === 'anime' ? 'tv' : (m.mediaType || 'movie');
+      const r = await fetch(`/api/movie?id=${m.tmdbId}&type=${fetchType}`);
+      if (!r.ok) { failed++; continue; }
+      const d = await r.json();
+      if (d.poster_path)             m.posterUrl = POSTER_BASE + d.poster_path;
+      if (d.year)                    m.year      = d.year;
+      if (d.genre)                   m.genre     = d.genre;
+      if (d.director)                m.director  = d.director;
+      if (d.country)                 m.country   = d.country;
+      if (d.runtime)                 m.runtime   = d.runtime;
+      if (d.total_episodes && (m.mediaType === 'tv' || m.mediaType === 'anime')) {
+        m.totalEpisodes = d.total_episodes;
+        if ((m.watchedEpisodes || 0) > m.totalEpisodes) m.watchedEpisodes = m.totalEpisodes;
+      }
+      updated++;
+    } catch { failed++; }
+  }
+  progressBar.style.width = '100%';
+  importProgress.classList.add('hidden');
+  save(); updateCountryDropdown(); render();
+  const parts = [`Refreshed ${updated} title${updated !== 1 ? 's' : ''}`];
+  if (failed)            parts.push(`${failed} failed`);
+  if (cancelTmdbRefresh) parts.push('cancelled');
+  showToast(parts.join(' · '));
+});
+
+// Reuse the import-progress cancel button for the TMDB refresh too
+progressCancel.addEventListener('click', () => { cancelTmdbRefresh = true; });
 
 // ── Sign out ────────────────────────────────────────────
 signoutBtn.addEventListener('click', async () => {

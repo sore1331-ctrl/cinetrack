@@ -60,6 +60,7 @@
           <span id="user-email" class="user-email-label"></span>
           <hr class="dropdown-divider" />
           <button id="reload-cloud-btn" class="reload-cloud-btn" title="Fetch your latest data from the cloud and replace local data. Use this if changes from another device aren't showing up.">↻ Reload from cloud</button>
+          <button id="tmdb-refresh-btn" class="reload-cloud-btn" title="Re-fetch metadata from TMDB for every title (poster, runtime, total episodes, genre, country). Your status, rating, notes, and episode progress are preserved.">↻ Refresh from TMDB</button>
           <button id="signout-btn" class="signout-btn">Sign out</button>
         </div>
       </div>
@@ -304,6 +305,16 @@
         <label id="rating-label" class="hidden">Rating (1–10)
           <div class="star-row" id="star-row"></div>
         </label>
+        <div id="ep-fields" class="ep-fields hidden">
+          <div class="row-2">
+            <label>Episodes Watched
+              <input type="number" id="f-ep-watched" min="0" max="9999" placeholder="0" />
+            </label>
+            <label>Total Episodes
+              <input type="number" id="f-ep-total" min="0" max="9999" placeholder="e.g. 62" />
+            </label>
+          </div>
+        </div>
         <label>Runtime (minutes)
           <input type="number" id="f-runtime" min="0" max="99999" placeholder="e.g. 148 (filled from TMDB)" />
         </label>
