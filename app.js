@@ -1078,7 +1078,7 @@ async function loadRecommendations() {
 
   const recs = (data.results || []).filter(r =>
     !trackedTmdbIds.has(String(r.id)) && !dismissed.has(String(r.id))
-  );
+  ).slice(0, 18);
 
   if (!recs.length) {
     section.innerHTML = '<p class="recs-empty">No new recommendations found — try watching more titles!</p>';

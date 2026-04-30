@@ -463,21 +463,10 @@ a.card-title-link:hover {
   cursor: pointer;
   transition: max-height .25s ease;
 }
-.card-notes::after {
-  content: '';
-  position: absolute;
-  left: 14px; right: 14px; bottom: 0;
-  height: 1.2em;
-  background: linear-gradient(to bottom, transparent, var(--surface));
-  pointer-events: none;
-  transition: opacity .2s ease;
-}
 @media (hover: hover) {
   .card-notes:hover { max-height: 24em; overflow-y: auto; }
-  .card-notes:hover::after { opacity: 0; }
 }
 .card-notes.expanded { max-height: 24em; overflow-y: auto; }
-.card-notes.expanded::after { opacity: 0; }
 
 .card-actions {
   display: flex;
@@ -1837,21 +1826,10 @@ a.top-rated-card:hover {
   cursor: pointer;
   transition: max-height .25s ease;
 }
-.rec-overview::after {
-  content: '';
-  position: absolute;
-  left: 0; right: 0; bottom: 0;
-  height: 1.4em;
-  background: linear-gradient(to bottom, transparent, var(--surface));
-  pointer-events: none;
-  transition: opacity .2s ease;
-}
 @media (hover: hover) {
   .rec-card:hover .rec-overview { max-height: 32em; overflow-y: auto; }
-  .rec-card:hover .rec-overview::after { opacity: 0; }
 }
 .rec-card.expanded .rec-overview { max-height: 32em; overflow-y: auto; }
-.rec-card.expanded .rec-overview::after { opacity: 0; }
 .rec-add-btn {
   margin: 8px 10px 10px;
   padding: 5px 10px; font-size: .78rem; font-weight: 600;
