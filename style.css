@@ -528,6 +528,8 @@ a.card-title-link:hover {
 
 /* Episode-count fields in modal */
 .ep-fields.hidden { display: none; }
+.ep-fields > label#season-select-label { margin-bottom: 10px; display: block; }
+.ep-fields > label#season-select-label.hidden { display: none; }
 
 /* ── Button label tiers (SM / MD / LG) ── */
 .lbl-sm { display: none; }

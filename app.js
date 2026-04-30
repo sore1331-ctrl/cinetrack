@@ -157,12 +157,55 @@ async function saveUserData() {
   }
 }
 
+// ── Season-tracking helpers ─────────────────────────────
+// Cascade rule: if any season has progress, all earlier seasons must be
+// fully watched. Mutates the array in place.
+function normaliseSeasons(seasons) {
+  if (!Array.isArray(seasons) || !seasons.length) return;
+  const sorted = [...seasons].sort((a, b) => a.number - b.number);
+  // Find the highest-indexed season with any progress
+  let lastTouched = -1;
+  for (let i = 0; i < sorted.length; i++) {
+    const w = Math.min(sorted[i].watched || 0, sorted[i].total || 0);
+    sorted[i].watched = w;
+    if (w > 0) lastTouched = i;
+  }
+  // Cascade: every earlier season is fully watched
+  for (let i = 0; i < lastTouched; i++) {
+    sorted[i].watched = sorted[i].total;
+  }
+}
+
+// Recompute totalEpisodes / watchedEpisodes from seasons[] (kept as
+// derived sums so stats / CSV / cloud-sync continue to work).
+function recomputeShowProgress(m) {
+  if (!Array.isArray(m.seasons) || !m.seasons.length) return;
+  m.totalEpisodes   = m.seasons.reduce((s, x) => s + (x.total   || 0), 0);
+  m.watchedEpisodes = m.seasons.reduce((s, x) => s + Math.min(x.watched || 0, x.total || 0), 0);
+}
+
+// First season with watched < total. Returns null if all caught up.
+function activeSeason(m) {
+  if (!Array.isArray(m.seasons) || !m.seasons.length) return null;
+  const sorted = [...m.seasons].sort((a, b) => a.number - b.number);
+  return sorted.find(s => (s.watched || 0) < (s.total || 0)) || null;
+}
+
 // If a TV/anime entry is marked watched, every episode counts as watched.
+// Applies at the season level too when seasons[] is present.
 function syncEpisodeProgress() {
   for (const m of movies) {
     if (m.mediaType !== 'tv' && m.mediaType !== 'anime') continue;
-    if (m.status === 'watched' && (m.totalEpisodes || 0) > 0) {
-      m.watchedEpisodes = m.totalEpisodes;
+    if (m.status === 'watched') {
+      if (Array.isArray(m.seasons) && m.seasons.length) {
+        m.seasons.forEach(s => { s.watched = s.total; });
+        recomputeShowProgress(m);
+      } else if ((m.totalEpisodes || 0) > 0) {
+        m.watchedEpisodes = m.totalEpisodes;
+      }
+    } else if (Array.isArray(m.seasons) && m.seasons.length) {
+      normaliseSeasons(m.seasons);
+      recomputeShowProgress(m);
     }
   }
 }
@@ -500,8 +543,24 @@ function applyTMDBSelection(details) {
   document.getElementById('f-director').value = details.director || '';
   document.getElementById('f-country').value  = details.country  || '';
   if (details.runtime) document.getElementById('f-runtime').value = details.runtime;
-  if (details.total_episodes && !document.getElementById('f-ep-total').value)
-    document.getElementById('f-ep-total').value = details.total_episodes;
+
+  // If TMDB returned per-season data, populate the season buffer (preserving
+  // any watched counts the user already had on existing seasons by number).
+  if (Array.isArray(details.seasons) && details.seasons.length) {
+    const prev = new Map(editingSeasons.map(s => [s.number, s.watched || 0]));
+    editingSeasons = details.seasons.map(s => ({
+      number:  s.number,
+      total:   s.total,
+      watched: Math.min(prev.get(s.number) || 0, s.total),
+      name:    s.name,
+    }));
+    const unfinished = editingSeasons.findIndex(s => (s.watched || 0) < (s.total || 0));
+    editingSeasonIdx = unfinished === -1 ? 0 : unfinished;
+    rebuildSeasonDropdown();
+    loadSeasonIntoInputs(editingSeasonIdx);
+  } else if (details.total_episodes && !epTotalInput.value) {
+    epTotalInput.value = details.total_episodes;
+  }
   if (!document.getElementById('f-notes').value)
     document.getElementById('f-notes').value  = details.overview || '';
 }
@@ -1529,16 +1588,33 @@ function render() {
       ? `<img class="card-poster-img" src="${m.posterUrl}" alt="${esc(m.title)}" loading="lazy" />`
       : `<div class="card-poster-emoji">${m.mediaType === 'anime' ? '🎌' : isTV ? '📺' : posterEmoji(m.title)}</div>`;
     const runtimeStr = formatRuntime(m.runtime);
-    const epTotal    = m.totalEpisodes   || 0;
-    const epWatched  = Math.min(m.watchedEpisodes || 0, epTotal);
-    const epPct      = epTotal > 0 ? Math.round((epWatched / epTotal) * 100) : 0;
-    const epHTML     = (isShow && epTotal > 0)
-      ? `<div class="ep-progress" title="${epWatched} of ${epTotal} episodes watched">
+    // For shows with seasons[], the card focuses on the active season.
+    // For legacy entries (or manual flat tracking), fall back to the
+    // show-level total / watched counts.
+    const seasonsArr  = Array.isArray(m.seasons) ? m.seasons : [];
+    const hasSeasons  = isShow && seasonsArr.length > 0;
+    const active      = hasSeasons ? activeSeason(m) : null;
+    const fallbackTotal   = m.totalEpisodes   || 0;
+    const fallbackWatched = Math.min(m.watchedEpisodes || 0, fallbackTotal);
+
+    const epTotal   = hasSeasons ? (active ? active.total   : 0) : fallbackTotal;
+    const epWatched = hasSeasons ? (active ? active.watched : 0) : fallbackWatched;
+    const epPct     = epTotal > 0 ? Math.round((epWatched / epTotal) * 100) : 0;
+
+    const epLabelText = hasSeasons && active && seasonsArr.length > 1
+      ? `▶ S${active.number} ${epWatched}/${epTotal} eps`
+      : `▶ ${epWatched}/${epTotal} eps`;
+    const epTitleText = hasSeasons && active
+      ? `${active.name || 'Season ' + active.number}: ${epWatched} of ${epTotal} episodes watched`
+      : `${epWatched} of ${epTotal} episodes watched`;
+
+    const epHTML = (isShow && epTotal > 0)
+      ? `<div class="ep-progress" title="${esc(epTitleText)}">
            <div class="ep-progress-bar"><div class="ep-progress-fill" style="width:${epPct}%"></div></div>
-           <div class="ep-progress-label">▶ ${epWatched}/${epTotal} eps · ${epPct}%</div>
+           <div class="ep-progress-label">${epLabelText}</div>
          </div>`
       : '';
-    const epIncBtn   = (isShow && epTotal > 0 && epWatched < epTotal)
+    const epIncBtn = (isShow && epTotal > 0 && epWatched < epTotal)
       ? `<button class="btn-sm btn-ep-inc" data-ep-inc="${m.id}" title="Mark next episode watched">
            <span class="lbl-md lbl-lg">+1 ep</span><span class="lbl-sm">+1</span>
          </button>`
@@ -1662,6 +1738,50 @@ function populateYearSelect(selectedYear) {
 }
 
 // ── Modal ───────────────────────────────────────────────
+// Per-season buffer used while the modal is open. Cloned from the
+// entry on open and from TMDB on selection; written back on submit.
+let editingSeasons   = [];
+let editingSeasonIdx = 0;
+
+const seasonSelectLabel = document.getElementById('season-select-label');
+const seasonSelect      = document.getElementById('f-season-select');
+const epWatchedInput    = document.getElementById('f-ep-watched');
+const epTotalInput      = document.getElementById('f-ep-total');
+
+function rebuildSeasonDropdown() {
+  if (!editingSeasons.length) {
+    seasonSelectLabel.classList.add('hidden');
+    return;
+  }
+  seasonSelectLabel.classList.remove('hidden');
+  seasonSelect.innerHTML = editingSeasons.map((s, i) =>
+    `<option value="${i}"${i === editingSeasonIdx ? ' selected' : ''}>${esc(s.name || `Season ${s.number}`)} — ${s.watched || 0}/${s.total}</option>`
+  ).join('');
+}
+
+function loadSeasonIntoInputs(idx) {
+  editingSeasonIdx = idx;
+  const s = editingSeasons[idx];
+  if (!s) return;
+  epWatchedInput.value = s.watched || 0;
+  epTotalInput.value   = s.total   || 0;
+}
+
+function captureCurrentSeason() {
+  const s = editingSeasons[editingSeasonIdx];
+  if (!s) return;
+  s.total   = Math.max(0, parseInt(epTotalInput.value)   || 0);
+  s.watched = Math.max(0, parseInt(epWatchedInput.value) || 0);
+  if (s.total > 0 && s.watched > s.total) s.watched = s.total;
+}
+
+seasonSelect.addEventListener('change', () => {
+  // Save current season's edits first, then load the newly-selected season.
+  captureCurrentSeason();
+  rebuildSeasonDropdown();
+  loadSeasonIntoInputs(parseInt(seasonSelect.value));
+});
+
 function openModal(movie = null) {
   editingId = movie ? movie.id : null;
   modalTitle.textContent = movie ? 'Edit Title' : 'Add Title';
@@ -1681,8 +1801,22 @@ function openModal(movie = null) {
   document.getElementById('f-status').value   = movie?.status   || 'watchlist';
   document.getElementById('f-runtime').value  = movie?.runtime  || '';
   document.getElementById('f-notes').value    = movie?.notes    || '';
-  document.getElementById('f-ep-watched').value = movie?.watchedEpisodes || '';
-  document.getElementById('f-ep-total').value   = movie?.totalEpisodes   || '';
+
+  // Initialise the season buffer from the entry (deep copy)
+  editingSeasons = Array.isArray(movie?.seasons)
+    ? movie.seasons.map(s => ({ number: s.number, total: s.total, watched: s.watched || 0, name: s.name }))
+    : [];
+  // Default to lowest unfinished season, or first if all caught up
+  const unfinished = editingSeasons.findIndex(s => (s.watched || 0) < (s.total || 0));
+  editingSeasonIdx = unfinished === -1 ? 0 : unfinished;
+  rebuildSeasonDropdown();
+
+  if (editingSeasons.length) {
+    loadSeasonIntoInputs(editingSeasonIdx);
+  } else {
+    epWatchedInput.value = movie?.watchedEpisodes || '';
+    epTotalInput.value   = movie?.totalEpisodes   || '';
+  }
   selectedRating = movie?.rating || 0;
 
   toggleRatingLabel();
@@ -1713,10 +1847,25 @@ form.addEventListener('submit', e => {
     ? POSTER_BASE + tmdbSelection.poster_path
     : existing?.posterUrl || '';
 
-  const isShow        = activeMediaType === 'tv' || activeMediaType === 'anime';
-  const totalEpisodes = isShow ? Math.max(0, parseInt(document.getElementById('f-ep-total').value)   || 0) : 0;
-  let watchedEpisodes = isShow ? Math.max(0, parseInt(document.getElementById('f-ep-watched').value) || 0) : 0;
-  if (totalEpisodes > 0 && watchedEpisodes > totalEpisodes) watchedEpisodes = totalEpisodes;
+  const isShow = activeMediaType === 'tv' || activeMediaType === 'anime';
+
+  // Capture in-flight edits to the currently-selected season, then normalise.
+  if (isShow && editingSeasons.length) captureCurrentSeason();
+  if (isShow && editingSeasons.length) normaliseSeasons(editingSeasons);
+
+  let totalEpisodes, watchedEpisodes, seasons;
+  if (isShow && editingSeasons.length) {
+    seasons = editingSeasons.map(s => ({ number: s.number, total: s.total, watched: s.watched || 0, name: s.name }));
+    totalEpisodes   = seasons.reduce((s, x) => s + (x.total   || 0), 0);
+    watchedEpisodes = seasons.reduce((s, x) => s + (x.watched || 0), 0);
+  } else if (isShow) {
+    totalEpisodes   = Math.max(0, parseInt(epTotalInput.value)   || 0);
+    watchedEpisodes = Math.max(0, parseInt(epWatchedInput.value) || 0);
+    if (totalEpisodes > 0 && watchedEpisodes > totalEpisodes) watchedEpisodes = totalEpisodes;
+    seasons = [];
+  } else {
+    totalEpisodes = 0; watchedEpisodes = 0; seasons = [];
+  }
 
   let status = document.getElementById('f-status').value;
   if (isShow && totalEpisodes > 0) {
@@ -1737,6 +1886,7 @@ form.addEventListener('submit', e => {
     mediaType: activeMediaType,
     totalEpisodes,
     watchedEpisodes,
+    seasons,
     posterUrl,
     tmdbId: tmdbSelection?.id || existing?.tmdbId || null,
   };
@@ -1787,7 +1937,17 @@ grid.addEventListener('click', e => {
 
   if (epIncId) {
     const m = movies.find(m => m.id === epIncId);
-    if (m && (m.totalEpisodes || 0) > 0) {
+    if (!m) return;
+    if (Array.isArray(m.seasons) && m.seasons.length) {
+      const active = activeSeason(m);
+      if (active) {
+        active.watched = Math.min((active.watched || 0) + 1, active.total);
+        normaliseSeasons(m.seasons);
+        recomputeShowProgress(m);
+        m.status = m.watchedEpisodes >= m.totalEpisodes ? 'watched' : 'in_progress';
+        save(); render();
+      }
+    } else if ((m.totalEpisodes || 0) > 0) {
       const next = Math.min((m.watchedEpisodes || 0) + 1, m.totalEpisodes);
       m.watchedEpisodes = next;
       m.status = next >= m.totalEpisodes ? 'watched' : 'in_progress';
@@ -1799,7 +1959,12 @@ grid.addEventListener('click', e => {
     const m = movies.find(m => m.id === toggleId);
     if (m) {
       m.status = m.status === 'watched' ? 'watchlist' : m.status === 'in_progress' ? 'watched' : 'in_progress';
-      if (m.status === 'watchlist') { m.rating = 0; m.watchedEpisodes = 0; }
+      if (m.status === 'watchlist') {
+        m.rating = 0;
+        m.watchedEpisodes = 0;
+        if (Array.isArray(m.seasons)) m.seasons.forEach(s => { s.watched = 0; });
+      }
+      // 'watched' is handled by save() → syncEpisodeProgress() (fills every season)
       save(); render();
     }
   } else if (deleteId) {
@@ -2184,9 +2349,23 @@ tmdbRefreshBtn.addEventListener('click', async () => {
       if (d.director)                m.director  = d.director;
       if (d.country)                 m.country   = d.country;
       if (d.runtime)                 m.runtime   = d.runtime;
-      if (d.total_episodes && (m.mediaType === 'tv' || m.mediaType === 'anime')) {
-        m.totalEpisodes = d.total_episodes;
-        if ((m.watchedEpisodes || 0) > m.totalEpisodes) m.watchedEpisodes = m.totalEpisodes;
+      if (m.mediaType === 'tv' || m.mediaType === 'anime') {
+        if (Array.isArray(d.seasons) && d.seasons.length) {
+          // Merge by season number, preserving the user's watched counts
+          // (clamped to the new total, in case TMDB shrunk a season).
+          const prev = new Map((m.seasons || []).map(s => [s.number, s.watched || 0]));
+          m.seasons = d.seasons.map(s => ({
+            number:  s.number,
+            total:   s.total,
+            watched: Math.min(prev.get(s.number) || 0, s.total),
+            name:    s.name,
+          }));
+          normaliseSeasons(m.seasons);
+          recomputeShowProgress(m);
+        } else if (d.total_episodes) {
+          m.totalEpisodes = d.total_episodes;
+          if ((m.watchedEpisodes || 0) > m.totalEpisodes) m.watchedEpisodes = m.totalEpisodes;
+        }
       }
       updated++;
     } catch { failed++; }
