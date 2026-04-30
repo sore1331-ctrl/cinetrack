@@ -473,8 +473,8 @@ a.card-title-link:hover {
   transition: opacity .2s ease;
 }
 @media (hover: hover) {
-  .movie-card:hover .card-notes { max-height: 24em; overflow-y: auto; }
-  .movie-card:hover .card-notes::after { opacity: 0; }
+  .card-notes:hover { max-height: 24em; overflow-y: auto; }
+  .card-notes:hover::after { opacity: 0; }
 }
 .card-notes.expanded { max-height: 24em; overflow-y: auto; }
 .card-notes.expanded::after { opacity: 0; }
@@ -528,6 +528,8 @@ a.card-title-link:hover {
 
 /* Episode-count fields in modal */
 .ep-fields.hidden { display: none; }
+.ep-fields > label#season-select-label { margin-bottom: 10px; display: block; }
+.ep-fields > label#season-select-label.hidden { display: none; }
 
 /* ── Button label tiers (SM / MD / LG) ── */
 .lbl-sm { display: none; }
