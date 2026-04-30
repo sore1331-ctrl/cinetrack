@@ -29,14 +29,21 @@
    one preset block should be uncommented at a time.
 */
 :root {
-  /* Preset: Medium (default) */
+  /* Preset: Vivid (active) — high translucency, strong blur */
+  --glass-bg:        rgba(26, 26, 36, .38);
+  --glass-bg-strong: rgba(26, 26, 36, .55);
+  --glass-border:    rgba(255, 255, 255, .14);
+  --glass-highlight: rgba(255, 255, 255, .10);
+  --glass-blur:      24px;
+  --glass-saturate:  190%;
+  --glass-shadow:    0 12px 40px rgba(0, 0, 0, .45);
+
+  /* Preset: Medium — uncomment to use
   --glass-bg:        rgba(26, 26, 36, .62);
   --glass-bg-strong: rgba(26, 26, 36, .78);
-  --glass-border:    rgba(255, 255, 255, .08);
-  --glass-highlight: rgba(255, 255, 255, .05);
   --glass-blur:      16px;
   --glass-saturate:  160%;
-  --glass-shadow:    0 8px 32px rgba(0, 0, 0, .35);
+  */
 
   /* Preset: Subtle — uncomment to use
   --glass-bg:        rgba(26, 26, 36, .82);
@@ -44,21 +51,13 @@
   --glass-blur:      8px;
   --glass-saturate:  130%;
   */
-
-  /* Preset: Strong — uncomment to use
-  --glass-bg:        rgba(26, 26, 36, .42);
-  --glass-bg-strong: rgba(26, 26, 36, .6);
-  --glass-blur:      24px;
-  --glass-saturate:  180%;
-  --glass-shadow:    0 10px 40px rgba(0, 0, 0, .45);
-  */
 }
 :root.light {
-  --glass-bg:        rgba(255, 255, 255, .58);
-  --glass-bg-strong: rgba(255, 255, 255, .78);
-  --glass-border:    rgba(255, 255, 255, .55);
-  --glass-highlight: rgba(255, 255, 255, .65);
-  --glass-shadow:    0 8px 32px rgba(0, 0, 0, .12);
+  --glass-bg:        rgba(255, 255, 255, .42);
+  --glass-bg-strong: rgba(255, 255, 255, .68);
+  --glass-border:    rgba(255, 255, 255, .65);
+  --glass-highlight: rgba(255, 255, 255, .75);
+  --glass-shadow:    0 12px 40px rgba(0, 0, 0, .15);
 }
 /* Browsers without backdrop-filter fall back to opaque surface */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
@@ -83,28 +82,45 @@ body {
    --orb-* tokens to shift hues / intensity, or set --orb-opacity to 0
    to disable entirely. */
 :root {
-  --orb-a: #2a3a6a;
-  --orb-b: #6a2a3a;
-  --orb-opacity: .35;
+  --orb-a: #3a4f8c;
+  --orb-b: #8c2f4c;
+  --orb-c: #2f6a6a;
+  --orb-opacity: .55;
 }
 :root.light {
-  --orb-a: #c5d0e8;
-  --orb-b: #e6cdd4;
-  --orb-opacity: .55;
+  --orb-a: #a8bce0;
+  --orb-b: #e6b8c4;
+  --orb-c: #b8d8d0;
+  --orb-opacity: .7;
 }
 body::before, body::after {
   content: '';
   position: fixed;
-  width: 55vmax;
-  height: 55vmax;
+  width: 60vmax;
+  height: 60vmax;
   border-radius: 50%;
-  filter: blur(120px);
+  filter: blur(140px);
   opacity: var(--orb-opacity);
   z-index: -1;
   pointer-events: none;
 }
-body::before { background: var(--orb-a); top:    -15vmax; left:  -15vmax; }
-body::after  { background: var(--orb-b); bottom: -15vmax; right: -15vmax; }
+body::before { background: var(--orb-a); top:    -18vmax; left:  -18vmax; }
+body::after  { background: var(--orb-b); bottom: -18vmax; right: -18vmax; }
+/* Third orb for more colour variation */
+main::before {
+  content: '';
+  position: fixed;
+  width: 45vmax;
+  height: 45vmax;
+  border-radius: 50%;
+  background: var(--orb-c);
+  filter: blur(140px);
+  opacity: var(--orb-opacity);
+  top: 30vh;
+  right: -15vmax;
+  z-index: -1;
+  pointer-events: none;
+}
 
 /* ── Header ── */
 header {
