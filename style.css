@@ -73,7 +73,38 @@ body {
   color: var(--text);
   font-family: 'Segoe UI', system-ui, sans-serif;
   min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+  isolation: isolate;
 }
+
+/* Subtle blurred colour fields so glass surfaces have something to refract.
+   Solid-colour discs blurred via filter — no gradients used. Tweak the
+   --orb-* tokens to shift hues / intensity, or set --orb-opacity to 0
+   to disable entirely. */
+:root {
+  --orb-a: #2a3a6a;
+  --orb-b: #6a2a3a;
+  --orb-opacity: .35;
+}
+:root.light {
+  --orb-a: #c5d0e8;
+  --orb-b: #e6cdd4;
+  --orb-opacity: .55;
+}
+body::before, body::after {
+  content: '';
+  position: fixed;
+  width: 55vmax;
+  height: 55vmax;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: var(--orb-opacity);
+  z-index: -1;
+  pointer-events: none;
+}
+body::before { background: var(--orb-a); top:    -15vmax; left:  -15vmax; }
+body::after  { background: var(--orb-b); bottom: -15vmax; right: -15vmax; }
 
 /* ── Header ── */
 header {
