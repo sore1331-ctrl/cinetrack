@@ -1534,13 +1534,44 @@ button.danger:hover { opacity: .85; }
 }
 .stats-overview {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 14px;
   margin-bottom: 32px;
 }
 @media (max-width: 700px) {
-  .stats-overview { grid-template-columns: repeat(2, 1fr); }
+  .stats-overview { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
 }
+.stat-card-sub {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-left: 4px;
+}
+
+/* ── Currently watching list (stats panel) ── */
+.watching-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "label count"
+    "bar   bar";
+  align-items: center;
+  gap: 4px 10px;
+}
+.watching-label {
+  grid-area: label;
+  font-size: .82rem;
+  color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.watching-count {
+  grid-area: count;
+  font-size: .75rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.watching-remaining { color: var(--muted); }
+.watching-row .ep-progress-bar { grid-area: bar; height: 5px; }
 .stat-card {
   background: var(--glass-bg);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));

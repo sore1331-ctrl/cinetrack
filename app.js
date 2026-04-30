@@ -644,10 +644,29 @@ function renderStats() {
   const panel = document.getElementById('stats-panel');
   if (!panel) return;
 
-  const watched  = movies.filter(m => m.status === 'watched');
-  const total    = movies.length;
-  const watchedN = watched.length;
-  const totalMin = watched.reduce((s, m) => s + (m.runtime || 0), 0);
+  const watched    = movies.filter(m => m.status === 'watched');
+  const inProgress = movies.filter(m => m.status === 'in_progress');
+  const watchedN   = watched.length;
+
+  // Time spent — prorate by progress for partially-watched series.
+  // For movies / shows without an episode total, fall back to full runtime when watched.
+  function actualMinutes(m) {
+    const isShow = m.mediaType === 'tv' || m.mediaType === 'anime';
+    if (isShow && (m.totalEpisodes || 0) > 0) {
+      const w = Math.min(m.watchedEpisodes || 0, m.totalEpisodes);
+      return Math.round((m.runtime || 0) * (w / m.totalEpisodes));
+    }
+    return m.status === 'watched' ? (m.runtime || 0) : 0;
+  }
+  const totalMin = movies.reduce((s, m) => s + actualMinutes(m), 0);
+
+  // Episode tally across all TV/anime entries with a known total
+  const showsWithEps = movies.filter(m =>
+    (m.mediaType === 'tv' || m.mediaType === 'anime') && (m.totalEpisodes || 0) > 0
+  );
+  const epsWatched = showsWithEps.reduce((s, m) => s + Math.min(m.watchedEpisodes || 0, m.totalEpisodes), 0);
+  const epsTotal   = showsWithEps.reduce((s, m) => s + m.totalEpisodes, 0);
+
   const ratings  = watched.filter(m => m.rating > 0).map(m => m.rating);
   const avgRating = ratings.length
     ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1)
@@ -690,8 +709,20 @@ function renderStats() {
   const maxYear  = yearEntries.length ? Math.max(...yearEntries.map(e => e[1])) : 1;
   const maxType  = typeEntries.length ? Math.max(...typeEntries.map(e => e[1])) : 1;
 
-  const inProgressN = movies.filter(m => m.status === 'in_progress').length;
+  const inProgressN = inProgress.length;
   const watchlistN  = movies.filter(m => m.status === 'watchlist').length;
+
+  // Currently watching — TV/anime in_progress entries with a known total,
+  // ordered by remaining episodes (closest to done first)
+  const currentlyWatching = inProgress
+    .filter(m => (m.mediaType === 'tv' || m.mediaType === 'anime') && (m.totalEpisodes || 0) > 0)
+    .map(m => ({
+      m,
+      pct: Math.round((Math.min(m.watchedEpisodes || 0, m.totalEpisodes) / m.totalEpisodes) * 100),
+      remaining: m.totalEpisodes - Math.min(m.watchedEpisodes || 0, m.totalEpisodes),
+    }))
+    .sort((a, b) => a.remaining - b.remaining)
+    .slice(0, 8);
 
   panel.innerHTML = `
     <div class="stats-overview">
@@ -707,7 +738,12 @@ function renderStats() {
         <div class="stat-card-value">${watchlistN}</div>
         <div class="stat-card-label">On Watchlist</div>
       </div>
-      <div class="stat-card">
+      ${epsTotal > 0 ? `
+      <div class="stat-card" title="Episodes watched across all TV shows and anime series">
+        <div class="stat-card-value">${epsWatched.toLocaleString()}<span class="stat-card-sub">/ ${epsTotal.toLocaleString()}</span></div>
+        <div class="stat-card-label">Episodes</div>
+      </div>` : ''}
+      <div class="stat-card" title="Total runtime, prorated by your progress on each series">
         <div class="stat-card-value">${formatRuntime(totalMin) || '—'}</div>
         <div class="stat-card-label">Time Spent</div>
       </div>
@@ -734,6 +770,18 @@ function renderStats() {
       <div class="chart-section chart-section-sm">
         <h3>By Type</h3>
         <div class="chart-bars">${renderBarChart(typeEntries, maxType, '#a855f7')}</div>
+      </div>` : ''}
+
+      ${currentlyWatching.length ? `
+      <div class="chart-section chart-section-sm">
+        <h3>Currently Watching</h3>
+        <div class="chart-bars">${currentlyWatching.map(({ m, pct, remaining }) => `
+          <div class="watching-row" title="${esc(m.title)} — ${m.watchedEpisodes || 0}/${m.totalEpisodes} episodes">
+            <div class="watching-label">${esc(m.title)}</div>
+            <div class="ep-progress-bar"><div class="ep-progress-fill" style="width:${pct}%"></div></div>
+            <div class="watching-count">${m.watchedEpisodes || 0}/${m.totalEpisodes}<span class="watching-remaining">${remaining ? ` · ${remaining} left` : ''}</span></div>
+          </div>
+        `).join('')}</div>
       </div>` : ''}
     </div>
 
