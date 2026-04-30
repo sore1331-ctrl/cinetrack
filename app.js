@@ -27,6 +27,7 @@ let searchQuery     = '';
 let countryFilter   = '';
 let genreFilter     = '';
 let sortOrder       = localStorage.getItem('cinetrack_sort') || 'added';
+let statsTypeFilter = 'all';   // 'all' | 'movie' | 'tv' | 'anime'
 let gridSize        = localStorage.getItem('cinetrack_grid') || 'md';
 let editingId       = null;
 let pendingDeleteId = null;
@@ -326,6 +327,31 @@ statsBar.addEventListener('click', e => {
 selectModeBtn.addEventListener('click', () => {
   selectMode = !selectMode;
   selectModeBtn.classList.toggle('active', selectMode);
+  render();
+});
+
+// ── Clear filters ───────────────────────────────────────
+const clearFiltersBtn = document.getElementById('clear-filters-btn');
+
+function hasActiveFilters() {
+  return !!(searchQuery || genreFilter || countryFilter || activeStatus !== 'all');
+}
+
+function updateClearFiltersBtn() {
+  const active = hasActiveFilters();
+  clearFiltersBtn.classList.toggle('hidden', !active);
+  selectModeBtn.classList.toggle('hidden', active);
+}
+
+clearFiltersBtn.addEventListener('click', () => {
+  searchQuery   = '';
+  genreFilter   = '';
+  countryFilter = '';
+  activeStatus  = 'all';
+  searchInput.value     = '';
+  genreFilterEl.value   = '';
+  countryFilterEl.value = '';
+  currentPage = 0;
   render();
 });
 
@@ -644,70 +670,164 @@ function renderStats() {
   const panel = document.getElementById('stats-panel');
   if (!panel) return;
 
-  const watched  = movies.filter(m => m.status === 'watched');
-  const total    = movies.length;
-  const watchedN = watched.length;
-  const totalMin = watched.reduce((s, m) => s + (m.runtime || 0), 0);
+  const scoped = statsTypeFilter === 'all'
+    ? movies
+    : movies.filter(m => m.mediaType === statsTypeFilter);
+
+  const watched      = scoped.filter(m => m.status === 'watched');
+  const inProgress   = scoped.filter(m => m.status === 'in_progress');
+  const inProgressN  = inProgress.length;
+  const watchlistN   = scoped.filter(m => m.status === 'watchlist').length;
+  const watchedN     = watched.length;
+
+  // Time spent — prorate by progress for partially-watched series.
+  // For movies / shows without an episode total, fall back to full runtime when watched.
+  function actualMinutes(m) {
+    const isShow = m.mediaType === 'tv' || m.mediaType === 'anime';
+    if (isShow && (m.totalEpisodes || 0) > 0) {
+      const w = Math.min(m.watchedEpisodes || 0, m.totalEpisodes);
+      return Math.round((m.runtime || 0) * (w / m.totalEpisodes));
+    }
+    return m.status === 'watched' ? (m.runtime || 0) : 0;
+  }
+  const totalMin = scoped.reduce((s, m) => s + actualMinutes(m), 0);
+
+  // Episode tally across TV/anime entries (within the active type filter)
+  const showsWithEps = scoped.filter(m =>
+    (m.mediaType === 'tv' || m.mediaType === 'anime') && (m.totalEpisodes || 0) > 0
+  );
+  const epsWatched = showsWithEps.reduce((s, m) => s + Math.min(m.watchedEpisodes || 0, m.totalEpisodes), 0);
+  const epsTotal   = showsWithEps.reduce((s, m) => s + m.totalEpisodes, 0);
+
   const ratings  = watched.filter(m => m.rating > 0).map(m => m.rating);
   const avgRating = ratings.length
     ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1)
     : null;
 
-  // Genre counts (split comma-separated)
+  // Genres
   const genreCounts = {};
   watched.forEach(m => {
-    if (!m.genre) return;
-    m.genre.split(',').map(g => g.trim()).filter(Boolean).forEach(g => {
+    (m.genre || '').split(',').map(g => g.trim()).filter(Boolean).forEach(g => {
       genreCounts[g] = (genreCounts[g] || 0) + 1;
     });
   });
-  const topGenres = Object.entries(genreCounts)
-    .sort((a, b) => b[1] - a[1]).slice(0, 14);
+  const topGenres = Object.entries(genreCounts).sort((a, b) => b[1] - a[1]).slice(0, 12);
 
-  // Year counts
-  const yearCounts = {};
+  // Decades (groups of 10)
+  const decadeCounts = {};
   watched.forEach(m => {
     const y = parseInt(m.year);
     if (!y || y < 1900 || y > 2100) return;
-    yearCounts[y] = (yearCounts[y] || 0) + 1;
+    const d = Math.floor(y / 10) * 10;
+    decadeCounts[d] = (decadeCounts[d] || 0) + 1;
   });
-  const yearEntries = Object.entries(yearCounts)
-    .sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
+  const decadeEntries = Object.entries(decadeCounts)
+    .sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
+    .map(([d, c]) => [`${d}s`, c]);
 
-  // Type breakdown
-  const tc = {
-    movie: movies.filter(m => m.mediaType === 'movie' && m.status === 'watched').length,
-    tv:    movies.filter(m => m.mediaType === 'tv'    && m.status === 'watched').length,
-    anime: movies.filter(m => m.mediaType === 'anime' && m.status === 'watched').length,
-  };
-  const typeEntries = [
-    ['🎬 Films',    tc.movie],
-    ['📺 TV Shows', tc.tv],
-    ['🎌 Anime',    tc.anime],
-  ].filter(e => e[1] > 0);
+  // Countries
+  const countryCounts = {};
+  watched.forEach(m => {
+    if (!m.country) return;
+    countryCounts[m.country] = (countryCounts[m.country] || 0) + 1;
+  });
+  const topCountries = Object.entries(countryCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
 
-  const maxGenre = topGenres[0]?.[1] || 1;
-  const maxYear  = yearEntries.length ? Math.max(...yearEntries.map(e => e[1])) : 1;
-  const maxType  = typeEntries.length ? Math.max(...typeEntries.map(e => e[1])) : 1;
+  // Directors
+  const directorCounts = {};
+  watched.forEach(m => {
+    if (!m.director) return;
+    directorCounts[m.director] = (directorCounts[m.director] || 0) + 1;
+  });
+  const topDirectors = Object.entries(directorCounts)
+    .filter(([, c]) => c >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
 
-  const inProgressN = movies.filter(m => m.status === 'in_progress').length;
-  const watchlistN  = movies.filter(m => m.status === 'watchlist').length;
+  // Rating distribution (1-10)
+  const ratingBuckets = Array.from({length: 10}, (_, i) => [String(i + 1), 0]);
+  ratings.forEach(r => { if (r >= 1 && r <= 10) ratingBuckets[r - 1][1]++; });
+  const hasRatings = ratings.length > 0;
+
+  // Top rated titles (by rating, then by recency)
+  const topRated = watched
+    .filter(m => m.rating > 0)
+    .sort((a, b) => b.rating - a.rating || (b.addedAt || 0) - (a.addedAt || 0))
+    .slice(0, 8);
+
+  // Type breakdown — only when "all" is active
+  const typeEntries = statsTypeFilter === 'all' ? [
+    ['🎬 Films',    movies.filter(m => m.mediaType === 'movie' && m.status === 'watched').length],
+    ['📺 TV Shows', movies.filter(m => m.mediaType === 'tv'    && m.status === 'watched').length],
+    ['🎌 Anime',    movies.filter(m => m.mediaType === 'anime' && m.status === 'watched').length],
+  ].filter(e => e[1] > 0) : [];
+
+  // Currently watching — TV/anime in_progress entries with a known total,
+  // sorted closest-to-done first. Hidden when filter is 'movie'.
+  const currentlyWatching = statsTypeFilter === 'movie' ? [] : inProgress
+    .filter(m => (m.mediaType === 'tv' || m.mediaType === 'anime') && (m.totalEpisodes || 0) > 0)
+    .map(m => ({
+      m,
+      pct: Math.round((Math.min(m.watchedEpisodes || 0, m.totalEpisodes) / m.totalEpisodes) * 100),
+      remaining: m.totalEpisodes - Math.min(m.watchedEpisodes || 0, m.totalEpisodes),
+    }))
+    .sort((a, b) => a.remaining - b.remaining)
+    .slice(0, 8);
+
+  const maxOf = arr => arr.length ? Math.max(...arr.map(e => e[1])) : 1;
+
+  const filterTabs = ['all', 'movie', 'tv', 'anime'].map(t => {
+    const labels = { all: 'All', movie: '🎬 Films', tv: '📺 TV', anime: '🎌 Anime' };
+    return `<button class="stats-type-tab${statsTypeFilter === t ? ' active' : ''}" data-stats-type="${t}">${labels[t]}</button>`;
+  }).join('');
+
+  const topRatedHTML = topRated.length ? `
+    <div class="chart-section chart-section-wide">
+      <h3>Your Top Rated</h3>
+      <div class="top-rated-grid">
+        ${topRated.map(m => {
+          const url = m.tmdbId
+            ? `https://www.themoviedb.org/${m.mediaType === 'movie' ? 'movie' : 'tv'}/${m.tmdbId}`
+            : null;
+          const poster = m.posterUrl
+            ? `<img src="${m.posterUrl}" alt="${esc(m.title)}" loading="lazy" />`
+            : `<div class="tr-poster-emoji">${m.mediaType === 'anime' ? '🎌' : m.mediaType === 'tv' ? '📺' : posterEmoji(m.title)}</div>`;
+          const wrap = url
+            ? `<a href="${url}" target="_blank" rel="noopener noreferrer" class="top-rated-card">`
+            : `<div class="top-rated-card">`;
+          const close = url ? `</a>` : `</div>`;
+          return `${wrap}
+            <div class="tr-poster">${poster}<span class="tr-rating">★ ${m.rating}</span></div>
+            <div class="tr-title">${esc(m.title)}</div>
+            ${m.year ? `<div class="tr-year">${m.year}</div>` : ''}
+          ${close}`;
+        }).join('')}
+      </div>
+    </div>
+  ` : '';
 
   panel.innerHTML = `
+    <div class="stats-type-tabs">${filterTabs}</div>
+
     <div class="stats-overview">
-      <div class="stat-card">
+      <div class="stat-card stat-card-clickable" data-stat-action="watched">
         <div class="stat-card-value">${watchedN}</div>
         <div class="stat-card-label">Watched</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card stat-card-clickable" data-stat-action="in_progress">
         <div class="stat-card-value">${inProgressN}</div>
         <div class="stat-card-label">In Progress</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card stat-card-clickable" data-stat-action="watchlist">
         <div class="stat-card-value">${watchlistN}</div>
         <div class="stat-card-label">On Watchlist</div>
       </div>
-      <div class="stat-card">
+      ${epsTotal > 0 ? `
+      <div class="stat-card" title="Episodes watched across all TV shows and anime series">
+        <div class="stat-card-value">${epsWatched.toLocaleString()}<span class="stat-card-sub">/ ${epsTotal.toLocaleString()}</span></div>
+        <div class="stat-card-label">Episodes</div>
+      </div>` : ''}
+      <div class="stat-card" title="Total runtime, prorated by your progress on each series">
         <div class="stat-card-value">${formatRuntime(totalMin) || '—'}</div>
         <div class="stat-card-label">Time Spent</div>
       </div>
@@ -717,23 +837,55 @@ function renderStats() {
       </div>
     </div>
 
+    ${topRatedHTML}
+
     <div class="stats-charts">
       ${topGenres.length ? `
       <div class="chart-section">
-        <h3>Top Genres</h3>
-        <div class="chart-bars">${renderBarChart(topGenres, maxGenre, '#e2405a')}</div>
+        <h3>Top Genres <span class="chart-hint">click to filter</span></h3>
+        <div class="chart-bars">${renderBarChart(topGenres, maxOf(topGenres), '#e2405a', 'genre')}</div>
       </div>` : ''}
 
-      ${yearEntries.length ? `
+      ${topCountries.length ? `
       <div class="chart-section">
-        <h3>By Year</h3>
-        <div class="chart-bars chart-bars-scroll">${renderBarChart(yearEntries, maxYear, '#3b9eff')}</div>
+        <h3>Top Countries <span class="chart-hint">click to filter</span></h3>
+        <div class="chart-bars">${renderBarChart(topCountries, maxOf(topCountries), '#3b9eff', 'country')}</div>
+      </div>` : ''}
+
+      ${topDirectors.length ? `
+      <div class="chart-section">
+        <h3>Top Directors <span class="chart-hint">click to search</span></h3>
+        <div class="chart-bars">${renderBarChart(topDirectors, maxOf(topDirectors), '#a855f7', 'director')}</div>
+      </div>` : ''}
+
+      ${decadeEntries.length ? `
+      <div class="chart-section">
+        <h3>By Decade</h3>
+        <div class="chart-bars">${renderBarChart(decadeEntries, maxOf(decadeEntries), '#f5a623')}</div>
+      </div>` : ''}
+
+      ${hasRatings ? `
+      <div class="chart-section">
+        <h3>Rating Distribution</h3>
+        <div class="rating-dist">${renderRatingDist(ratingBuckets)}</div>
+      </div>` : ''}
+
+      ${currentlyWatching.length ? `
+      <div class="chart-section chart-section-sm">
+        <h3>Currently Watching</h3>
+        <div class="chart-bars">${currentlyWatching.map(({ m, pct, remaining }) => `
+          <div class="watching-row" title="${esc(m.title)} — ${m.watchedEpisodes || 0}/${m.totalEpisodes} episodes">
+            <div class="watching-label">${esc(m.title)}</div>
+            <div class="ep-progress-bar"><div class="ep-progress-fill" style="width:${pct}%"></div></div>
+            <div class="watching-count">${m.watchedEpisodes || 0}/${m.totalEpisodes}<span class="watching-remaining">${remaining ? ` · ${remaining} left` : ''}</span></div>
+          </div>
+        `).join('')}</div>
       </div>` : ''}
 
       ${typeEntries.length ? `
       <div class="chart-section chart-section-sm">
         <h3>By Type</h3>
-        <div class="chart-bars">${renderBarChart(typeEntries, maxType, '#a855f7')}</div>
+        <div class="chart-bars">${renderBarChart(typeEntries, maxOf(typeEntries), '#4caf82')}</div>
       </div>` : ''}
     </div>
 
@@ -742,7 +894,68 @@ function renderStats() {
     </div>
   `;
 
+  // Wire up interactions
+  panel.querySelectorAll('.stats-type-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      statsTypeFilter = btn.dataset.statsType;
+      renderStats();
+    });
+  });
+
+  panel.querySelectorAll('[data-stat-action]').forEach(el => {
+    el.addEventListener('click', () => {
+      const targetType = statsTypeFilter === 'all' ? 'movie' : statsTypeFilter;
+      jumpToContent(targetType, { status: el.dataset.statAction });
+    });
+  });
+
+  panel.querySelectorAll('[data-bar-action]').forEach(el => {
+    el.addEventListener('click', () => {
+      const action = el.dataset.barAction;
+      const value  = el.dataset.barValue;
+      const targetType = statsTypeFilter === 'all' ? 'movie' : statsTypeFilter;
+      const opts = { status: 'watched' };
+      if (action === 'genre')    opts.genre = value;
+      if (action === 'country')  opts.country = value;
+      if (action === 'director') opts.search = value;
+      jumpToContent(targetType, opts);
+    });
+  });
+
   loadRecommendations();
+}
+
+function jumpToContent(type, opts = {}) {
+  document.querySelectorAll('.type-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.type === type);
+  });
+  switchView('content', type);
+  // switchView resets filters — apply desired ones now
+  genreFilter   = opts.genre   || '';
+  countryFilter = opts.country || '';
+  searchQuery   = opts.search  || '';
+  activeStatus  = opts.status  || 'all';
+  genreFilterEl.value   = genreFilter;
+  countryFilterEl.value = countryFilter;
+  searchInput.value     = searchQuery;
+  currentPage = 0;
+  render();
+  window.scrollTo(0, 0);
+}
+
+function renderRatingDist(buckets) {
+  const max = Math.max(...buckets.map(b => b[1]), 1);
+  return `<div class="rd-bars">` +
+    buckets.map(([rating, count]) => `
+      <div class="rd-col" title="${count} title${count !== 1 ? 's' : ''} rated ${rating}">
+        <div class="rd-bar-wrap">
+          <div class="rd-bar" style="height:${count ? Math.max(4, (count / max) * 100) : 0}%"></div>
+        </div>
+        <div class="rd-count">${count || ''}</div>
+        <div class="rd-rating">${rating}</div>
+      </div>
+    `).join('') +
+    `</div>`;
 }
 
 const DISMISSED_RECS_KEY = 'cinetrack_dismissed_recs';
@@ -896,17 +1109,23 @@ async function loadRecommendations() {
   });
 }
 
-function renderBarChart(entries, maxVal, color) {
+function renderBarChart(entries, maxVal, color, action = null) {
   if (!entries.length || !maxVal) return '<p class="chart-empty">No data yet</p>';
-  return entries.map(([label, count]) => `
-    <div class="chart-row">
-      <div class="chart-label" title="${esc(String(label))}">${esc(String(label))}</div>
+  return entries.map(([label, count]) => {
+    const labelStr = String(label);
+    const attrs = action
+      ? `class="chart-row chart-row-clickable" data-bar-action="${action}" data-bar-value="${esc(labelStr)}"`
+      : `class="chart-row"`;
+    return `
+    <div ${attrs}>
+      <div class="chart-label" title="${esc(labelStr)}">${esc(labelStr)}</div>
       <div class="chart-track">
         <div class="chart-fill" style="width:${Math.max(3, Math.round((count / maxVal) * 100))}%;background:${color}"></div>
       </div>
       <div class="chart-count">${count}</div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 // ── Community panel ─────────────────────────────────────
@@ -1281,6 +1500,7 @@ function render() {
   }
   updateBulkBar();
   updateStats();
+  updateClearFiltersBtn();
 
   const totalPages = Math.max(1, Math.ceil(list.length / pageSize));
   if (currentPage >= totalPages) currentPage = totalPages - 1;
