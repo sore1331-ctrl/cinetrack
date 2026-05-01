@@ -1024,8 +1024,9 @@ function renderRatingDist(buckets) {
 }
 
 // ── Calendar (upcoming episodes) ────────────────────────
-const UPCOMING_CACHE_KEY = 'cinetrack_upcoming_cache';
+const UPCOMING_CACHE_KEY = 'cinetrack_upcoming_cache_v2';
 const UPCOMING_TTL_MS    = 6 * 60 * 60 * 1000;  // 6 hours
+const UPCOMING_HORIZON_DAYS = 14;
 
 function readUpcomingCache() {
   try { return JSON.parse(localStorage.getItem(UPCOMING_CACHE_KEY) || 'null'); }
@@ -1053,6 +1054,11 @@ async function fetchUpcoming(ids, { force = false } = {}) {
   ids.forEach(id => { if (!(id in byId)) byId[id] = null; });
   writeUpcomingCache({ fetchedAt: now, byId });
   return ids.map(id => byId[id]).filter(Boolean);
+}
+
+function localTodayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
 function relativeDayLabel(dateStr) {
@@ -1090,7 +1096,7 @@ async function renderCalendar({ force = false } = {}) {
 
   panel.innerHTML = `
     <div class="calendar-header">
-      <h2>📅 Upcoming Episodes</h2>
+      <h2>📅 Upcoming Episodes <span class="cal-window">· next ${UPCOMING_HORIZON_DAYS} days</span></h2>
       <button id="calendar-refresh-btn" class="cal-refresh-btn" title="Re-fetch from TMDB now (bypasses 6h cache)">↻ Refresh</button>
     </div>
     <div class="calendar-list"><div class="recs-loading"><span class="recs-spinner"></span> Loading…</div></div>
@@ -1108,56 +1114,58 @@ async function renderCalendar({ force = false } = {}) {
 
   // Index local entries by tmdbId so we can read user posters / titles
   const localById = new Map(tracked.map(m => [String(m.tmdbId), m]));
+  const todayStr  = localTodayStr();
 
-  const withDates = upcoming
-    .filter(s => s.nextEpisode && s.nextEpisode.airDate)
-    .map(s => ({ ...s, local: localById.get(String(s.tmdbId)) }))
-    .sort((a, b) => a.nextEpisode.airDate.localeCompare(b.nextEpisode.airDate));
+  // Flatten: one row per episode. Filter to local-today and forward so a
+  // server in a different timezone doesn't surface yesterday's episodes.
+  const rows = [];
+  const hiatus = [];
+  for (const show of upcoming) {
+    const local = localById.get(String(show.tmdbId));
+    const eps = (show.episodes || []).filter(e => e.airDate && e.airDate >= todayStr);
+    if (eps.length === 0) {
+      hiatus.push({ show, local });
+      continue;
+    }
+    for (const ep of eps) rows.push({ show, local, ep });
+  }
+  rows.sort((a, b) => a.ep.airDate.localeCompare(b.ep.airDate));
 
-  const withoutDates = upcoming
-    .filter(s => !s.nextEpisode || !s.nextEpisode.airDate)
-    .map(s => ({ ...s, local: localById.get(String(s.tmdbId)) }));
-
-  if (!withDates.length && !withoutDates.length) {
+  if (!rows.length && !hiatus.length) {
     panel.querySelector('.calendar-list').innerHTML =
-      `<p class="recs-empty">No upcoming episodes. The shows you're watching are either between seasons or have ended.</p>`;
+      `<p class="recs-empty">No upcoming episodes in the next ${UPCOMING_HORIZON_DAYS} days. Try again after a new schedule is announced.</p>`;
     return;
   }
 
   // Group by date
   const groups = {};
-  for (const s of withDates) {
-    const k = s.nextEpisode.airDate;
-    (groups[k] ||= []).push(s);
-  }
+  for (const row of rows) (groups[row.ep.airDate] ||= []).push(row);
 
   const groupHTML = Object.keys(groups).sort().map(date => {
-    const rows = groups[date].map(s => calRow(s)).join('');
+    const items = groups[date].map(r => calRow(r)).join('');
     return `
       <div class="cal-group">
         <h3 class="cal-group-date">${esc(relativeDayLabel(date))}</h3>
-        ${rows}
+        ${items}
       </div>
     `;
   }).join('');
 
-  const hiatusHTML = withoutDates.length ? `
+  const hiatusHTML = hiatus.length ? `
     <div class="cal-group cal-group-hiatus">
-      <h3 class="cal-group-date">Between seasons / no date yet</h3>
-      ${withoutDates.map(s => calRow(s, { hideEp: true })).join('')}
+      <h3 class="cal-group-date">Between seasons / no date in the next ${UPCOMING_HORIZON_DAYS} days</h3>
+      ${hiatus.map(({ show, local }) => calRow({ show, local, ep: null })).join('')}
     </div>
   ` : '';
 
   panel.querySelector('.calendar-list').innerHTML = groupHTML + hiatusHTML;
 
-  function calRow(s, opts = {}) {
-    const local      = s.local;
-    const posterPath = local?.posterUrl || (s.poster_path ? POSTER_BASE + s.poster_path : '');
-    const title      = local?.title || s.title;
-    const tmdbUrl    = `https://www.themoviedb.org/tv/${s.tmdbId}`;
-    const ne         = s.nextEpisode;
-    const epLine     = !opts.hideEp && ne
-      ? `S${ne.season}E${ne.episode}${ne.name ? ` · ${esc(ne.name)}` : ''}`
+  function calRow({ show, local, ep }) {
+    const posterPath = local?.posterUrl || (show.poster_path ? POSTER_BASE + show.poster_path : '');
+    const title      = local?.title || show.title;
+    const tmdbUrl    = `https://www.themoviedb.org/tv/${show.tmdbId}`;
+    const epLine     = ep
+      ? `S${ep.season}E${ep.episode}${ep.name ? ` · ${esc(ep.name)}` : ''}`
       : `<em>No air date scheduled</em>`;
     const poster = posterPath
       ? `<img class="cal-poster" src="${posterPath}" alt="${esc(title)}" loading="lazy" />`
