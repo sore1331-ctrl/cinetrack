@@ -1026,6 +1026,7 @@ function renderRatingDist(buckets) {
 // ── Calendar (upcoming episodes) ────────────────────────
 const UPCOMING_CACHE_KEY = 'cinetrack_upcoming_cache';
 const UPCOMING_TTL_MS    = 6 * 60 * 60 * 1000;  // 6 hours
+const UPCOMING_HORIZON_DAYS = 14;
 
 function readUpcomingCache() {
   try { return JSON.parse(localStorage.getItem(UPCOMING_CACHE_KEY) || 'null'); }
@@ -1090,7 +1091,7 @@ async function renderCalendar({ force = false } = {}) {
 
   panel.innerHTML = `
     <div class="calendar-header">
-      <h2>📅 Upcoming Episodes</h2>
+      <h2>📅 Upcoming Episodes <span class="cal-window">· next ${UPCOMING_HORIZON_DAYS} days</span></h2>
       <button id="calendar-refresh-btn" class="cal-refresh-btn" title="Re-fetch from TMDB now (bypasses 6h cache)">↻ Refresh</button>
     </div>
     <div class="calendar-list"><div class="recs-loading"><span class="recs-spinner"></span> Loading…</div></div>
@@ -1109,18 +1110,28 @@ async function renderCalendar({ force = false } = {}) {
   // Index local entries by tmdbId so we can read user posters / titles
   const localById = new Map(tracked.map(m => [String(m.tmdbId), m]));
 
+  // Build the [today, today+N days] window in local time so the boundary
+  // aligns with how relativeDayLabel formats things.
+  const horizonDate = new Date();
+  horizonDate.setHours(0, 0, 0, 0);
+  horizonDate.setDate(horizonDate.getDate() + UPCOMING_HORIZON_DAYS);
+  const horizonStr = `${horizonDate.getFullYear()}-${String(horizonDate.getMonth()+1).padStart(2,'0')}-${String(horizonDate.getDate()).padStart(2,'0')}`;
+
   const withDates = upcoming
-    .filter(s => s.nextEpisode && s.nextEpisode.airDate)
+    .filter(s => s.nextEpisode && s.nextEpisode.airDate && s.nextEpisode.airDate <= horizonStr)
     .map(s => ({ ...s, local: localById.get(String(s.tmdbId)) }))
     .sort((a, b) => a.nextEpisode.airDate.localeCompare(b.nextEpisode.airDate));
 
+  // Shows with no scheduled air date (between seasons / null). Shows whose
+  // next episode is more than 14 days out are hidden — calendar is strict
+  // to the horizon.
   const withoutDates = upcoming
     .filter(s => !s.nextEpisode || !s.nextEpisode.airDate)
     .map(s => ({ ...s, local: localById.get(String(s.tmdbId)) }));
 
   if (!withDates.length && !withoutDates.length) {
     panel.querySelector('.calendar-list').innerHTML =
-      `<p class="recs-empty">No upcoming episodes. The shows you're watching are either between seasons or have ended.</p>`;
+      `<p class="recs-empty">No upcoming episodes in the next ${UPCOMING_HORIZON_DAYS} days. The shows you're watching are either between seasons, have ended, or air later.</p>`;
     return;
   }
 
