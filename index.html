@@ -73,11 +73,12 @@
   <!-- Type tab bar -->
   <div class="type-tabs-bar">
     <div class="type-tabs-inner">
-      <button class="type-tab active" data-type="movie">🎬 Films</button>
-      <button class="type-tab" data-type="tv">📺 TV Shows</button>
-      <button class="type-tab" data-type="anime">🎌 Anime</button>
-      <button class="type-tab" data-type="stats">📊 Stats</button>
-      <button class="type-tab" data-type="community">👥 Community</button>
+      <button class="type-tab active" data-type="movie">🎬 <span class="tab-label">Films</span></button>
+      <button class="type-tab" data-type="tv">📺 <span class="tab-label">TV Shows</span></button>
+      <button class="type-tab" data-type="anime">🎌 <span class="tab-label">Anime</span></button>
+      <button class="type-tab" data-type="calendar">📅 <span class="tab-label">Calendar</span></button>
+      <button class="type-tab" data-type="stats">📊 <span class="tab-label">Stats</span></button>
+      <button class="type-tab" data-type="community">👥 <span class="tab-label">Community</span></button>
     </div>
   </div>
 
@@ -188,6 +189,9 @@
         <option value="300">300 / pg</option>
       </select>
     </div>
+
+    <!-- Calendar panel -->
+    <div id="calendar-panel" class="calendar-panel hidden"></div>
 
     <!-- Stats panel -->
     <div id="stats-panel" class="stats-panel hidden"></div>
