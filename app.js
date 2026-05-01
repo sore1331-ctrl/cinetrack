@@ -281,6 +281,7 @@ function switchView(view, type) {
   const isStats     = view === 'stats';
   const isCommunity = view === 'community';
   const isProfile   = view === 'profile';
+  const isCalendar  = view === 'calendar';
 
   // Sync header profile button active state
   document.getElementById('header-profile-btn')?.classList.toggle('active', isProfile);
@@ -295,6 +296,7 @@ function switchView(view, type) {
   document.getElementById('stats-panel').classList.toggle('hidden', !isStats);
   document.getElementById('community-panel').classList.toggle('hidden', !isCommunity);
   document.getElementById('profile-panel').classList.toggle('hidden', !isProfile);
+  document.getElementById('calendar-panel').classList.toggle('hidden', !isCalendar);
 
   if (isContent) {
     selectMode = false;
@@ -308,6 +310,8 @@ function switchView(view, type) {
     renderCommunity();
   } else if (isProfile) {
     renderProfile();
+  } else if (isCalendar) {
+    renderCalendar();
   }
 }
 
@@ -338,6 +342,8 @@ document.querySelectorAll('.type-tab').forEach(btn => {
       switchView('community');
     } else if (t === 'profile') {
       switchView('profile');
+    } else if (t === 'calendar') {
+      switchView('calendar');
     } else {
       switchView('content', t);
     }
@@ -1015,6 +1021,157 @@ function renderRatingDist(buckets) {
       </div>
     `).join('') +
     `</div>`;
+}
+
+// ── Calendar (upcoming episodes) ────────────────────────
+const UPCOMING_CACHE_KEY = 'cinetrack_upcoming_cache';
+const UPCOMING_TTL_MS    = 6 * 60 * 60 * 1000;  // 6 hours
+
+function readUpcomingCache() {
+  try { return JSON.parse(localStorage.getItem(UPCOMING_CACHE_KEY) || 'null'); }
+  catch { return null; }
+}
+
+function writeUpcomingCache(cache) {
+  localStorage.setItem(UPCOMING_CACHE_KEY, JSON.stringify(cache));
+}
+
+async function fetchUpcoming(ids, { force = false } = {}) {
+  if (!ids.length) return [];
+  const cache = readUpcomingCache();
+  const now   = Date.now();
+  const fresh = cache && (now - cache.fetchedAt) < UPCOMING_TTL_MS;
+  const allCached = fresh && ids.every(id => cache.byId[id] !== undefined);
+  if (!force && fresh && allCached) {
+    return ids.map(id => cache.byId[id]).filter(Boolean);
+  }
+  const r = await fetch(`/api/upcoming?ids=${encodeURIComponent(ids.join(','))}`);
+  if (!r.ok) throw new Error(`Upcoming fetch failed (${r.status})`);
+  const data = await r.json();
+  const byId = Object.fromEntries((data.results || []).map(s => [String(s.tmdbId), s]));
+  // Mark IDs that returned nothing (ended/canceled) as null so we don't re-hit them
+  ids.forEach(id => { if (!(id in byId)) byId[id] = null; });
+  writeUpcomingCache({ fetchedAt: now, byId });
+  return ids.map(id => byId[id]).filter(Boolean);
+}
+
+function relativeDayLabel(dateStr) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = new Date(dateStr + 'T00:00:00');
+  const diff = Math.round((d - today) / 86400000);
+  if (diff === 0)  return 'Today';
+  if (diff === 1)  return 'Tomorrow';
+  if (diff === -1) return 'Yesterday';
+  const opts = { weekday: 'short', month: 'short', day: 'numeric' };
+  if (d.getFullYear() !== today.getFullYear()) opts.year = 'numeric';
+  return d.toLocaleDateString(undefined, opts);
+}
+
+async function renderCalendar({ force = false } = {}) {
+  const panel = document.getElementById('calendar-panel');
+  if (!panel) return;
+
+  const tracked = movies.filter(m =>
+    (m.mediaType === 'tv' || m.mediaType === 'anime') &&
+    m.status === 'in_progress' &&
+    m.tmdbId
+  );
+  const ids = tracked.map(m => String(m.tmdbId));
+
+  if (!ids.length) {
+    panel.innerHTML = `
+      <div class="calendar-header">
+        <h2>📅 Upcoming Episodes</h2>
+      </div>
+      <p class="recs-empty">Mark a TV show or anime as <em>In Progress</em> to see when its next episode airs.</p>
+    `;
+    return;
+  }
+
+  panel.innerHTML = `
+    <div class="calendar-header">
+      <h2>📅 Upcoming Episodes</h2>
+      <button id="calendar-refresh-btn" class="cal-refresh-btn" title="Re-fetch from TMDB now (bypasses 6h cache)">↻ Refresh</button>
+    </div>
+    <div class="calendar-list"><div class="recs-loading"><span class="recs-spinner"></span> Loading…</div></div>
+  `;
+  panel.querySelector('#calendar-refresh-btn').addEventListener('click', () => renderCalendar({ force: true }));
+
+  let upcoming;
+  try {
+    upcoming = await fetchUpcoming(ids, { force });
+  } catch (e) {
+    panel.querySelector('.calendar-list').innerHTML =
+      `<p class="recs-empty">Couldn't load upcoming episodes: ${esc(e.message)}</p>`;
+    return;
+  }
+
+  // Index local entries by tmdbId so we can read user posters / titles
+  const localById = new Map(tracked.map(m => [String(m.tmdbId), m]));
+
+  const withDates = upcoming
+    .filter(s => s.nextEpisode && s.nextEpisode.airDate)
+    .map(s => ({ ...s, local: localById.get(String(s.tmdbId)) }))
+    .sort((a, b) => a.nextEpisode.airDate.localeCompare(b.nextEpisode.airDate));
+
+  const withoutDates = upcoming
+    .filter(s => !s.nextEpisode || !s.nextEpisode.airDate)
+    .map(s => ({ ...s, local: localById.get(String(s.tmdbId)) }));
+
+  if (!withDates.length && !withoutDates.length) {
+    panel.querySelector('.calendar-list').innerHTML =
+      `<p class="recs-empty">No upcoming episodes. The shows you're watching are either between seasons or have ended.</p>`;
+    return;
+  }
+
+  // Group by date
+  const groups = {};
+  for (const s of withDates) {
+    const k = s.nextEpisode.airDate;
+    (groups[k] ||= []).push(s);
+  }
+
+  const groupHTML = Object.keys(groups).sort().map(date => {
+    const rows = groups[date].map(s => calRow(s)).join('');
+    return `
+      <div class="cal-group">
+        <h3 class="cal-group-date">${esc(relativeDayLabel(date))}</h3>
+        ${rows}
+      </div>
+    `;
+  }).join('');
+
+  const hiatusHTML = withoutDates.length ? `
+    <div class="cal-group cal-group-hiatus">
+      <h3 class="cal-group-date">Between seasons / no date yet</h3>
+      ${withoutDates.map(s => calRow(s, { hideEp: true })).join('')}
+    </div>
+  ` : '';
+
+  panel.querySelector('.calendar-list').innerHTML = groupHTML + hiatusHTML;
+
+  function calRow(s, opts = {}) {
+    const local      = s.local;
+    const posterPath = local?.posterUrl || (s.poster_path ? POSTER_BASE + s.poster_path : '');
+    const title      = local?.title || s.title;
+    const tmdbUrl    = `https://www.themoviedb.org/tv/${s.tmdbId}`;
+    const ne         = s.nextEpisode;
+    const epLine     = !opts.hideEp && ne
+      ? `S${ne.season}E${ne.episode}${ne.name ? ` · ${esc(ne.name)}` : ''}`
+      : `<em>No air date scheduled</em>`;
+    const poster = posterPath
+      ? `<img class="cal-poster" src="${posterPath}" alt="${esc(title)}" loading="lazy" />`
+      : `<div class="cal-poster cal-poster-emoji">📺</div>`;
+    return `
+      <a class="cal-row" href="${tmdbUrl}" target="_blank" rel="noopener noreferrer" title="View on TMDB">
+        ${poster}
+        <div class="cal-info">
+          <div class="cal-title">${esc(title)}</div>
+          <div class="cal-ep">${epLine}</div>
+        </div>
+      </a>
+    `;
+  }
 }
 
 const DISMISSED_RECS_KEY = 'cinetrack_dismissed_recs';
