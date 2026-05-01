@@ -2325,6 +2325,30 @@ reloadCloudBtn.addEventListener('click', async () => {
   showToast('Reloaded from cloud ✓');
 });
 
+// ── Sync now (push pending + pull latest) ──────────────
+const syncNowBtn = document.getElementById('sync-now-btn');
+syncNowBtn.addEventListener('click', async () => {
+  document.getElementById('user-dropdown').classList.add('hidden');
+  if (offlineMode || !currentUser) {
+    showToast('Sync unavailable in offline mode.', true);
+    return;
+  }
+  syncNowBtn.disabled = true;
+  syncNowBtn.textContent = '↻ Syncing…';
+  // Cancel any pending debounce so we don't double-write
+  clearTimeout(cloudSyncTimer);
+  cloudSyncTimer = null;
+  try {
+    await saveUserData();
+    await loadUserData();
+    showToast('Synced ✓');
+  } catch (e) {
+    showToast('Sync failed: ' + (e?.message || 'unknown error'), true);
+  }
+  syncNowBtn.disabled = false;
+  syncNowBtn.textContent = '↻ Sync now';
+});
+
 // ── Refresh from TMDB ───────────────────────────────────
 const tmdbRefreshBtn = document.getElementById('tmdb-refresh-btn');
 let cancelTmdbRefresh = false;
