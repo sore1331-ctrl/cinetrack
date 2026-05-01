@@ -219,7 +219,7 @@ function save() {
   if (offlineMode || !currentUser) return;
   setSyncState('saving');
   clearTimeout(cloudSyncTimer);
-  cloudSyncTimer = setTimeout(saveUserData, 600);
+  cloudSyncTimer = setTimeout(saveUserData, 300);
 }
 
 function genId() {
