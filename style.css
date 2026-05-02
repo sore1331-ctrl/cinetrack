@@ -1782,7 +1782,27 @@ a.top-rated-card:hover {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 .recs-empty { color: var(--muted); font-size: .9rem; font-style: italic; padding: 12px 0; }
-.recs-heading { font-size: 1.05rem; font-weight: 700; margin-bottom: 4px; color: var(--text); }
+.recs-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.recs-heading { font-size: 1.05rem; font-weight: 700; color: var(--text); }
+.recs-refresh-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 5px 11px;
+  border-radius: 6px;
+  font-size: .78rem;
+  cursor: pointer;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.recs-refresh-btn:hover { border-color: var(--accent); color: var(--text); }
 .recs-sub { font-size: .82rem; color: var(--muted); margin-bottom: 18px; }
 .recs-grid {
   display: grid;
