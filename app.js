@@ -1186,6 +1186,8 @@ async function renderCalendar({ force = false } = {}) {
 }
 
 const DISMISSED_RECS_KEY = 'cinetrack_dismissed_recs';
+const RECS_CACHE_KEY     = 'cinetrack_recs_cache_v1';
+const RECS_TTL_MS        = 24 * 60 * 60 * 1000;  // 24 hours
 
 function getDismissedRecs() {
   try { return new Set(JSON.parse(localStorage.getItem(DISMISSED_RECS_KEY) || '[]').map(String)); }
@@ -1197,11 +1199,40 @@ function dismissRec(id) {
   localStorage.setItem(DISMISSED_RECS_KEY, JSON.stringify([...set]));
 }
 
-async function loadRecommendations() {
+function readRecsCache() {
+  try { return JSON.parse(localStorage.getItem(RECS_CACHE_KEY) || 'null'); }
+  catch { return null; }
+}
+function writeRecsCache(cache) {
+  localStorage.setItem(RECS_CACHE_KEY, JSON.stringify(cache));
+}
+
+// Fisher–Yates partial shuffle: take n items at random from arr.
+function pickRandom(arr, n) {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy.slice(0, n);
+}
+
+async function loadRecommendations({ force = false } = {}) {
   const section = document.getElementById('recs-section');
   if (!section) return;
 
-  // Genre frequency across watched titles (any rating)
+  // Pool: watched + in_progress titles with tmdbId. In-progress shows
+  // reflect what you're currently watching → reasonable to seed from.
+  const pool = movies.filter(m =>
+    (m.status === 'watched' || m.status === 'in_progress') && m.tmdbId
+  );
+
+  if (!pool.length) {
+    section.innerHTML = '<p class="recs-empty">Mark some titles as watched to get personalised recommendations.</p>';
+    return;
+  }
+
+  // Genre profile (only watched titles count toward the genre weights).
   const watched = movies.filter(m => m.status === 'watched');
   const genreCounts = {};
   watched.forEach(m => {
@@ -1211,28 +1242,36 @@ async function loadRecommendations() {
     });
   });
 
-  // Seeds: watched titles with tmdbId, ranked by sum of their genres' frequency.
-  // Titles whose genres dominate your watch history get more weight.
-  const seeds = watched
-    .filter(m => m.tmdbId)
-    .map(m => {
-      const genres = (m.genre || '').split(',').map(g => g.trim()).filter(Boolean);
-      const score = genres.length
-        ? genres.reduce((s, g) => s + (genreCounts[g] || 0), 0) / genres.length
-        : 0;
-      return { ...m, _score: score };
-    })
-    .sort((a, b) => b._score - a._score || (b.addedAt || 0) - (a.addedAt || 0))
-    .slice(0, 8);
+  // Score each pool entry:
+  //   ratingMul  = (rating || 5) / 5  → unrated = 1.0, 10/10 = 2.0, 1/10 = 0.2
+  //   genreScore = avg of its genres' frequencies
+  //   final      = ratingMul * (genreScore + 1)   (+1 so genre-less still counts)
+  const scored = pool.map(m => {
+    const genres = (m.genre || '').split(',').map(g => g.trim()).filter(Boolean);
+    const genreScore = genres.length
+      ? genres.reduce((s, g) => s + (genreCounts[g] || 0), 0) / genres.length
+      : 0;
+    const ratingMul = (m.rating || 5) / 5;
+    return { ...m, _score: ratingMul * (genreScore + 1) };
+  }).sort((a, b) => b._score - a._score || (b.addedAt || 0) - (a.addedAt || 0));
 
-  if (!seeds.length) {
-    section.innerHTML = '<p class="recs-empty">Mark some titles as watched to get personalised recommendations.</p>';
-    return;
+  // Top 20 → random sample 8. Sampling gives variety on refresh while
+  // keeping seeds grounded in your strongest signals.
+  const topPool = scored.slice(0, 20);
+  const poolKey = topPool.map(m => m.tmdbId).sort((a, b) => a - b).join(',');
+
+  // Cache check (skip when forced)
+  if (!force) {
+    const cache = readRecsCache();
+    if (cache && cache.poolKey === poolKey && (Date.now() - cache.fetchedAt) < RECS_TTL_MS) {
+      renderRecsCards(section, cache.results, genreCounts);
+      return;
+    }
   }
 
-  const trackedTmdbIds = new Set(movies.map(m => String(m.tmdbId)).filter(Boolean));
-  const dismissed      = getDismissedRecs();
-  const idParam = seeds.map(m => `${m.tmdbId}:${m.mediaType === 'anime' ? 'tv' : m.mediaType}`).join(',');
+  const sample = pickRandom(topPool, Math.min(8, topPool.length))
+    .sort((a, b) => b._score - a._score);  // best-scored first → API ranks them higher
+  const idParam = sample.map(m => `${m.tmdbId}:${m.mediaType === 'anime' ? 'tv' : m.mediaType}`).join(',');
 
   let data;
   try {
@@ -1244,12 +1283,30 @@ async function loadRecommendations() {
     return;
   }
 
-  const recs = (data.results || []).filter(r =>
+  const results = data.results || [];
+  writeRecsCache({ fetchedAt: Date.now(), poolKey, results });
+  renderRecsCards(section, results, genreCounts);
+}
+
+function renderRecsCards(section, results, genreCounts) {
+  const trackedTmdbIds = new Set(movies.map(m => String(m.tmdbId)).filter(Boolean));
+  const dismissed      = getDismissedRecs();
+  const recs = results.filter(r =>
     !trackedTmdbIds.has(String(r.id)) && !dismissed.has(String(r.id))
   ).slice(0, 18);
 
   if (!recs.length) {
-    section.innerHTML = '<p class="recs-empty">No new recommendations found — try watching more titles!</p>';
+    section.innerHTML = `
+      <div class="recs-heading-row">
+        <h3 class="recs-heading">✨ Recommended For You</h3>
+        <button class="recs-refresh-btn" id="recs-refresh-btn" title="Re-sample your seeds and re-fetch from TMDB">↻ Refresh</button>
+      </div>
+      <p class="recs-empty">No new recommendations found — try watching more titles!</p>
+    `;
+    document.getElementById('recs-refresh-btn').addEventListener('click', () => {
+      section.innerHTML = '<div class="recs-loading"><span class="recs-spinner"></span> Re-sampling and fetching…</div>';
+      loadRecommendations({ force: true });
+    });
     return;
   }
 
@@ -1257,7 +1314,10 @@ async function loadRecommendations() {
   const genreLabel = topGenres.length ? topGenres.join(', ') : 'your watch history';
 
   section.innerHTML = `
-    <h3 class="recs-heading">✨ Recommended For You</h3>
+    <div class="recs-heading-row">
+      <h3 class="recs-heading">✨ Recommended For You</h3>
+      <button class="recs-refresh-btn" id="recs-refresh-btn" title="Re-sample your seeds and re-fetch from TMDB">↻ Refresh</button>
+    </div>
     <p class="recs-sub">Based on what you've watched · favouring ${esc(genreLabel)}</p>
     <div class="recs-grid">
       ${recs.map(r => `
@@ -1281,7 +1341,16 @@ async function loadRecommendations() {
     </div>
   `;
 
-  section.addEventListener('click', e => {
+  document.getElementById('recs-refresh-btn').addEventListener('click', () => {
+    section.innerHTML = '<div class="recs-loading"><span class="recs-spinner"></span> Re-sampling and fetching…</div>';
+    loadRecommendations({ force: true });
+  });
+
+  // Replace (not add) the section click handler — guards against the
+  // duplicate-listener leak when renderStats is opened repeatedly.
+  section.onclick = e => {
+    if (e.target.closest('#recs-refresh-btn')) return;  // refresh button has its own handler
+
     const overview = e.target.closest('.rec-overview');
     if (overview) {
       overview.closest('.rec-card')?.classList.toggle('expanded');
@@ -1299,10 +1368,9 @@ async function loadRecommendations() {
           card.remove();
           if (!section.querySelector('.rec-card')) {
             section.querySelector('.recs-grid')?.remove();
-            section.querySelector('.recs-heading')?.remove();
             section.querySelector('.recs-sub')?.remove();
             section.insertAdjacentHTML('beforeend',
-              '<p class="recs-empty">All caught up — dismissed everything for now.</p>');
+              '<p class="recs-empty">All caught up — dismissed everything for now. Hit ↻ Refresh for a fresh batch.</p>');
           }
         }, 200);
       }
@@ -1333,7 +1401,7 @@ async function loadRecommendations() {
     btn.textContent = '✓ Added';
     btn.disabled = true;
     trackedTmdbIds.add(recId);
-  });
+  };
 }
 
 function renderBarChart(entries, maxVal, color, action = null) {
