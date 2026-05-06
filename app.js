@@ -1272,7 +1272,7 @@ async function loadRecommendations({ force = false } = {}) {
 
   const sample = pickRandom(topPool, Math.min(8, topPool.length))
     .sort((a, b) => b._score - a._score);  // best-scored first → API ranks them higher
-  const idParam = sample.map(m => `${m.tmdbId}:${m.mediaType === 'anime' ? 'tv' : m.mediaType}`).join(',');
+  const idParam = sample.map(m => `${m.tmdbId}:${m.mediaType}`).join(',');
 
   let data;
   try {
@@ -1396,7 +1396,7 @@ function renderRecsCards(section, results, genreCounts) {
       year:      recYear,
       status:    'watchlist',
       rating:    0,
-      mediaType: recType === 'tv' ? 'tv' : 'movie',
+      mediaType: recType === 'anime' ? 'anime' : (recType === 'tv' ? 'tv' : 'movie'),
       tmdbId:    Number(recId),
       posterUrl: recPoster ? POSTER_BASE + recPoster : '',
       genre: '', director: '', country: '', notes: '', runtime: 0,
