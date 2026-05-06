@@ -1378,7 +1378,10 @@ function renderRecsCards(section, results, genreCounts) {
       return;
     }
 
-    const btn = e.target.closest('.rec-add-btn');
+    const poster = e.target.closest('.rec-poster');
+    const btn = poster
+      ? poster.closest('.rec-card')?.querySelector('.rec-add-btn')
+      : e.target.closest('.rec-add-btn');
     if (!btn) return;
     const recId     = btn.dataset.recId;
     const recType   = btn.dataset.recType;

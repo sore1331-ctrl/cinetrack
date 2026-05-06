@@ -1841,9 +1841,27 @@ a.top-rated-card:hover {
 .rec-card:hover .rec-dismiss-btn { opacity: 1; }
 .rec-dismiss-btn:hover { background: var(--danger, #d33); }
 @media (max-width: 600px) { .rec-dismiss-btn { opacity: 1; } }
-.rec-poster { aspect-ratio: 2/3; background: var(--surface2); overflow: hidden; }
+.rec-poster { position: relative; aspect-ratio: 2/3; background: var(--surface2); overflow: hidden; cursor: pointer; }
 .rec-poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .rec-poster-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 3.5rem; }
+.rec-poster::after {
+  content: '＋ Add';
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  color: #fff;
+  font-size: .82rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 14px;
+  opacity: 0;
+  transition: opacity .2s;
+  pointer-events: none;
+}
+.rec-card:hover .rec-poster::after { opacity: 1; }
 .rec-info { padding: 0 14px; display: flex; flex-direction: column; gap: 4px; }
 .rec-title { font-size: .95rem; font-weight: 700; color: var(--text); line-height: 1.3; }
 .rec-year  { font-size: .78rem; color: var(--muted); }
