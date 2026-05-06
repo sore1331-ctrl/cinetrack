@@ -1811,12 +1811,14 @@ a.top-rated-card:hover {
 .recs-sub { font-size: .82rem; color: var(--muted); margin-bottom: 18px; }
 .recs-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 16px;
 }
 .rec-card {
   position: relative;
   display: flex; flex-direction: column;
+  gap: 8px;
+  padding: 0 0 14px;
   background: var(--glass-bg);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
           backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
@@ -1825,7 +1827,7 @@ a.top-rated-card:hover {
   border-radius: var(--radius); overflow: hidden;
   transition: transform .15s, box-shadow .15s, opacity .2s;
 }
-.rec-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+.rec-card:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
 .rec-card-removing { opacity: 0; transform: scale(.9); pointer-events: none; }
 .rec-dismiss-btn {
   position: absolute; top: 6px; right: 6px; z-index: 2;
@@ -1841,12 +1843,12 @@ a.top-rated-card:hover {
 @media (max-width: 600px) { .rec-dismiss-btn { opacity: 1; } }
 .rec-poster { aspect-ratio: 2/3; background: var(--surface2); overflow: hidden; }
 .rec-poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.rec-poster-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; }
-.rec-info { padding: 10px 10px 6px; flex: 1; }
-.rec-title { font-size: .82rem; font-weight: 600; color: var(--text); line-height: 1.3; margin-bottom: 3px; }
-.rec-year  { font-size: .74rem; color: var(--muted); margin-bottom: 5px; }
+.rec-poster-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 3.5rem; }
+.rec-info { padding: 0 14px; display: flex; flex-direction: column; gap: 4px; }
+.rec-title { font-size: .95rem; font-weight: 700; color: var(--text); line-height: 1.3; }
+.rec-year  { font-size: .78rem; color: var(--muted); }
 .rec-overview {
-  font-size: .73rem;
+  font-size: .78rem;
   color: var(--muted);
   line-height: 1.4;
   max-height: 4.2em;
@@ -1860,10 +1862,10 @@ a.top-rated-card:hover {
 }
 .rec-card.expanded .rec-overview { max-height: 32em; overflow-y: auto; }
 .rec-add-btn {
-  margin: 8px 10px 10px;
-  padding: 5px 10px; font-size: .78rem; font-weight: 600;
+  margin: 8px 14px 0;
+  padding: 6px 10px; font-size: .78rem; font-weight: 600;
   background: var(--accent); color: #fff; border: none;
-  border-radius: 6px; cursor: pointer; transition: opacity .15s;
+  border-radius: 8px; cursor: pointer; transition: opacity .15s;
 }
 .rec-add-btn:disabled { opacity: .5; cursor: default; }
 .rec-add-btn:not(:disabled):hover { opacity: .85; }
