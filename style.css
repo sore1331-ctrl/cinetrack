@@ -72,9 +72,11 @@ body {
   color: var(--text);
   font-family: 'Segoe UI', system-ui, sans-serif;
   min-height: 100vh;
+  min-height: 100dvh;
   position: relative;
   overflow-x: hidden;
   isolation: isolate;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Subtle blurred colour fields so glass surfaces have something to refract.
@@ -250,8 +252,9 @@ header h1 {
 }
 .type-tab:hover { color: var(--text); }
 .type-tab.active            { color: var(--accent);  border-bottom-color: var(--accent);  font-weight: 700; }
-.type-tab[data-type="tv"].active     { color: #3b9eff; border-bottom-color: #3b9eff; }
-.type-tab[data-type="anime"].active  { color: #a855f7; border-bottom-color: #a855f7; }
+.type-tab[data-type="tv"].active        { color: #3b9eff; border-bottom-color: #3b9eff; }
+.type-tab[data-type="anime"].active     { color: #a855f7; border-bottom-color: #a855f7; }
+.type-tab[data-type="calendar"].active  { color: #4caf82; border-bottom-color: #4caf82; }
 
 /* ── Main ── */
 main { max-width: 1200px; margin: 0 auto; padding: 20px 20px 0; }
@@ -463,21 +466,10 @@ a.card-title-link:hover {
   cursor: pointer;
   transition: max-height .25s ease;
 }
-.card-notes::after {
-  content: '';
-  position: absolute;
-  left: 14px; right: 14px; bottom: 0;
-  height: 1.2em;
-  background: linear-gradient(to bottom, transparent, var(--surface));
-  pointer-events: none;
-  transition: opacity .2s ease;
-}
 @media (hover: hover) {
-  .movie-card:hover .card-notes { max-height: 24em; overflow-y: auto; }
-  .movie-card:hover .card-notes::after { opacity: 0; }
+  .card-notes:hover { max-height: 24em; overflow-y: auto; }
 }
 .card-notes.expanded { max-height: 24em; overflow-y: auto; }
-.card-notes.expanded::after { opacity: 0; }
 
 .card-actions {
   display: flex;
@@ -528,6 +520,8 @@ a.card-title-link:hover {
 
 /* Episode-count fields in modal */
 .ep-fields.hidden { display: none; }
+.ep-fields > label#season-select-label { margin-bottom: 10px; display: block; }
+.ep-fields > label#season-select-label.hidden { display: none; }
 
 /* ── Button label tiers (SM / MD / LG) ── */
 .lbl-sm { display: none; }
@@ -1356,11 +1350,12 @@ button.danger:hover { opacity: .85; }
   .header-profile-btn { width: 32px; height: 32px; font-size: .85rem; }
   .user-avatar-btn { width: 32px; height: 32px; }
 
-  /* Tab bar: scrollable row, smaller tabs */
+  /* Tab bar: emoji-only at narrow widths to fit 6 tabs without scroll */
   .type-tabs-bar { top: 48px; }
   .type-tabs-inner { padding: 0 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
   .type-tabs-inner::-webkit-scrollbar { display: none; }
-  .type-tab { padding: 10px 13px; font-size: .78rem; white-space: nowrap; }
+  .type-tab { padding: 10px 11px; font-size: 1.1rem; white-space: nowrap; }
+  .type-tab .tab-label { display: none; }
 
   /* Main content */
   main { padding: 12px 12px 0; }
@@ -1792,7 +1787,27 @@ a.top-rated-card:hover {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 .recs-empty { color: var(--muted); font-size: .9rem; font-style: italic; padding: 12px 0; }
-.recs-heading { font-size: 1.05rem; font-weight: 700; margin-bottom: 4px; color: var(--text); }
+.recs-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.recs-heading { font-size: 1.05rem; font-weight: 700; color: var(--text); }
+.recs-refresh-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 5px 11px;
+  border-radius: 6px;
+  font-size: .78rem;
+  cursor: pointer;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.recs-refresh-btn:hover { border-color: var(--accent); color: var(--text); }
 .recs-sub { font-size: .82rem; color: var(--muted); margin-bottom: 18px; }
 .recs-grid {
   display: grid;
@@ -1840,21 +1855,10 @@ a.top-rated-card:hover {
   cursor: pointer;
   transition: max-height .25s ease;
 }
-.rec-overview::after {
-  content: '';
-  position: absolute;
-  left: 0; right: 0; bottom: 0;
-  height: 1.4em;
-  background: linear-gradient(to bottom, transparent, var(--surface));
-  pointer-events: none;
-  transition: opacity .2s ease;
-}
 @media (hover: hover) {
   .rec-card:hover .rec-overview { max-height: 32em; overflow-y: auto; }
-  .rec-card:hover .rec-overview::after { opacity: 0; }
 }
 .rec-card.expanded .rec-overview { max-height: 32em; overflow-y: auto; }
-.rec-card.expanded .rec-overview::after { opacity: 0; }
 .rec-add-btn {
   margin: 8px 10px 10px;
   padding: 5px 10px; font-size: .78rem; font-weight: 600;
@@ -2067,6 +2071,62 @@ a.top-rated-card:hover {
 .community-empty-icon { font-size: 2.5rem; margin-bottom: 12px; }
 .community-empty-hint { font-size: .82rem; margin-top: 6px; }
 
+/* ── Calendar panel (upcoming episodes) ── */
+.calendar-panel { padding: 24px 0 40px; max-width: 720px; margin: 0 auto; }
+.calendar-header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 20px;
+}
+.calendar-header h2 { font-size: 1.2rem; font-weight: 700; color: var(--text); }
+.cal-window { font-size: .82rem; font-weight: 500; color: var(--muted); margin-left: 6px; }
+.cal-refresh-btn {
+  background: var(--surface2); border: 1px solid var(--border); color: var(--muted);
+  padding: 7px 12px; border-radius: 8px; font-size: .85rem; cursor: pointer;
+  transition: all .15s;
+}
+.cal-refresh-btn:hover { border-color: var(--accent); color: var(--text); }
+.calendar-list { display: flex; flex-direction: column; gap: 18px; }
+.cal-group {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+          backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-highlight);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.cal-group-date {
+  font-size: .82rem; font-weight: 700; color: var(--accent);
+  text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px;
+}
+.cal-group-hiatus .cal-group-date { color: var(--muted); }
+.cal-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 0; text-decoration: none; color: inherit;
+  border-top: 1px solid var(--border);
+  transition: background .15s;
+}
+.cal-row:first-of-type { border-top: none; }
+.cal-row:hover { background: var(--surface2); margin: 0 -16px; padding: 8px 16px; border-radius: 6px; }
+.cal-poster {
+  width: 44px; height: 66px;
+  object-fit: cover; border-radius: 4px;
+  background: var(--bg); flex-shrink: 0;
+}
+.cal-poster-emoji {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.4rem;
+}
+.cal-info { flex: 1; min-width: 0; }
+.cal-title {
+  font-size: .92rem; font-weight: 600; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cal-ep {
+  font-size: .78rem; color: var(--muted); margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
 /* ── Auth overlay ── */
 .auth-overlay {
   position: fixed;
@@ -2235,3 +2295,39 @@ a.top-rated-card:hover {
   text-align: left;
 }
 .signout-btn:hover { border-color: var(--accent); color: #e07070; }
+
+/* ── Mobile performance & touch optimisations ──
+   - Lower blur radius on heavy backdrop-filter surfaces below 700px;
+     phone GPUs handle 12px far more cheaply than 24px.
+   - Disable the three body orbs below 480px — invisible at phone bg
+     scales and pure GPU cost.
+   - Bump text inputs and number inputs to 16px on ≤480px so iOS
+     Safari doesn't auto-zoom on focus.
+   - Provide a tactile :active state for touch devices since the
+     OS tap-highlight is suppressed (see body rule).
+*/
+@media (max-width: 700px) {
+  :root {
+    --glass-blur: 12px;
+    --glass-saturate: 150%;
+  }
+}
+@media (max-width: 480px) {
+  body::before, body::after, main::before { display: none; }
+  /* Inputs ≥16px → no iOS zoom on focus. Selects don't trigger zoom so
+     the existing smaller filter sizes can stay. */
+  #search-input,
+  label input, label textarea { font-size: 16px; }
+}
+@media (hover: none) and (pointer: coarse) {
+  button:active,
+  .btn-sm:active,
+  .stat-card-clickable:active,
+  .chart-row-clickable:active,
+  .top-rated-card:active,
+  .cal-row:active,
+  .rec-card:active {
+    transform: scale(.97);
+    transition: transform .05s;
+  }
+}

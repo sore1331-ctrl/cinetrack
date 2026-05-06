@@ -22,7 +22,7 @@ export default async function handler(req, res) {
       );
       if (!r.ok) return;
       const data = await r.json();
-      (data.results || []).slice(0, 20).forEach(item => {
+      (data.results || []).slice(0, 12).forEach(item => {
         const mtype  = item.media_type || type;
         const mapKey = `${item.id}:${mtype}`;
         scoreMap[mapKey] = (scoreMap[mapKey] || 0) + weight;

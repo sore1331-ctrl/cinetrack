@@ -59,6 +59,7 @@
           </div>
           <span id="user-email" class="user-email-label"></span>
           <hr class="dropdown-divider" />
+          <button id="sync-now-btn" class="reload-cloud-btn" title="Push any pending local changes to the cloud, then pull the latest. Useful for reconciling after editing on another device.">↻ Sync now</button>
           <button id="reload-cloud-btn" class="reload-cloud-btn" title="Fetch your latest data from the cloud and replace local data. Use this if changes from another device aren't showing up.">↻ Reload from cloud</button>
           <button id="tmdb-refresh-btn" class="reload-cloud-btn" title="Re-fetch metadata from TMDB for every title (poster, runtime, total episodes, genre, country). Your status, rating, notes, and episode progress are preserved.">↻ Refresh from TMDB</button>
           <button id="signout-btn" class="signout-btn">Sign out</button>
@@ -72,11 +73,12 @@
   <!-- Type tab bar -->
   <div class="type-tabs-bar">
     <div class="type-tabs-inner">
-      <button class="type-tab active" data-type="movie">🎬 Films</button>
-      <button class="type-tab" data-type="tv">📺 TV Shows</button>
-      <button class="type-tab" data-type="anime">🎌 Anime</button>
-      <button class="type-tab" data-type="stats">📊 Stats</button>
-      <button class="type-tab" data-type="community">👥 Community</button>
+      <button class="type-tab active" data-type="movie">🎬 <span class="tab-label">Films</span></button>
+      <button class="type-tab" data-type="tv">📺 <span class="tab-label">TV Shows</span></button>
+      <button class="type-tab" data-type="anime">🎌 <span class="tab-label">Anime</span></button>
+      <button class="type-tab" data-type="calendar">📅 <span class="tab-label">Calendar</span></button>
+      <button class="type-tab" data-type="stats">📊 <span class="tab-label">Stats</span></button>
+      <button class="type-tab" data-type="community">👥 <span class="tab-label">Community</span></button>
     </div>
   </div>
 
@@ -187,6 +189,9 @@
         <option value="300">300 / pg</option>
       </select>
     </div>
+
+    <!-- Calendar panel -->
+    <div id="calendar-panel" class="calendar-panel hidden"></div>
 
     <!-- Stats panel -->
     <div id="stats-panel" class="stats-panel hidden"></div>
@@ -310,6 +315,9 @@
           <div class="star-row" id="star-row"></div>
         </label>
         <div id="ep-fields" class="ep-fields hidden">
+          <label id="season-select-label" class="hidden">Season
+            <select id="f-season-select"></select>
+          </label>
           <div class="row-2">
             <label>Episodes Watched
               <input type="number" id="f-ep-watched" min="0" max="9999" placeholder="0" />

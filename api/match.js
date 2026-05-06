@@ -12,6 +12,12 @@ async function fetchDetails(id, mediaType, key) {
     ? (data.runtime || 0)
     : Math.round((data.episode_run_time?.[0] || 0) * (data.number_of_episodes || 0));
 
+  const seasons = mediaType === 'tv'
+    ? (data.seasons || [])
+        .filter(s => s.season_number > 0 && (s.episode_count || 0) > 0)
+        .map(s => ({ number: s.season_number, total: s.episode_count, name: s.name || `Season ${s.season_number}` }))
+    : [];
+
   return {
     matched:     true,
     tmdbId:      data.id,
@@ -24,6 +30,7 @@ async function fetchDetails(id, mediaType, key) {
     poster_path: data.poster_path || null,
     runtime,
     total_episodes: mediaType === 'tv' ? (data.number_of_episodes || 0) : 0,
+    seasons,
   };
 }
 
