@@ -932,7 +932,12 @@ a.card-title-link:hover {
   overflow-y: auto;
 }
 .modal-card.small { max-width: 340px; }
+.modal-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.modal-title-row h2 { margin-bottom: 0; font-size: 1.2rem; }
 .modal-card h2 { margin-bottom: 14px; font-size: 1.2rem; }
+.modal-tmdb-refresh-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); padding: 5px 10px; border-radius: 8px; cursor: pointer; font-size: .8rem; transition: all .15s; white-space: nowrap; }
+.modal-tmdb-refresh-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }
+.modal-tmdb-refresh-btn:disabled { opacity: .5; cursor: not-allowed; }
 
 /* ── Media type toggle ── */
 .type-toggle {
