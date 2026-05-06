@@ -1866,6 +1866,7 @@ a.top-rated-card:hover {
 .rec-card:has(.rec-add-btn:disabled) .rec-poster::after { content: '✓ Added'; }
 .rec-card:has(.rec-add-btn[data-rec-type="movie"]:disabled) .rec-poster::after { content: '✓ Added to Films'; }
 .rec-card:has(.rec-add-btn[data-rec-type="tv"]:disabled) .rec-poster::after { content: '✓ Added to TV'; }
+.rec-card:has(.rec-add-btn[data-rec-type="anime"]:disabled) .rec-poster::after { content: '✓ Added to Anime'; }
 .rec-info { padding: 0 14px; display: flex; flex-direction: column; gap: 4px; }
 .rec-title { font-size: .95rem; font-weight: 700; color: var(--text); line-height: 1.3; }
 .rec-year  { font-size: .78rem; color: var(--muted); }
