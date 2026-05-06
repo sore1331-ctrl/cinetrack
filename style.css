@@ -1876,7 +1876,7 @@ a.top-rated-card:hover {
   transition: max-height .25s ease;
 }
 @media (hover: hover) {
-  .rec-card:hover .rec-overview { max-height: 32em; overflow-y: auto; }
+  .rec-overview:hover { max-height: 32em; overflow-y: auto; }
 }
 .rec-card.expanded .rec-overview { max-height: 32em; overflow-y: auto; }
 .rec-add-btn {
