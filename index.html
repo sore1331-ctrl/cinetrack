@@ -218,7 +218,10 @@
   <!-- Add/Edit Modal -->
   <div id="modal" class="modal hidden">
     <div class="modal-card">
-      <h2 id="modal-title">Add Title</h2>
+      <div class="modal-title-row">
+        <h2 id="modal-title">Add Title</h2>
+        <button type="button" id="modal-tmdb-refresh-btn" class="modal-tmdb-refresh-btn hidden" title="Re-fetch metadata from TMDB (preserves your watch progress)">↻ Refresh from TMDB</button>
+      </div>
       <div class="type-toggle" id="type-toggle">
         <button type="button" class="type-btn active" data-type="movie">🎬 Movie</button>
         <button type="button" class="type-btn" data-type="tv">📺 TV Show</button>

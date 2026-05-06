@@ -258,6 +258,7 @@ const tmdbClear       = document.getElementById('tmdb-clear');
 const tmdbSearching   = document.getElementById('tmdb-searching');
 const tmdbError       = document.getElementById('tmdb-error');
 const tmdbSearchLabel = document.getElementById('tmdb-search-label');
+const modalTmdbRefreshBtn = document.getElementById('modal-tmdb-refresh-btn');
 
 // ── View switching ──────────────────────────────────────
 function refreshCurrentView() {
@@ -1377,7 +1378,10 @@ function renderRecsCards(section, results, genreCounts) {
       return;
     }
 
-    const btn = e.target.closest('.rec-add-btn');
+    const poster = e.target.closest('.rec-poster');
+    const btn = poster
+      ? poster.closest('.rec-card')?.querySelector('.rec-add-btn')
+      : e.target.closest('.rec-add-btn');
     if (!btn) return;
     const recId     = btn.dataset.recId;
     const recType   = btn.dataset.recType;
@@ -2032,6 +2036,7 @@ function openModal(movie = null) {
   );
   updateModalForType();
   resetTMDBUI();
+  modalTmdbRefreshBtn.classList.toggle('hidden', !(movie?.tmdbId));
 
   document.getElementById('f-title').value    = movie?.title    || '';
   populateYearSelect(movie?.year || '');
@@ -2070,6 +2075,26 @@ function closeModal() {
   editingId = null;
   resetTMDBUI();
 }
+
+// ── Per-entry TMDB refresh (Edit modal) ─────────────────
+modalTmdbRefreshBtn.addEventListener('click', async () => {
+  const movie = editingId ? movies.find(m => m.id === editingId) : null;
+  if (!movie?.tmdbId) return;
+  const fetchType = movie.mediaType === 'anime' ? 'tv' : (movie.mediaType || 'movie');
+  modalTmdbRefreshBtn.disabled = true;
+  modalTmdbRefreshBtn.textContent = '↻ Refreshing…';
+  try {
+    const details = await fetchTMDBDetails(movie.tmdbId, fetchType);
+    applyTMDBSelection(details);
+  } catch (err) {
+    const tmdbErr = document.getElementById('tmdb-error');
+    tmdbErr.textContent = 'TMDB refresh failed: ' + err.message;
+    tmdbErr.classList.remove('hidden');
+  } finally {
+    modalTmdbRefreshBtn.disabled = false;
+    modalTmdbRefreshBtn.textContent = '↻ Refresh from TMDB';
+  }
+});
 
 function toggleRatingLabel() {
   const s = document.getElementById('f-status').value;
