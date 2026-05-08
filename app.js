@@ -1327,10 +1327,12 @@ function renderRatingDist(buckets) {
     `</div>`;
 }
 
-// ── Calendar (upcoming episodes) ────────────────────────
-const UPCOMING_CACHE_KEY = 'cinetrack_upcoming_cache';
-const UPCOMING_TTL_MS    = 6 * 60 * 60 * 1000;  // 6 hours
-const UPCOMING_HORIZON_DAYS = 14;
+// ── Calendar (upcoming episodes + movie release dates) ──
+// Cache key bumped (v2) when the entry shape changed to {type, ...}.
+const UPCOMING_CACHE_KEY    = 'cinetrack_upcoming_cache_v2';
+const UPCOMING_TTL_MS       = 6 * 60 * 60 * 1000;  // 6 hours
+const UPCOMING_HORIZON_DAYS = 14;   // for TV episodes
+const MOVIE_HORIZON_DAYS    = 60;   // for theatrical releases
 
 function readUpcomingCache() {
   try { return JSON.parse(localStorage.getItem(UPCOMING_CACHE_KEY) || 'null'); }
@@ -1341,23 +1343,28 @@ function writeUpcomingCache(cache) {
   localStorage.setItem(UPCOMING_CACHE_KEY, JSON.stringify(cache));
 }
 
+// Caller passes ids as 'type:id' (e.g. 'tv:1399' or 'movie:823464').
+// Bare numeric ids are tolerated and treated as TV.
 async function fetchUpcoming(ids, { force = false } = {}) {
   if (!ids.length) return [];
+  const keys = ids.map(id => String(id).includes(':') ? String(id) : `tv:${id}`);
   const cache = readUpcomingCache();
   const now   = Date.now();
   const fresh = cache && (now - cache.fetchedAt) < UPCOMING_TTL_MS;
-  const allCached = fresh && ids.every(id => cache.byId[id] !== undefined);
+  const allCached = fresh && keys.every(k => cache.byId[k] !== undefined);
   if (!force && fresh && allCached) {
-    return ids.map(id => cache.byId[id]).filter(Boolean);
+    return keys.map(k => cache.byId[k]).filter(Boolean);
   }
-  const r = await fetch(`/api/upcoming?ids=${encodeURIComponent(ids.join(','))}`);
+  const r = await fetch(`/api/upcoming?ids=${encodeURIComponent(keys.join(','))}`);
   if (!r.ok) throw new Error(`Upcoming fetch failed (${r.status})`);
   const data = await r.json();
-  const byId = Object.fromEntries((data.results || []).map(s => [String(s.tmdbId), s]));
-  // Mark IDs that returned nothing (ended/canceled) as null so we don't re-hit them
-  ids.forEach(id => { if (!(id in byId)) byId[id] = null; });
+  const byId = Object.fromEntries(
+    (data.results || []).map(s => [`${s.type || 'tv'}:${s.tmdbId}`, s])
+  );
+  // Mark keys that returned nothing (ended/canceled/no-date) as null so we don't re-hit them
+  keys.forEach(k => { if (!(k in byId)) byId[k] = null; });
   writeUpcomingCache({ fetchedAt: now, byId });
-  return ids.map(id => byId[id]).filter(Boolean);
+  return keys.map(k => byId[k]).filter(Boolean);
 }
 
 // ── Episode-air-today notifications ─────────────────────
@@ -1378,14 +1385,17 @@ function updateCalendarAiringBadge() {
   const cache = readUpcomingCache();
   let count = 0;
   if (cache?.byId) {
-    const trackedIds = new Set(movies.filter(m =>
-      (m.mediaType === 'tv' || m.mediaType === 'anime') &&
-      m.status === 'in_progress' &&
-      m.tmdbId
-    ).map(m => String(m.tmdbId)));
-    for (const id of trackedIds) {
-      const item = cache.byId[id];
-      if (item?.nextEpisode?.airDate === todayStr) count += 1;
+    for (const m of movies) {
+      if (!m.tmdbId) continue;
+      const isShow  = m.mediaType === 'tv' || m.mediaType === 'anime';
+      const isMovie = m.mediaType === 'movie';
+      if (isShow && m.status === 'in_progress') {
+        const item = cache.byId[`tv:${m.tmdbId}`];
+        if (item?.nextEpisode?.airDate === todayStr) count += 1;
+      } else if (isMovie && m.status === 'watchlist') {
+        const item = cache.byId[`movie:${m.tmdbId}`];
+        if (item?.releaseDate === todayStr) count += 1;
+      }
     }
   }
   tab.classList.toggle('has-airing', count > 0);
@@ -1405,7 +1415,7 @@ async function checkEpisodeNotifications() {
 
   let upcoming;
   try {
-    upcoming = await fetchUpcoming(tracked.map(m => String(m.tmdbId)));
+    upcoming = await fetchUpcoming(tracked.map(m => `tv:${m.tmdbId}`));
   } catch { return; }
 
   const todayStr = todayDateString();
@@ -1415,6 +1425,7 @@ async function checkEpisodeNotifications() {
 
   let firedAny = false;
   for (const item of upcoming) {
+    if (item?.type !== 'tv') continue;
     const ne = item?.nextEpisode;
     if (!ne || ne.airDate !== todayStr) continue;
     const key = `${item.tmdbId}:s${ne.season}e${ne.episode}:${ne.airDate}`;
@@ -1443,9 +1454,13 @@ async function checkEpisodeNotifications() {
 // Warm the upcoming cache so the Calendar tab can show its airing-today
 // badge even if the user never opens the Calendar panel.
 async function warmUpcomingCacheForBadge() {
-  const ids = movies
-    .filter(m => (m.mediaType === 'tv' || m.mediaType === 'anime') && m.status === 'in_progress' && m.tmdbId)
-    .map(m => String(m.tmdbId));
+  const ids = [];
+  for (const m of movies) {
+    if (!m.tmdbId) continue;
+    const isShow = m.mediaType === 'tv' || m.mediaType === 'anime';
+    if (isShow && m.status === 'in_progress')      ids.push(`tv:${m.tmdbId}`);
+    else if (m.mediaType === 'movie' && m.status === 'watchlist') ids.push(`movie:${m.tmdbId}`);
+  }
   if (!ids.length) { updateCalendarAiringBadge(); return; }
   try { await fetchUpcoming(ids); } catch { /* offline-safe */ }
   updateCalendarAiringBadge();
@@ -1492,26 +1507,31 @@ async function renderCalendar({ force = false } = {}) {
   const panel = document.getElementById('calendar-panel');
   if (!panel) return;
 
-  const tracked = movies.filter(m =>
-    (m.mediaType === 'tv' || m.mediaType === 'anime') &&
-    m.status === 'in_progress' &&
-    m.tmdbId
-  );
-  const ids = tracked.map(m => String(m.tmdbId));
+  // What we track: in-progress TV/anime (next episode) + watchlist movies
+  // (theatrical release). Each entry is keyed as `${type}:${tmdbId}`.
+  const tracked = movies.filter(m => m.tmdbId && (
+    ((m.mediaType === 'tv' || m.mediaType === 'anime') && m.status === 'in_progress') ||
+    (m.mediaType === 'movie' && m.status === 'watchlist')
+  ));
+
+  const ids = tracked.map(m => {
+    const t = (m.mediaType === 'tv' || m.mediaType === 'anime') ? 'tv' : 'movie';
+    return `${t}:${m.tmdbId}`;
+  });
 
   if (!ids.length) {
     panel.innerHTML = `
       <div class="calendar-header">
-        <h2>📅 Upcoming Episodes</h2>
+        <h2>📅 Upcoming</h2>
       </div>
-      <p class="recs-empty">Mark a TV show or anime as <em>In Progress</em> to see when its next episode airs.</p>
+      <p class="recs-empty">Mark a TV show or anime as <em>In Progress</em>, or add a movie to your <em>Watchlist</em>, to see what's coming up.</p>
     `;
     return;
   }
 
   panel.innerHTML = `
     <div class="calendar-header">
-      <h2>📅 Upcoming Episodes <span class="cal-window">· next ${UPCOMING_HORIZON_DAYS} days</span></h2>
+      <h2>📅 Upcoming <span class="cal-window">· episodes (${UPCOMING_HORIZON_DAYS}d) + film releases (${MOVIE_HORIZON_DAYS}d)</span></h2>
       <button id="calendar-refresh-btn" class="cal-refresh-btn" title="Re-fetch from TMDB now (bypasses 6h cache)">↻ Refresh</button>
     </div>
     <div class="calendar-list"><div class="recs-loading"><span class="recs-spinner"></span> Loading…</div></div>
@@ -1523,61 +1543,97 @@ async function renderCalendar({ force = false } = {}) {
     upcoming = await fetchUpcoming(ids, { force });
   } catch (e) {
     panel.querySelector('.calendar-list').innerHTML =
-      `<p class="recs-empty">Couldn't load upcoming episodes: ${esc(e.message)}</p>`;
+      `<p class="recs-empty">Couldn't load upcoming dates: ${esc(e.message)}</p>`;
     return;
   }
 
-  // Index local entries by tmdbId so we can read user posters / titles
-  const localById = new Map(tracked.map(m => [String(m.tmdbId), m]));
+  // Index local entries so we can read user posters / titles back
+  const localByKey = new Map(tracked.map(m => {
+    const t = (m.mediaType === 'tv' || m.mediaType === 'anime') ? 'tv' : 'movie';
+    return [`${t}:${m.tmdbId}`, m];
+  }));
 
-  // Build the [today, today+N days] window in local time so the boundary
-  // aligns with how relativeDayLabel formats things.
-  const horizonDate = new Date();
-  horizonDate.setHours(0, 0, 0, 0);
-  horizonDate.setDate(horizonDate.getDate() + UPCOMING_HORIZON_DAYS);
-  const horizonStr = `${horizonDate.getFullYear()}-${String(horizonDate.getMonth()+1).padStart(2,'0')}-${String(horizonDate.getDate()).padStart(2,'0')}`;
+  const todayStr = todayDateString();
+  const dPlus = (n) => {
+    const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() + n);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  };
+  const tvHorizonStr    = dPlus(UPCOMING_HORIZON_DAYS);
+  const movieHorizonStr = dPlus(MOVIE_HORIZON_DAYS);
 
-  const withDates = upcoming
-    .filter(s => s.nextEpisode && s.nextEpisode.airDate && s.nextEpisode.airDate <= horizonStr)
-    .map(s => ({ ...s, local: localById.get(String(s.tmdbId)) }))
-    .sort((a, b) => a.nextEpisode.airDate.localeCompare(b.nextEpisode.airDate));
+  // Normalize each upcoming entry into a unified row descriptor.
+  const dated   = [];
+  const undated = [];   // TV between seasons / no scheduled date
 
-  // Shows with no scheduled air date (between seasons / null). Shows whose
-  // next episode is more than 14 days out are hidden — calendar is strict
-  // to the horizon.
-  const withoutDates = upcoming
-    .filter(s => !s.nextEpisode || !s.nextEpisode.airDate)
-    .map(s => ({ ...s, local: localById.get(String(s.tmdbId)) }));
+  for (const u of upcoming) {
+    const key   = `${u.type}:${u.tmdbId}`;
+    const local = localByKey.get(key);
 
-  if (!withDates.length && !withoutDates.length) {
+    if (u.type === 'movie') {
+      const rd = u.releaseDate;
+      if (rd && rd >= todayStr && rd <= movieHorizonStr) {
+        dated.push({
+          date: rd,
+          kind: 'movie',
+          tmdbId: u.tmdbId,
+          title:   local?.title || u.title,
+          poster:  local?.posterUrl || (u.poster_path ? POSTER_BASE + u.poster_path : ''),
+          sublabel: '🎬 Theatrical release',
+          tmdbUrl:  `https://www.themoviedb.org/movie/${u.tmdbId}`,
+        });
+      }
+      continue;
+    }
+
+    // TV / anime
+    const ne = u.nextEpisode;
+    if (ne && ne.airDate && ne.airDate <= tvHorizonStr) {
+      dated.push({
+        date: ne.airDate,
+        kind: local?.mediaType === 'anime' ? 'anime' : 'tv',
+        tmdbId: u.tmdbId,
+        title:  local?.title || u.title,
+        poster: local?.posterUrl || (u.poster_path ? POSTER_BASE + u.poster_path : ''),
+        sublabel: `S${ne.season}E${ne.episode}${ne.name ? ` · ${esc(ne.name)}` : ''}`,
+        tmdbUrl:  `https://www.themoviedb.org/tv/${u.tmdbId}`,
+      });
+    } else if (!ne || !ne.airDate) {
+      undated.push({
+        kind: local?.mediaType === 'anime' ? 'anime' : 'tv',
+        tmdbId: u.tmdbId,
+        title:  local?.title || u.title,
+        poster: local?.posterUrl || (u.poster_path ? POSTER_BASE + u.poster_path : ''),
+        tmdbUrl: `https://www.themoviedb.org/tv/${u.tmdbId}`,
+      });
+    }
+  }
+
+  if (!dated.length && !undated.length) {
     panel.querySelector('.calendar-list').innerHTML =
-      `<p class="recs-empty">No upcoming episodes in the next ${UPCOMING_HORIZON_DAYS} days. The shows you're watching are either between seasons, have ended, or air later.</p>`;
+      `<p class="recs-empty">Nothing on the horizon. Watchlist movies will show up to ${MOVIE_HORIZON_DAYS} days before release; in-progress shows up to ${UPCOMING_HORIZON_DAYS} days.</p>`;
     return;
   }
 
   // Group by date
+  dated.sort((a, b) => a.date.localeCompare(b.date));
   const groups = {};
-  const todayStr = todayDateString();
-  for (const s of withDates) {
-    const k = s.nextEpisode.airDate;
-    (groups[k] ||= []).push(s);
-  }
+  for (const r of dated) (groups[r.date] ||= []).push(r);
 
   const groupHTML = Object.keys(groups).sort().map(date => {
     const isToday = date === todayStr;
-    const rows = groups[date].map(s => calRow(s, { airingToday: isToday })).join('');
+    const rows = groups[date].map(r => calRow(r, { airingToday: isToday })).join('');
     return `
       <div class="cal-group${isToday ? ' cal-group-today' : ''}">
-        <h3 class="cal-group-date">${esc(relativeDayLabel(date))}${isToday ? ' <span class="cal-airing-pill">● Airing today</span>' : ''}</h3>
+        <h3 class="cal-group-date">${esc(relativeDayLabel(date))}${isToday ? ' <span class="cal-airing-pill">● Today</span>' : ''}</h3>
         ${rows}
       </div>
     `;
   }).join('');
 
-  const hiatusHTML = withoutDates.length ? `
+  const hiatusHTML = undated.length ? `
     <div class="cal-group cal-group-hiatus">
       <h3 class="cal-group-date">Between seasons / no date yet</h3>
-      ${withoutDates.map(s => calRow(s, { hideEp: true })).join('')}
+      ${undated.map(r => calRow(r, { hideSub: true })).join('')}
     </div>
   ` : '';
 
@@ -1586,24 +1642,20 @@ async function renderCalendar({ force = false } = {}) {
   // Refresh the nav-tab dot using the freshly-fetched cache
   updateCalendarAiringBadge();
 
-  function calRow(s, opts = {}) {
-    const local      = s.local;
-    const posterPath = local?.posterUrl || (s.poster_path ? POSTER_BASE + s.poster_path : '');
-    const title      = local?.title || s.title;
-    const tmdbUrl    = `https://www.themoviedb.org/tv/${s.tmdbId}`;
-    const ne         = s.nextEpisode;
-    const epLine     = !opts.hideEp && ne
-      ? `S${ne.season}E${ne.episode}${ne.name ? ` · ${esc(ne.name)}` : ''}`
-      : `<em>No air date scheduled</em>`;
-    const poster = posterPath
-      ? `<img class="cal-poster" src="${posterPath}" alt="${esc(title)}" loading="lazy" />`
-      : `<div class="cal-poster cal-poster-emoji">📺</div>`;
+  function calRow(r, opts = {}) {
+    const fallback = r.kind === 'movie' ? '🎬' : r.kind === 'anime' ? '🎌' : '📺';
+    const poster = r.poster
+      ? `<img class="cal-poster" src="${r.poster}" alt="${esc(r.title)}" loading="lazy" />`
+      : `<div class="cal-poster cal-poster-emoji">${fallback}</div>`;
+    const sub = !opts.hideSub
+      ? r.sublabel
+      : '<em>No date scheduled</em>';
     return `
-      <a class="cal-row${opts.airingToday ? ' cal-row-today' : ''}" href="${tmdbUrl}" target="_blank" rel="noopener noreferrer" title="View on TMDB">
+      <a class="cal-row${opts.airingToday ? ' cal-row-today' : ''}" href="${r.tmdbUrl}" target="_blank" rel="noopener noreferrer" title="View on TMDB">
         ${poster}
         <div class="cal-info">
-          <div class="cal-title">${esc(title)}</div>
-          <div class="cal-ep">${epLine}</div>
+          <div class="cal-title">${esc(r.title)}</div>
+          <div class="cal-ep">${sub}</div>
         </div>
         ${opts.airingToday ? '<span class="cal-row-pill">● Today</span>' : ''}
       </a>
