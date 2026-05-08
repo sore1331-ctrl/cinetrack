@@ -134,14 +134,65 @@ body {
 :root[data-orbs="animated"] main::before { animation: orb-drift-c 36s ease-in-out infinite; }
 
 /* ── Density (data-density="compact") ── */
+:root[data-density="compact"] main { padding: 12px 14px 0; }
+:root[data-density="compact"] header { padding-top: 8px; padding-bottom: 8px; }
+:root[data-density="compact"] header h1 { font-size: 1.05rem; }
+:root[data-density="compact"] .nav-tabs { gap: 4px; }
+:root[data-density="compact"] .tab-btn { padding: 6px 12px; font-size: .82rem; }
+
+/* Movie & rec grids */
 :root[data-density="compact"] .movie-grid { gap: 10px; }
-:root[data-density="compact"] .movie-card { padding-bottom: 10px; gap: 5px; }
-:root[data-density="compact"] .card-title { font-size: .9rem; }
-:root[data-density="compact"] .card-meta  { font-size: .75rem; }
-:root[data-density="compact"] header { padding-top: 10px; padding-bottom: 10px; }
-:root[data-density="compact"] .profile-section { margin-top: 18px; }
-:root[data-density="compact"] .stat-card { padding: 12px 14px; }
+:root[data-density="compact"] .movie-card { padding-bottom: 8px; gap: 4px; }
+:root[data-density="compact"] .card-title { font-size: .88rem; padding: 0 10px; }
+:root[data-density="compact"] .card-meta  { font-size: .72rem; padding: 0 10px; }
+:root[data-density="compact"] .card-stars { font-size: .78rem; padding: 0 10px; }
+:root[data-density="compact"] .card-notes { padding: 0 10px; font-size: .76rem; }
+:root[data-density="compact"] .card-actions { padding: 0 10px; gap: 4px; }
+:root[data-density="compact"] .rec-grid { gap: 10px; }
+:root[data-density="compact"] .rec-card { padding-bottom: 8px; gap: 4px; }
+
+/* Filters / search row */
+:root[data-density="compact"] .status-btn,
+:root[data-density="compact"] .size-btn { padding: 5px 10px; font-size: .78rem; }
+:root[data-density="compact"] #search-input,
+:root[data-density="compact"] #type-filter,
+:root[data-density="compact"] #country-filter,
+:root[data-density="compact"] #genre-filter,
+:root[data-density="compact"] #sort-order { padding: 6px 10px; font-size: .82rem; }
+
+/* Stats */
+:root[data-density="compact"] .stat-card { padding: 12px 12px; }
+:root[data-density="compact"] .stat-card-value { font-size: 1.45rem; }
+:root[data-density="compact"] .stat-card-label { font-size: .72rem; }
+:root[data-density="compact"] .stats-overview { gap: 10px; }
+:root[data-density="compact"] .chart-section h3 { font-size: .9rem; margin-bottom: 8px; }
+
+/* Profile sections */
+:root[data-density="compact"] .profile-section { margin-top: 16px; }
+:root[data-density="compact"] .profile-section h3 { font-size: .92rem; margin-bottom: 10px; }
+:root[data-density="compact"] .profile-hero { gap: 12px; padding: 14px 0; }
+:root[data-density="compact"] .profile-avatar-lg { width: 56px; height: 56px; font-size: 1.4rem; }
+:root[data-density="compact"] .profile-display-name { font-size: 1.1rem; }
+:root[data-density="compact"] .profile-recent { gap: 8px; }
+:root[data-density="compact"] .profile-type-grid { gap: 8px; }
+:root[data-density="compact"] .profile-type-card { padding: 10px 12px; }
+
+/* Community */
+:root[data-density="compact"] .community-grid { gap: 10px; }
 :root[data-density="compact"] .community-card { padding: 12px; gap: 10px; }
+:root[data-density="compact"] .community-controls { margin-bottom: 10px; }
+:root[data-density="compact"] .fav-grid { gap: 8px; }
+:root[data-density="compact"] .fav-meta { padding: 6px 8px; }
+:root[data-density="compact"] .curr-watching-row { padding: 8px; gap: 10px; }
+:root[data-density="compact"] .curr-watching-poster { width: 38px; height: 57px; }
+
+/* Modals */
+:root[data-density="compact"] .modal-card { padding: 18px; }
+:root[data-density="compact"] .modal-card h2,
+:root[data-density="compact"] .modal-title-row h2 { font-size: 1.05rem; margin-bottom: 10px; }
+:root[data-density="compact"] .form-row { margin-bottom: 10px; }
+:root[data-density="compact"] .modal-actions { gap: 8px; margin-top: 14px; }
+:root[data-density="compact"] .community-profile-card { padding: 18px 20px 22px; }
 
 /* ── Reduce motion / no-blur (data-motion="reduced") ── */
 :root[data-motion="reduced"] {
