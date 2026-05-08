@@ -2514,6 +2514,7 @@ a.top-rated-card:hover {
 
 /* Mode toggle (Tracked / Discover) */
 .cal-mode-toggle { display: flex; gap: 6px; }
+.cal-discover-types { display: flex; gap: 6px; }
 .cal-subheader {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
   margin-bottom: 18px; font-size: .85rem; color: var(--muted);

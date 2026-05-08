@@ -76,6 +76,7 @@ const SYNC_PREF_KEYS = [
   'cinetrack_sort',
   'cinetrack_calendar_mode',
   'cinetrack_discover_region',
+  'cinetrack_discover_type',
 ];
 let prefSaveTimer = null;
 let prefMigrationWarned = false;
@@ -1349,8 +1350,13 @@ function autoDetectRegion() {
   return /^[A-Z]{2}$/.test((tail || '').toUpperCase()) ? tail.toUpperCase() : 'US';
 }
 
+const DISCOVER_TYPES = ['movie', 'tv', 'anime'];
 let calendarMode   = localStorage.getItem('cinetrack_calendar_mode') || 'tracked';
 let discoverRegion = localStorage.getItem('cinetrack_discover_region') || autoDetectRegion();
+let discoverType   = (() => {
+  const v = localStorage.getItem('cinetrack_discover_type');
+  return DISCOVER_TYPES.includes(v) ? v : 'movie';
+})();
 
 function readUpcomingCache() {
   try { return JSON.parse(localStorage.getItem(UPCOMING_CACHE_KEY) || 'null'); }
@@ -1728,22 +1734,41 @@ async function fetchDiscoverUpcoming({ type, region, page = 1, force = false }) 
 }
 
 async function renderCalendarDiscover(body, { force = false } = {}) {
+  const typeLabels = { movie: '🎬 Films', tv: '📺 TV', anime: '🎌 Anime' };
+  const typeFallbackEmoji = { movie: '🎬', tv: '📺', anime: '🎌' };
+  const isMovie = discoverType === 'movie';
+
   body.innerHTML = `
     <div class="cal-subheader">
+      <div class="cal-discover-types pill-group">
+        ${DISCOVER_TYPES.map(t =>
+          `<button type="button" class="pill-btn ${t === discoverType ? 'active' : ''}" data-disc-type="${t}">${typeLabels[t]}</button>`
+        ).join('')}
+      </div>
+      ${isMovie ? `
       <label class="cal-region-label">Region
         <select id="cal-region-select" class="cal-region-select">
           ${DISCOVER_REGIONS.map(r =>
             `<option value="${r}"${r === discoverRegion ? ' selected' : ''}>${r}</option>`
           ).join('')}
         </select>
-      </label>
-      <span class="cal-window">Upcoming films · ${esc(discoverRegion)}</span>
+      </label>` : ''}
       <button id="cal-discover-refresh" class="cal-refresh-btn" title="Re-fetch from TMDB now (bypasses 24h cache)">↻ Refresh</button>
     </div>
     <div id="cal-discover-grid" class="discover-grid"><div class="recs-loading"><span class="recs-spinner"></span> Loading…</div></div>
   `;
 
-  body.querySelector('#cal-region-select').addEventListener('change', e => {
+  body.querySelectorAll('.cal-discover-types .pill-btn[data-disc-type]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const next = btn.dataset.discType;
+      if (next === discoverType) return;
+      discoverType = next;
+      localStorage.setItem('cinetrack_discover_type', discoverType);
+      scheduleSavePrefs();
+      renderCalendar();
+    });
+  });
+  body.querySelector('#cal-region-select')?.addEventListener('change', e => {
     discoverRegion = e.target.value;
     localStorage.setItem('cinetrack_discover_region', discoverRegion);
     scheduleSavePrefs();
@@ -1753,32 +1778,41 @@ async function renderCalendarDiscover(body, { force = false } = {}) {
 
   let data;
   try {
-    data = await fetchDiscoverUpcoming({ type: 'movie', region: discoverRegion, page: 1, force });
+    data = await fetchDiscoverUpcoming({
+      type:   discoverType,
+      region: isMovie ? discoverRegion : 'US',
+      page:   1,
+      force,
+    });
   } catch (e) {
     body.querySelector('#cal-discover-grid').innerHTML =
-      `<p class="recs-empty">Couldn't load upcoming films: ${esc(e.message)}</p>`;
+      `<p class="recs-empty">Couldn't load upcoming ${esc(typeLabels[discoverType] || discoverType)}: ${esc(e.message)}</p>`;
     return;
   }
 
-  const items = (data.results || []).slice(0, 20);
+  const items = (data.results || []).slice(0, 24);
   if (!items.length) {
-    body.querySelector('#cal-discover-grid').innerHTML =
-      `<p class="recs-empty">No upcoming films found for ${esc(discoverRegion)}. Try a different region.</p>`;
+    const more = isMovie
+      ? `No upcoming films found for ${esc(discoverRegion)}. Try a different region.`
+      : 'No upcoming titles found right now. Check back later.';
+    body.querySelector('#cal-discover-grid').innerHTML = `<p class="recs-empty">${more}</p>`;
     return;
   }
 
   const tracked = new Set(movies.filter(m => m.tmdbId).map(m => String(m.tmdbId)));
+  const tmdbPath = isMovie ? 'movie' : 'tv';
+  const fallback = typeFallbackEmoji[discoverType];
 
   const cards = items.map(item => {
     const idStr   = String(item.tmdbId);
     const isAdded = tracked.has(idStr);
     const poster  = item.poster_path
       ? `<img class="discover-poster" src="${POSTER_BASE}${item.poster_path}" alt="${esc(item.title)}" loading="lazy" />`
-      : `<div class="discover-poster discover-poster-emoji">🎬</div>`;
+      : `<div class="discover-poster discover-poster-emoji">${fallback}</div>`;
     const dateLabel = relativeDayLabel(item.releaseDate);
     return `
       <div class="discover-card" data-discover-id="${idStr}">
-        <a class="discover-poster-wrap" href="https://www.themoviedb.org/movie/${idStr}" target="_blank" rel="noopener noreferrer" title="View on TMDB">
+        <a class="discover-poster-wrap" href="https://www.themoviedb.org/${tmdbPath}/${idStr}" target="_blank" rel="noopener noreferrer" title="View on TMDB">
           ${poster}
         </a>
         <div class="discover-meta">
@@ -1787,6 +1821,7 @@ async function renderCalendarDiscover(body, { force = false } = {}) {
           <button type="button"
             class="discover-add-btn ${isAdded ? 'added' : ''}"
             data-add-id="${idStr}"
+            data-add-type="${discoverType}"
             data-add-title="${esc(item.title)}"
             data-add-year="${esc(item.year || '')}"
             data-add-poster="${esc(item.poster_path || '')}"
@@ -1802,8 +1837,9 @@ async function renderCalendarDiscover(body, { force = false } = {}) {
   grid.addEventListener('click', e => {
     const btn = e.target.closest('.discover-add-btn[data-add-id]');
     if (!btn || btn.disabled) return;
-    addUpcomingMovieFromDiscover({
+    addFromDiscover({
       tmdbId: btn.dataset.addId,
+      type:   btn.dataset.addType,
       title:  btn.dataset.addTitle,
       year:   btn.dataset.addYear,
       posterPath: btn.dataset.addPoster,
@@ -1811,7 +1847,7 @@ async function renderCalendarDiscover(body, { force = false } = {}) {
   });
 }
 
-function addUpcomingMovieFromDiscover({ tmdbId, title, year, posterPath }, btn) {
+function addFromDiscover({ tmdbId, type, title, year, posterPath }, btn) {
   const idStr = String(tmdbId);
   if (movies.some(m => String(m.tmdbId) === idStr)) {
     btn.textContent = '✓ Added';
@@ -1819,6 +1855,8 @@ function addUpcomingMovieFromDiscover({ tmdbId, title, year, posterPath }, btn) 
     btn.disabled = true;
     return;
   }
+  const safeMediaType = type === 'anime' ? 'anime' : (type === 'tv' ? 'tv' : 'movie');
+  const fetchType     = safeMediaType === 'movie' ? 'movie' : 'tv';
   const newId = genId();
   movies.unshift({
     id:        newId,
@@ -1827,7 +1865,7 @@ function addUpcomingMovieFromDiscover({ tmdbId, title, year, posterPath }, btn) 
     year:      year || '',
     status:    'watchlist',
     rating:    0,
-    mediaType: 'movie',
+    mediaType: safeMediaType,
     tmdbId:    Number(tmdbId),
     posterUrl: posterPath ? POSTER_BASE + posterPath : '',
     genre: '', director: '', country: '', notes: '', runtime: 0,
@@ -1841,7 +1879,7 @@ function addUpcomingMovieFromDiscover({ tmdbId, title, year, posterPath }, btn) 
   // Background-enrich with full TMDB metadata (matches the rec-add flow).
   (async () => {
     try {
-      const details = await fetchTMDBDetails(tmdbId, 'movie');
+      const details = await fetchTMDBDetails(tmdbId, fetchType);
       const m = movies.find(m => m.id === newId);
       if (!m) return;
       if (details.title)    m.title    = details.title;
@@ -1852,11 +1890,18 @@ function addUpcomingMovieFromDiscover({ tmdbId, title, year, posterPath }, btn) 
       if (details.runtime)  m.runtime  = details.runtime;
       if (details.overview && !m.notes) m.notes = details.overview;
       if (details.poster_path && !m.posterUrl) m.posterUrl = POSTER_BASE + details.poster_path;
+      if (Array.isArray(details.seasons) && details.seasons.length) {
+        m.seasons = details.seasons.map(s => ({
+          number: s.number, total: s.total, watched: 0, name: s.name,
+        }));
+        m.totalEpisodes   = m.seasons.reduce((sum, x) => sum + (x.total || 0), 0);
+        m.watchedEpisodes = 0;
+      } else if (details.total_episodes) {
+        m.totalEpisodes = details.total_episodes;
+      }
       save();
       updateCountryDropdown();
       if (activeView === 'content') render();
-      // The newly-added watchlist movie may itself be due to release within
-      // the tracked horizon — refresh the badge.
       warmUpcomingCacheForBadge();
     } catch {}
   })();
