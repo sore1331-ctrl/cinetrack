@@ -96,6 +96,71 @@ body {
   --orb-opacity: .7;
 }
 
+/* ── Glass intensity presets (data-glass="medium"|"subtle") ── */
+:root[data-glass="medium"] {
+  --glass-bg:        rgba(26, 26, 36, .62);
+  --glass-bg-strong: rgba(26, 26, 36, .78);
+  --glass-blur:      16px;
+  --glass-saturate:  160%;
+}
+:root.light[data-glass="medium"] {
+  --glass-bg:        rgba(255, 255, 255, .65);
+  --glass-bg-strong: rgba(255, 255, 255, .82);
+}
+:root[data-glass="subtle"] {
+  --glass-bg:        rgba(26, 26, 36, .85);
+  --glass-bg-strong: rgba(26, 26, 36, .94);
+  --glass-blur:      6px;
+  --glass-saturate:  120%;
+}
+:root.light[data-glass="subtle"] {
+  --glass-bg:        rgba(255, 255, 255, .85);
+  --glass-bg-strong: rgba(255, 255, 255, .95);
+}
+
+/* ── Accent presets (data-accent="…") ── */
+:root[data-accent="blue"]   { --accent: #3b9eff; }
+:root[data-accent="green"]  { --accent: #4caf82; }
+:root[data-accent="purple"] { --accent: #a855f7; }
+:root[data-accent="amber"]  { --accent: #f5a623; }
+:root[data-accent="cyan"]   { --accent: #06b6d4; }
+
+/* ── Animated orbs (data-orbs="animated") ── */
+@keyframes orb-drift-a { 0%, 100% { transform: translate(0,0) scale(1); } 50% { transform: translate(6vmax, 4vmax) scale(1.08); } }
+@keyframes orb-drift-b { 0%, 100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-6vmax, -4vmax) scale(1.06); } }
+@keyframes orb-drift-c { 0%, 100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-5vmax, 3vmax) scale(.95); } }
+:root[data-orbs="animated"] body::before { animation: orb-drift-a 28s ease-in-out infinite; }
+:root[data-orbs="animated"] body::after  { animation: orb-drift-b 32s ease-in-out infinite; }
+:root[data-orbs="animated"] main::before { animation: orb-drift-c 36s ease-in-out infinite; }
+
+/* ── Density (data-density="compact") ── */
+:root[data-density="compact"] .movie-grid { gap: 10px; }
+:root[data-density="compact"] .movie-card { padding-bottom: 10px; gap: 5px; }
+:root[data-density="compact"] .card-title { font-size: .9rem; }
+:root[data-density="compact"] .card-meta  { font-size: .75rem; }
+:root[data-density="compact"] header { padding-top: 10px; padding-bottom: 10px; }
+:root[data-density="compact"] .profile-section { margin-top: 18px; }
+:root[data-density="compact"] .stat-card { padding: 12px 14px; }
+:root[data-density="compact"] .community-card { padding: 12px; gap: 10px; }
+
+/* ── Reduce motion / no-blur (data-motion="reduced") ── */
+:root[data-motion="reduced"] {
+  --glass-blur: 0px;
+  --glass-saturate: 100%;
+}
+:root[data-motion="reduced"] body::before,
+:root[data-motion="reduced"] body::after,
+:root[data-motion="reduced"] main::before { animation: none !important; }
+:root[data-motion="reduced"] .movie-card,
+:root[data-motion="reduced"] .community-card,
+:root[data-motion="reduced"] .bg-swatch { transition: none !important; }
+:root[data-motion="reduced"] .movie-card:hover,
+:root[data-motion="reduced"] .community-card:hover,
+:root[data-motion="reduced"] .bg-swatch:hover { transform: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  body::before, body::after, main::before { animation: none !important; }
+}
+
 /* Background presets — switched via <html data-bg="…">.
    Default (no attr or data-bg="default") keeps the existing palette. */
 :root[data-bg="aurora"] { --orb-a: #2d6a4f; --orb-b: #7b2cbf; --orb-c: #00b4d8; }
@@ -2140,6 +2205,36 @@ a.top-rated-card:hover {
   color: var(--text); text-shadow: 0 1px 2px rgba(0,0,0,.5);
   z-index: 1;
 }
+
+/* Appearance — sub-rows */
+.appearance-row { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.appearance-row:last-child { margin-bottom: 0; }
+.appearance-label { font-size: .82rem; font-weight: 600; color: var(--muted); }
+.pill-group { display: flex; gap: 6px; flex-wrap: wrap; }
+.pill-btn {
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); padding: 6px 14px; border-radius: 999px;
+  font-size: .82rem; cursor: pointer; transition: border-color .15s, background .15s;
+}
+.pill-btn:hover { border-color: var(--accent); }
+.pill-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+
+/* Accent swatches */
+.accent-picker { display: flex; gap: 8px; flex-wrap: wrap; }
+.accent-swatch {
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 2px solid var(--border); cursor: pointer;
+  transition: transform .15s, border-color .15s;
+  padding: 0;
+}
+.accent-swatch:hover { transform: scale(1.08); }
+.accent-swatch.active { border-color: var(--text); transform: scale(1.08); }
+.accent-swatch[data-accent="default"] { background: #e2405a; }
+.accent-swatch[data-accent="blue"]    { background: #3b9eff; }
+.accent-swatch[data-accent="green"]   { background: #4caf82; }
+.accent-swatch[data-accent="purple"]  { background: #a855f7; }
+.accent-swatch[data-accent="amber"]   { background: #f5a623; }
+.accent-swatch[data-accent="cyan"]    { background: #06b6d4; }
 
 /* Community search/sort + clickable cards */
 .community-controls {
