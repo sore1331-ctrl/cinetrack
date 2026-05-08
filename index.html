@@ -212,7 +212,24 @@
           </label>
         </div>
       </div>
+      <div id="community-controls" class="community-controls hidden">
+        <input type="text" id="community-search" class="community-search" placeholder="Search users by name…" />
+        <select id="community-sort" class="community-sort">
+          <option value="recent">Most active</option>
+          <option value="watched">Most watched</option>
+          <option value="alpha">A–Z</option>
+          <option value="compat">Best match</option>
+        </select>
+      </div>
       <div id="community-grid" class="community-grid"></div>
+    </div>
+
+    <!-- Community profile modal -->
+    <div id="community-profile-modal" class="modal hidden">
+      <div class="modal-card community-profile-card">
+        <button type="button" id="community-profile-close" class="community-profile-close" title="Close">✕</button>
+        <div id="community-profile-body"></div>
+      </div>
     </div>
   </main>
 

@@ -2097,6 +2097,103 @@ a.top-rated-card:hover {
 .community-empty-icon { font-size: 2.5rem; margin-bottom: 12px; }
 .community-empty-hint { font-size: .82rem; margin-top: 6px; }
 
+/* Community search/sort + clickable cards */
+.community-controls {
+  display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px;
+}
+.community-search {
+  flex: 1; min-width: 200px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 12px; color: var(--text);
+  font-size: .88rem;
+}
+.community-sort {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 12px; color: var(--text);
+  font-size: .88rem; cursor: pointer;
+}
+.community-card { cursor: pointer; transition: transform .15s, box-shadow .15s; }
+.community-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+.community-compat {
+  font-size: .72rem; font-weight: 700; padding: 2px 8px;
+  border-radius: 10px; background: rgba(76,175,130,.15);
+  color: #4caf82; margin-left: 6px; vertical-align: middle;
+}
+
+/* Community profile modal */
+.community-profile-card {
+  max-width: 860px; padding: 24px 26px 30px; position: relative;
+}
+.community-profile-close {
+  position: absolute; top: 12px; right: 12px;
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--muted); cursor: pointer;
+  font-size: .9rem; display: flex; align-items: center; justify-content: center;
+  transition: color .15s, border-color .15s;
+  z-index: 2;
+}
+.community-profile-close:hover { color: var(--text); border-color: var(--accent); }
+.compat-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+.compat-badge {
+  font-size: .82rem; font-weight: 700; padding: 4px 10px;
+  border-radius: 12px; background: rgba(76,175,130,.15); color: #4caf82;
+}
+.compat-detail { font-size: .78rem; color: var(--muted); }
+
+/* Top favourites */
+.fav-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+.fav-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.fav-poster {
+  width: 100%; aspect-ratio: 2/3; object-fit: cover;
+  background: var(--surface2); display: block;
+}
+.fav-poster-emoji { display: flex; align-items: center; justify-content: center; font-size: 2.5rem; }
+.fav-meta { padding: 8px 10px; }
+.fav-title { font-size: .82rem; font-weight: 600; color: var(--text); line-height: 1.25;
+  display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.fav-rating { font-size: .75rem; color: var(--accent2); margin-top: 3px; }
+
+/* Currently watching list */
+.curr-watching-list { display: flex; flex-direction: column; gap: 10px; }
+.curr-watching-row {
+  display: flex; gap: 12px; align-items: center;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px;
+}
+.curr-watching-poster {
+  width: 46px; height: 69px; object-fit: cover;
+  background: var(--surface2); border-radius: 6px; flex-shrink: 0;
+}
+.curr-watching-emoji {
+  display: flex; align-items: center; justify-content: center; font-size: 1.5rem;
+}
+.curr-watching-info { flex: 1; min-width: 0; }
+.curr-watching-title {
+  font-size: .9rem; font-weight: 600; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 6px;
+}
+.curr-watching-progress { display: flex; align-items: center; gap: 8px; }
+.curr-watching-bar {
+  flex: 1; height: 6px; background: var(--surface2);
+  border-radius: 3px; overflow: hidden;
+}
+.curr-watching-bar-fill {
+  height: 100%; background: var(--accent); transition: width .3s;
+}
+.curr-watching-pct {
+  font-size: .72rem; color: var(--muted); white-space: nowrap;
+}
+
 /* ── Calendar panel (upcoming episodes) ── */
 .calendar-panel { padding: 24px 0 40px; max-width: 720px; margin: 0 auto; }
 .calendar-header {
