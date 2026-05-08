@@ -62,6 +62,10 @@ let activeStatus    = 'all';
 let searchQuery     = '';
 let countryFilter   = '';
 let genreFilter     = '';
+let yearMinFilter   = '';
+let yearMaxFilter   = '';
+let ratingMinFilter = '';
+let ratingMaxFilter = '';
 let sortOrder       = localStorage.getItem('cinetrack_sort') || 'added';
 let statsTypeFilter = 'all';   // 'all' | 'movie' | 'tv' | 'anime'
 let gridSize        = localStorage.getItem('cinetrack_grid') || 'md';
@@ -420,7 +424,8 @@ selectModeBtn.addEventListener('click', () => {
 const clearFiltersBtn = document.getElementById('clear-filters-btn');
 
 function hasActiveFilters() {
-  return !!(searchQuery || genreFilter || countryFilter || activeStatus !== 'all');
+  return !!(searchQuery || genreFilter || countryFilter || activeStatus !== 'all'
+    || yearMinFilter || yearMaxFilter || ratingMinFilter || ratingMaxFilter);
 }
 
 function updateClearFiltersBtn() {
@@ -434,11 +439,96 @@ clearFiltersBtn.addEventListener('click', () => {
   genreFilter   = '';
   countryFilter = '';
   activeStatus  = 'all';
+  yearMinFilter = '';
+  yearMaxFilter = '';
+  ratingMinFilter = '';
+  ratingMaxFilter = '';
   searchInput.value     = '';
   genreFilterEl.value   = '';
   countryFilterEl.value = '';
+  const yMin = document.getElementById('year-min'); if (yMin) yMin.value = '';
+  const yMax = document.getElementById('year-max'); if (yMax) yMax.value = '';
+  const rMin = document.getElementById('rating-min'); if (rMin) rMin.value = '';
+  const rMax = document.getElementById('rating-max'); if (rMax) rMax.value = '';
   currentPage = 0;
   render();
+});
+
+// ── More filters (year / rating) ────────────────────────
+const moreFiltersBtn   = document.getElementById('more-filters-btn');
+const moreFiltersPanel = document.getElementById('more-filters');
+const moreFiltersClear = document.getElementById('more-filters-clear');
+const yearMinEl   = document.getElementById('year-min');
+const yearMaxEl   = document.getElementById('year-max');
+const ratingMinEl = document.getElementById('rating-min');
+const ratingMaxEl = document.getElementById('rating-max');
+
+if (moreFiltersBtn && moreFiltersPanel) {
+  moreFiltersBtn.addEventListener('click', () => {
+    const willOpen = moreFiltersPanel.classList.contains('hidden');
+    moreFiltersPanel.classList.toggle('hidden', !willOpen);
+    moreFiltersBtn.classList.toggle('active', willOpen);
+  });
+}
+yearMinEl?.addEventListener('input', () => { yearMinFilter = yearMinEl.value.trim(); currentPage = 0; render(); });
+yearMaxEl?.addEventListener('input', () => { yearMaxFilter = yearMaxEl.value.trim(); currentPage = 0; render(); });
+ratingMinEl?.addEventListener('change', () => { ratingMinFilter = ratingMinEl.value; currentPage = 0; render(); });
+ratingMaxEl?.addEventListener('change', () => { ratingMaxFilter = ratingMaxEl.value; currentPage = 0; render(); });
+moreFiltersClear?.addEventListener('click', () => {
+  yearMinFilter = ''; yearMaxFilter = ''; ratingMinFilter = ''; ratingMaxFilter = '';
+  if (yearMinEl) yearMinEl.value = '';
+  if (yearMaxEl) yearMaxEl.value = '';
+  if (ratingMinEl) ratingMinEl.value = '';
+  if (ratingMaxEl) ratingMaxEl.value = '';
+  currentPage = 0;
+  render();
+});
+
+// ── Random picker ───────────────────────────────────────
+const randomPickBtn   = document.getElementById('random-pick-btn');
+const randomPickModal = document.getElementById('random-pick-modal');
+const randomPickBody  = document.getElementById('random-pick-body');
+
+function showRandomPick() {
+  if (!randomPickModal || !randomPickBody) return;
+  const pool = filtered();
+  if (!pool.length) {
+    randomPickBody.innerHTML = '<p class="random-pick-empty">No titles match the current filters.</p>';
+    randomPickModal.classList.remove('hidden');
+    return;
+  }
+  const pick = pool[Math.floor(Math.random() * pool.length)];
+  const isTV = pick.mediaType === 'tv' || pick.mediaType === 'anime';
+  const emoji = pick.mediaType === 'anime' ? '🎌' : isTV ? '📺' : '🎬';
+  randomPickBody.innerHTML = `
+    <h2>🎲 How about…</h2>
+    ${pick.posterUrl
+      ? `<img class="random-pick-poster" src="${esc(pick.posterUrl)}" alt="${esc(pick.title)}" />`
+      : `<div class="random-pick-poster-emoji">${emoji}</div>`}
+    <div class="random-pick-title">${esc(pick.title)}</div>
+    <div class="random-pick-meta">${pick.year || ''}${pick.year && pick.genre ? ' · ' : ''}${esc(pick.genre || '')}</div>
+    <div class="random-pick-actions">
+      <button type="button" data-pick-action="another">🎲 Pick another</button>
+      <button type="button" data-pick-action="open" data-id="${pick.id}" class="primary">Open</button>
+    </div>
+  `;
+  randomPickModal.classList.remove('hidden');
+}
+
+randomPickBtn?.addEventListener('click', showRandomPick);
+document.getElementById('random-pick-close')?.addEventListener('click', () => {
+  randomPickModal?.classList.add('hidden');
+});
+randomPickModal?.addEventListener('click', e => {
+  if (e.target.id === 'random-pick-modal') randomPickModal.classList.add('hidden');
+  const action = e.target.closest('[data-pick-action]')?.dataset.pickAction;
+  if (action === 'another') showRandomPick();
+  if (action === 'open') {
+    const id = e.target.closest('[data-pick-action]')?.dataset.id;
+    const m = movies.find(x => x.id === id);
+    randomPickModal.classList.add('hidden');
+    if (m) openModal(m);
+  }
 });
 
 // ── Sort order init ─────────────────────────────────────
@@ -698,6 +788,13 @@ function filtered() {
       const genres = (m.genre || '').split(',').map(g => g.trim());
       if (!genres.includes(genreFilter)) return false;
     }
+    if (yearMinFilter || yearMaxFilter) {
+      const y = parseInt(m.year);
+      if (yearMinFilter && (!y || y < parseInt(yearMinFilter))) return false;
+      if (yearMaxFilter && (!y || y > parseInt(yearMaxFilter))) return false;
+    }
+    if (ratingMinFilter && (m.rating || 0) < parseInt(ratingMinFilter)) return false;
+    if (ratingMaxFilter && (m.rating || 0) > parseInt(ratingMaxFilter)) return false;
     const q = searchQuery.toLowerCase();
     if (q) {
       const hay = [m.title, m.genre, m.director, m.country].join(' ').toLowerCase();
