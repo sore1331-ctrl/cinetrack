@@ -175,6 +175,7 @@ async function loadUserData() {
   updateCountryDropdown();
   refreshCurrentView();
   checkEpisodeNotifications();
+  warmUpcomingCacheForBadge();
 }
 
 async function saveUserData() {
@@ -1262,10 +1263,34 @@ function todayDateString() {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
+// Updates the small "airing today" indicator on the Calendar nav tab.
+// Reads from the upcoming cache only (no network call) — refreshed
+// elsewhere whenever the cache is populated.
+function updateCalendarAiringBadge() {
+  const tab = document.querySelector('.type-tab[data-type="calendar"]');
+  if (!tab) return;
+  const todayStr = todayDateString();
+  const cache = readUpcomingCache();
+  let count = 0;
+  if (cache?.byId) {
+    const trackedIds = new Set(movies.filter(m =>
+      (m.mediaType === 'tv' || m.mediaType === 'anime') &&
+      m.status === 'in_progress' &&
+      m.tmdbId
+    ).map(m => String(m.tmdbId)));
+    for (const id of trackedIds) {
+      const item = cache.byId[id];
+      if (item?.nextEpisode?.airDate === todayStr) count += 1;
+    }
+  }
+  tab.classList.toggle('has-airing', count > 0);
+  if (count > 0) tab.dataset.airingCount = String(count);
+  else delete tab.dataset.airingCount;
+}
+
 async function checkEpisodeNotifications() {
   if (localStorage.getItem('cinetrack_notif') !== 'on') return;
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
-
   const tracked = movies.filter(m =>
     (m.mediaType === 'tv' || m.mediaType === 'anime') &&
     m.status === 'in_progress' &&
@@ -1306,6 +1331,19 @@ async function checkEpisodeNotifications() {
     const trimmed = arr.length > 200 ? arr.slice(-200) : arr;
     localStorage.setItem(NOTIF_DEDUPE_KEY, JSON.stringify(trimmed));
   }
+
+  updateCalendarAiringBadge();
+}
+
+// Warm the upcoming cache so the Calendar tab can show its airing-today
+// badge even if the user never opens the Calendar panel.
+async function warmUpcomingCacheForBadge() {
+  const ids = movies
+    .filter(m => (m.mediaType === 'tv' || m.mediaType === 'anime') && m.status === 'in_progress' && m.tmdbId)
+    .map(m => String(m.tmdbId));
+  if (!ids.length) { updateCalendarAiringBadge(); return; }
+  try { await fetchUpcoming(ids); } catch { /* offline-safe */ }
+  updateCalendarAiringBadge();
 }
 
 async function setEpisodeNotifPref(value) {
@@ -1413,16 +1451,18 @@ async function renderCalendar({ force = false } = {}) {
 
   // Group by date
   const groups = {};
+  const todayStr = todayDateString();
   for (const s of withDates) {
     const k = s.nextEpisode.airDate;
     (groups[k] ||= []).push(s);
   }
 
   const groupHTML = Object.keys(groups).sort().map(date => {
-    const rows = groups[date].map(s => calRow(s)).join('');
+    const isToday = date === todayStr;
+    const rows = groups[date].map(s => calRow(s, { airingToday: isToday })).join('');
     return `
-      <div class="cal-group">
-        <h3 class="cal-group-date">${esc(relativeDayLabel(date))}</h3>
+      <div class="cal-group${isToday ? ' cal-group-today' : ''}">
+        <h3 class="cal-group-date">${esc(relativeDayLabel(date))}${isToday ? ' <span class="cal-airing-pill">● Airing today</span>' : ''}</h3>
         ${rows}
       </div>
     `;
@@ -1437,6 +1477,9 @@ async function renderCalendar({ force = false } = {}) {
 
   panel.querySelector('.calendar-list').innerHTML = groupHTML + hiatusHTML;
 
+  // Refresh the nav-tab dot using the freshly-fetched cache
+  updateCalendarAiringBadge();
+
   function calRow(s, opts = {}) {
     const local      = s.local;
     const posterPath = local?.posterUrl || (s.poster_path ? POSTER_BASE + s.poster_path : '');
@@ -1450,12 +1493,13 @@ async function renderCalendar({ force = false } = {}) {
       ? `<img class="cal-poster" src="${posterPath}" alt="${esc(title)}" loading="lazy" />`
       : `<div class="cal-poster cal-poster-emoji">📺</div>`;
     return `
-      <a class="cal-row" href="${tmdbUrl}" target="_blank" rel="noopener noreferrer" title="View on TMDB">
+      <a class="cal-row${opts.airingToday ? ' cal-row-today' : ''}" href="${tmdbUrl}" target="_blank" rel="noopener noreferrer" title="View on TMDB">
         ${poster}
         <div class="cal-info">
           <div class="cal-title">${esc(title)}</div>
           <div class="cal-ep">${epLine}</div>
         </div>
+        ${opts.airingToday ? '<span class="cal-row-pill">● Today</span>' : ''}
       </a>
     `;
   }
@@ -3525,6 +3569,7 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
     updateCountryDropdown();
     render();
     checkEpisodeNotifications();
+    warmUpcomingCacheForBadge();
     return;
   }
 
