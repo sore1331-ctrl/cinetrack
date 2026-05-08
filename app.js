@@ -74,6 +74,8 @@ const SYNC_PREF_KEYS = [
   'cinetrack_grid',
   'cinetrack_pagesize',
   'cinetrack_sort',
+  'cinetrack_calendar_mode',
+  'cinetrack_discover_region',
 ];
 let prefSaveTimer = null;
 let prefMigrationWarned = false;
@@ -1334,6 +1336,22 @@ const UPCOMING_TTL_MS       = 6 * 60 * 60 * 1000;  // 6 hours
 const UPCOMING_HORIZON_DAYS = 14;   // for TV episodes
 const MOVIE_HORIZON_DAYS    = 60;   // for theatrical releases
 
+// Discover-mode cache: key by `${type}:${region}:${page}`. 24h TTL.
+const DISCOVER_CACHE_KEY = 'cinetrack_discover_cache_v1';
+const DISCOVER_TTL_MS    = 24 * 60 * 60 * 1000;
+
+// Common 2-letter regions matching what the where-to-watch endpoint uses.
+const DISCOVER_REGIONS = ['US','GB','CA','AU','DE','FR','JP','BR','MX','IN','NL','ES','IT','PL','SE','NO','DK','FI','IE','NZ'];
+
+function autoDetectRegion() {
+  const lang = (typeof navigator !== 'undefined' && navigator.language) || 'en-US';
+  const tail = lang.split('-')[1];
+  return /^[A-Z]{2}$/.test((tail || '').toUpperCase()) ? tail.toUpperCase() : 'US';
+}
+
+let calendarMode   = localStorage.getItem('cinetrack_calendar_mode') || 'tracked';
+let discoverRegion = localStorage.getItem('cinetrack_discover_region') || autoDetectRegion();
+
 function readUpcomingCache() {
   try { return JSON.parse(localStorage.getItem(UPCOMING_CACHE_KEY) || 'null'); }
   catch { return null; }
@@ -1507,6 +1525,33 @@ async function renderCalendar({ force = false } = {}) {
   const panel = document.getElementById('calendar-panel');
   if (!panel) return;
 
+  panel.innerHTML = `
+    <div class="calendar-header">
+      <h2>📅 Calendar</h2>
+      <div class="cal-mode-toggle pill-group">
+        <button type="button" class="pill-btn ${calendarMode === 'tracked' ? 'active' : ''}" data-mode="tracked">📅 Tracked</button>
+        <button type="button" class="pill-btn ${calendarMode === 'discover' ? 'active' : ''}" data-mode="discover">✨ Discover</button>
+      </div>
+    </div>
+    <div class="calendar-body"></div>
+  `;
+  panel.querySelectorAll('.cal-mode-toggle .pill-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const next = btn.dataset.mode;
+      if (next === calendarMode) return;
+      calendarMode = next;
+      localStorage.setItem('cinetrack_calendar_mode', calendarMode);
+      scheduleSavePrefs();
+      renderCalendar();
+    });
+  });
+
+  const body = panel.querySelector('.calendar-body');
+  if (calendarMode === 'discover') return renderCalendarDiscover(body, { force });
+  return renderCalendarTracked(body, { force });
+}
+
+async function renderCalendarTracked(body, { force = false } = {}) {
   // What we track: in-progress TV/anime (next episode) + watchlist movies
   // (theatrical release). Each entry is keyed as `${type}:${tmdbId}`.
   const tracked = movies.filter(m => m.tmdbId && (
@@ -1520,29 +1565,24 @@ async function renderCalendar({ force = false } = {}) {
   });
 
   if (!ids.length) {
-    panel.innerHTML = `
-      <div class="calendar-header">
-        <h2>📅 Upcoming</h2>
-      </div>
-      <p class="recs-empty">Mark a TV show or anime as <em>In Progress</em>, or add a movie to your <em>Watchlist</em>, to see what's coming up.</p>
-    `;
+    body.innerHTML = `<p class="recs-empty">Mark a TV show or anime as <em>In Progress</em>, or add a movie to your <em>Watchlist</em>, to see what's coming up.</p>`;
     return;
   }
 
-  panel.innerHTML = `
-    <div class="calendar-header">
-      <h2>📅 Upcoming <span class="cal-window">· episodes (${UPCOMING_HORIZON_DAYS}d) + film releases (${MOVIE_HORIZON_DAYS}d)</span></h2>
+  body.innerHTML = `
+    <div class="cal-subheader">
+      <span class="cal-window">episodes · next ${UPCOMING_HORIZON_DAYS}d &nbsp;·&nbsp; film releases · next ${MOVIE_HORIZON_DAYS}d</span>
       <button id="calendar-refresh-btn" class="cal-refresh-btn" title="Re-fetch from TMDB now (bypasses 6h cache)">↻ Refresh</button>
     </div>
     <div class="calendar-list"><div class="recs-loading"><span class="recs-spinner"></span> Loading…</div></div>
   `;
-  panel.querySelector('#calendar-refresh-btn').addEventListener('click', () => renderCalendar({ force: true }));
+  body.querySelector('#calendar-refresh-btn').addEventListener('click', () => renderCalendar({ force: true }));
 
   let upcoming;
   try {
     upcoming = await fetchUpcoming(ids, { force });
   } catch (e) {
-    panel.querySelector('.calendar-list').innerHTML =
+    body.querySelector('.calendar-list').innerHTML =
       `<p class="recs-empty">Couldn't load upcoming dates: ${esc(e.message)}</p>`;
     return;
   }
@@ -1609,7 +1649,7 @@ async function renderCalendar({ force = false } = {}) {
   }
 
   if (!dated.length && !undated.length) {
-    panel.querySelector('.calendar-list').innerHTML =
+    body.querySelector('.calendar-list').innerHTML =
       `<p class="recs-empty">Nothing on the horizon. Watchlist movies will show up to ${MOVIE_HORIZON_DAYS} days before release; in-progress shows up to ${UPCOMING_HORIZON_DAYS} days.</p>`;
     return;
   }
@@ -1637,7 +1677,7 @@ async function renderCalendar({ force = false } = {}) {
     </div>
   ` : '';
 
-  panel.querySelector('.calendar-list').innerHTML = groupHTML + hiatusHTML;
+  body.querySelector('.calendar-list').innerHTML = groupHTML + hiatusHTML;
 
   // Refresh the nav-tab dot using the freshly-fetched cache
   updateCalendarAiringBadge();
@@ -1661,6 +1701,165 @@ async function renderCalendar({ force = false } = {}) {
       </a>
     `;
   }
+}
+
+// ── Discover-mode helpers ───────────────────────────────
+function readDiscoverCache() {
+  try { return JSON.parse(localStorage.getItem(DISCOVER_CACHE_KEY) || '{}'); }
+  catch { return {}; }
+}
+function writeDiscoverCache(c) {
+  try { localStorage.setItem(DISCOVER_CACHE_KEY, JSON.stringify(c)); } catch {}
+}
+
+async function fetchDiscoverUpcoming({ type, region, page = 1, force = false }) {
+  const key = `${type}:${region}:${page}`;
+  const cache = readDiscoverCache();
+  const now = Date.now();
+  const entry = cache[key];
+  if (!force && entry && (now - entry.fetchedAt) < DISCOVER_TTL_MS) return entry.data;
+
+  const r = await fetch(`/api/discover-upcoming?type=${type}&region=${region}&page=${page}`);
+  if (!r.ok) throw new Error(`Discover fetch failed (${r.status})`);
+  const data = await r.json();
+  cache[key] = { fetchedAt: now, data };
+  writeDiscoverCache(cache);
+  return data;
+}
+
+async function renderCalendarDiscover(body, { force = false } = {}) {
+  body.innerHTML = `
+    <div class="cal-subheader">
+      <label class="cal-region-label">Region
+        <select id="cal-region-select" class="cal-region-select">
+          ${DISCOVER_REGIONS.map(r =>
+            `<option value="${r}"${r === discoverRegion ? ' selected' : ''}>${r}</option>`
+          ).join('')}
+        </select>
+      </label>
+      <span class="cal-window">Upcoming films · ${esc(discoverRegion)}</span>
+      <button id="cal-discover-refresh" class="cal-refresh-btn" title="Re-fetch from TMDB now (bypasses 24h cache)">↻ Refresh</button>
+    </div>
+    <div id="cal-discover-grid" class="discover-grid"><div class="recs-loading"><span class="recs-spinner"></span> Loading…</div></div>
+  `;
+
+  body.querySelector('#cal-region-select').addEventListener('change', e => {
+    discoverRegion = e.target.value;
+    localStorage.setItem('cinetrack_discover_region', discoverRegion);
+    scheduleSavePrefs();
+    renderCalendar();
+  });
+  body.querySelector('#cal-discover-refresh').addEventListener('click', () => renderCalendar({ force: true }));
+
+  let data;
+  try {
+    data = await fetchDiscoverUpcoming({ type: 'movie', region: discoverRegion, page: 1, force });
+  } catch (e) {
+    body.querySelector('#cal-discover-grid').innerHTML =
+      `<p class="recs-empty">Couldn't load upcoming films: ${esc(e.message)}</p>`;
+    return;
+  }
+
+  const items = (data.results || []).slice(0, 20);
+  if (!items.length) {
+    body.querySelector('#cal-discover-grid').innerHTML =
+      `<p class="recs-empty">No upcoming films found for ${esc(discoverRegion)}. Try a different region.</p>`;
+    return;
+  }
+
+  const tracked = new Set(movies.filter(m => m.tmdbId).map(m => String(m.tmdbId)));
+
+  const cards = items.map(item => {
+    const idStr   = String(item.tmdbId);
+    const isAdded = tracked.has(idStr);
+    const poster  = item.poster_path
+      ? `<img class="discover-poster" src="${POSTER_BASE}${item.poster_path}" alt="${esc(item.title)}" loading="lazy" />`
+      : `<div class="discover-poster discover-poster-emoji">🎬</div>`;
+    const dateLabel = relativeDayLabel(item.releaseDate);
+    return `
+      <div class="discover-card" data-discover-id="${idStr}">
+        <a class="discover-poster-wrap" href="https://www.themoviedb.org/movie/${idStr}" target="_blank" rel="noopener noreferrer" title="View on TMDB">
+          ${poster}
+        </a>
+        <div class="discover-meta">
+          <div class="discover-title" title="${esc(item.title)}">${esc(item.title)}</div>
+          <div class="discover-date">${esc(dateLabel)}</div>
+          <button type="button"
+            class="discover-add-btn ${isAdded ? 'added' : ''}"
+            data-add-id="${idStr}"
+            data-add-title="${esc(item.title)}"
+            data-add-year="${esc(item.year || '')}"
+            data-add-poster="${esc(item.poster_path || '')}"
+            ${isAdded ? 'disabled' : ''}>${isAdded ? '✓ Added' : '+ Watchlist'}</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const grid = body.querySelector('#cal-discover-grid');
+  grid.innerHTML = cards;
+
+  grid.addEventListener('click', e => {
+    const btn = e.target.closest('.discover-add-btn[data-add-id]');
+    if (!btn || btn.disabled) return;
+    addUpcomingMovieFromDiscover({
+      tmdbId: btn.dataset.addId,
+      title:  btn.dataset.addTitle,
+      year:   btn.dataset.addYear,
+      posterPath: btn.dataset.addPoster,
+    }, btn);
+  });
+}
+
+function addUpcomingMovieFromDiscover({ tmdbId, title, year, posterPath }, btn) {
+  const idStr = String(tmdbId);
+  if (movies.some(m => String(m.tmdbId) === idStr)) {
+    btn.textContent = '✓ Added';
+    btn.classList.add('added');
+    btn.disabled = true;
+    return;
+  }
+  const newId = genId();
+  movies.unshift({
+    id:        newId,
+    addedAt:   Date.now(),
+    title:     title || '',
+    year:      year || '',
+    status:    'watchlist',
+    rating:    0,
+    mediaType: 'movie',
+    tmdbId:    Number(tmdbId),
+    posterUrl: posterPath ? POSTER_BASE + posterPath : '',
+    genre: '', director: '', country: '', notes: '', runtime: 0,
+  });
+  save();
+  updateCountryDropdown();
+  btn.textContent = '✓ Added';
+  btn.classList.add('added');
+  btn.disabled = true;
+
+  // Background-enrich with full TMDB metadata (matches the rec-add flow).
+  (async () => {
+    try {
+      const details = await fetchTMDBDetails(tmdbId, 'movie');
+      const m = movies.find(m => m.id === newId);
+      if (!m) return;
+      if (details.title)    m.title    = details.title;
+      if (details.year)     m.year     = details.year;
+      if (details.genre)    m.genre    = details.genre;
+      if (details.director) m.director = details.director;
+      if (details.country)  m.country  = details.country;
+      if (details.runtime)  m.runtime  = details.runtime;
+      if (details.overview && !m.notes) m.notes = details.overview;
+      if (details.poster_path && !m.posterUrl) m.posterUrl = POSTER_BASE + details.poster_path;
+      save();
+      updateCountryDropdown();
+      if (activeView === 'content') render();
+      // The newly-added watchlist movie may itself be due to release within
+      // the tracked horizon — refresh the badge.
+      warmUpcomingCacheForBadge();
+    } catch {}
+  })();
 }
 
 const DISMISSED_RECS_KEY = 'cinetrack_dismissed_recs';
