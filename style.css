@@ -2210,6 +2210,25 @@ a.top-rated-card:hover {
   z-index: 1;
 }
 
+/* Appearance — collapsible header */
+.appearance-section h3.appearance-toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  cursor: pointer; user-select: none; gap: 8px;
+  margin-bottom: 0;
+}
+.appearance-section h3.appearance-toggle:hover { color: var(--accent); }
+.appearance-chevron {
+  font-size: .8rem; color: var(--muted);
+  transition: transform .2s ease;
+  display: inline-block;
+}
+.appearance-section.open .appearance-chevron { transform: rotate(90deg); }
+.appearance-body {
+  display: none;
+  margin-top: 14px;
+}
+.appearance-section.open .appearance-body { display: block; }
+
 /* Appearance — sub-rows */
 .appearance-row { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
 .appearance-row:last-child { margin-bottom: 0; }
