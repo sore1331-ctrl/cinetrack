@@ -95,6 +95,19 @@ body {
   --orb-c: #b8d8d0;
   --orb-opacity: .7;
 }
+
+/* Background presets — switched via <html data-bg="…">.
+   Default (no attr or data-bg="default") keeps the existing palette. */
+:root[data-bg="aurora"] { --orb-a: #2d6a4f; --orb-b: #7b2cbf; --orb-c: #00b4d8; }
+:root.light[data-bg="aurora"] { --orb-a: #b8e6cf; --orb-b: #d8c0e8; --orb-c: #b8e2ec; }
+:root[data-bg="sunset"] { --orb-a: #d62828; --orb-b: #f77f00; --orb-c: #fcbf49; }
+:root.light[data-bg="sunset"] { --orb-a: #f7c8b8; --orb-b: #fbd8b8; --orb-c: #f7e0b8; }
+:root[data-bg="ocean"]  { --orb-a: #023e8a; --orb-b: #0077b6; --orb-c: #00b4d8; }
+:root.light[data-bg="ocean"] { --orb-a: #b8c8e0; --orb-b: #b8d4ec; --orb-c: #b8e2ec; }
+:root[data-bg="midnight"] { --orb-a: #240046; --orb-b: #5a189a; --orb-c: #3a0ca3; --orb-opacity: .65; }
+:root.light[data-bg="midnight"] { --orb-a: #c8b8e0; --orb-b: #d0b8e6; --orb-c: #c0b8e2; }
+:root[data-bg="mono"]   { --orb-opacity: 0; }
+:root.light[data-bg="mono"] { --orb-opacity: 0; }
 body::before, body::after {
   content: '';
   position: fixed;
@@ -2096,6 +2109,37 @@ a.top-rated-card:hover {
 .community-empty-state { text-align: center; padding: 40px 20px; color: var(--muted); }
 .community-empty-icon { font-size: 2.5rem; margin-bottom: 12px; }
 .community-empty-hint { font-size: .82rem; margin-top: 6px; }
+
+/* Background preset picker */
+.bg-picker {
+  display: flex; gap: 10px; flex-wrap: wrap;
+}
+.bg-swatch {
+  position: relative; width: 78px; height: 56px; border-radius: 10px;
+  border: 2px solid var(--border); cursor: pointer; overflow: hidden;
+  background: var(--surface2); padding: 0;
+  transition: border-color .15s, transform .15s;
+}
+.bg-swatch:hover { transform: translateY(-2px); }
+.bg-swatch.active { border-color: var(--accent); }
+.bg-swatch::before, .bg-swatch::after {
+  content: ''; position: absolute; width: 60px; height: 60px;
+  border-radius: 50%; filter: blur(14px); opacity: .85;
+}
+.bg-swatch::before { top: -18px; left: -14px; background: var(--sw-a); }
+.bg-swatch::after  { bottom: -18px; right: -14px; background: var(--sw-b); }
+.bg-swatch[data-bg="default"]  { --sw-a: #3a4f8c; --sw-b: #8c2f4c; }
+.bg-swatch[data-bg="aurora"]   { --sw-a: #2d6a4f; --sw-b: #7b2cbf; }
+.bg-swatch[data-bg="sunset"]   { --sw-a: #d62828; --sw-b: #f77f00; }
+.bg-swatch[data-bg="ocean"]    { --sw-a: #023e8a; --sw-b: #00b4d8; }
+.bg-swatch[data-bg="midnight"] { --sw-a: #240046; --sw-b: #5a189a; }
+.bg-swatch[data-bg="mono"]     { --sw-a: transparent; --sw-b: transparent; }
+.bg-swatch-label {
+  position: absolute; bottom: 4px; left: 0; right: 0;
+  text-align: center; font-size: .68rem; font-weight: 600;
+  color: var(--text); text-shadow: 0 1px 2px rgba(0,0,0,.5);
+  z-index: 1;
+}
 
 /* Community search/sort + clickable cards */
 .community-controls {
