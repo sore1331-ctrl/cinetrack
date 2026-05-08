@@ -3137,7 +3137,7 @@ function render() {
           <span class="lbl-md lbl-lg">Edit</span><span class="lbl-sm">✎</span>
         </button>
         ${epIncBtn}
-        ${m.status !== 'watched' ? `
+        ${(m.status !== 'watched' && !epIncBtn) ? `
         <button class="btn-sm" data-toggle="${m.id}">
           <span class="lbl-lg">${m.status === 'in_progress' ? '✓ Watched' : '▶ In Progress'}</span>
           <span class="lbl-md">${m.status === 'in_progress' ? 'Watched' : 'In Prog'}</span>
