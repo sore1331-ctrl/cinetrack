@@ -602,9 +602,13 @@ const randomPickBody  = document.getElementById('random-pick-body');
 
 function showRandomPick() {
   if (!randomPickModal || !randomPickBody) return;
-  const pool = filtered();
+  // The picker is intended to answer "what should I watch next?" — only
+  // surface titles you haven't started yet. We respect the rest of the
+  // active filters (type tab, search, genre, country, year, rating) but
+  // always restrict to status === 'watchlist'.
+  const pool = filtered().filter(m => m.status === 'watchlist');
   if (!pool.length) {
-    randomPickBody.innerHTML = '<p class="random-pick-empty">No titles match the current filters.</p>';
+    randomPickBody.innerHTML = '<p class="random-pick-empty">Nothing on your watchlist matches the current filters.</p>';
     randomPickModal.classList.remove('hidden');
     return;
   }
