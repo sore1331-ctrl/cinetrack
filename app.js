@@ -2068,9 +2068,12 @@ function renderProfile() {
 
     ${movies.length === 0 ? '<p class="profile-empty">Add some titles to see your profile stats.</p>' : ''}
 
-    <div class="profile-section">
-      <h3>Appearance</h3>
-
+    <div class="profile-section appearance-section${localStorage.getItem('cinetrack_appearance_open') === '1' ? ' open' : ''}">
+      <h3 class="appearance-toggle" role="button" tabindex="0" aria-expanded="${localStorage.getItem('cinetrack_appearance_open') === '1' ? 'true' : 'false'}">
+        <span>Appearance</span>
+        <span class="appearance-chevron" aria-hidden="true">▶</span>
+      </h3>
+      <div class="appearance-body">
       <div class="appearance-row">
         <div class="appearance-label">Background</div>
         <div class="bg-picker" id="bg-picker">
@@ -2144,6 +2147,7 @@ function renderProfile() {
           }).join('')}
         </div>
       </div>
+      </div>
     </div>
 
     <div class="profile-section profile-csv-section">
@@ -2171,6 +2175,21 @@ function renderProfile() {
   panel.querySelector('#profile-export-btn')?.addEventListener('click', exportCSV);
   const tplLink = panel.querySelector('#profile-csv-template');
   if (tplLink) tplLink.href = TEMPLATE_URL;
+
+  // Wire Appearance collapse/expand
+  const appearanceSection = panel.querySelector('.appearance-section');
+  const appearanceToggle  = panel.querySelector('.appearance-toggle');
+  if (appearanceSection && appearanceToggle) {
+    const toggleAppearance = () => {
+      const isOpen = appearanceSection.classList.toggle('open');
+      appearanceToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      localStorage.setItem('cinetrack_appearance_open', isOpen ? '1' : '0');
+    };
+    appearanceToggle.addEventListener('click', toggleAppearance);
+    appearanceToggle.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleAppearance(); }
+    });
+  }
 
   // Wire background preset picker
   panel.querySelectorAll('.bg-swatch[data-bg]').forEach(btn => {
