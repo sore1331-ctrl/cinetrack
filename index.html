@@ -316,6 +316,7 @@
           </div>
           <div id="tmdb-searching" class="tmdb-status hidden">Searching…</div>
           <div id="tmdb-error" class="tmdb-status error hidden"></div>
+          <div id="modal-providers" class="modal-providers hidden"></div>
         </div>
         <div id="manual-fields">
           <label>Title *
@@ -386,6 +387,11 @@
         <label id="rating-label" class="hidden">Rating (1–10)
           <div class="star-row" id="star-row"></div>
         </label>
+        <div id="rewatch-row" class="rewatch-row hidden">
+          <span class="rewatch-label">Watched <strong id="rewatch-count">1</strong> time<span id="rewatch-plural">s</span></span>
+          <button type="button" id="rewatch-inc-btn" class="rewatch-btn" title="Log another rewatch">🔁 +1</button>
+          <button type="button" id="rewatch-dec-btn" class="rewatch-btn rewatch-btn-sub" title="Decrease by 1" tabindex="-1">−</button>
+        </div>
         <div id="ep-fields" class="ep-fields hidden">
           <label id="season-select-label" class="hidden">Season
             <select id="f-season-select"></select>
