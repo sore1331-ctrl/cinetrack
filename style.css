@@ -1319,8 +1319,8 @@ button.danger:hover { opacity: .85; }
 .more-filters-clear {
   background: transparent; border: 1px solid var(--border);
   color: var(--muted); cursor: pointer;
-  border-radius: 8px; padding: 6px 10px; font-size: .85rem;
-  margin-left: auto;
+  border-radius: 8px; padding: 6px 12px; font-size: .82rem;
+  margin-left: auto; white-space: nowrap;
 }
 .more-filters-clear:hover { color: var(--text); border-color: var(--accent); }
 
