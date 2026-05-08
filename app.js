@@ -13,6 +13,7 @@ themeToggle.addEventListener('click', () => {
   const next = document.documentElement.classList.contains('light') ? 'dark' : 'light';
   localStorage.setItem('cinetrack_theme', next);
   applyTheme(next);
+  if (typeof scheduleSavePrefs === 'function') scheduleSavePrefs();
 });
 
 // ── Background preset ───────────────────────────────────
@@ -53,6 +54,102 @@ applyDensity(localStorage.getItem('cinetrack_density') || 'comfortable');
 applyMotion(localStorage.getItem('cinetrack_motion') || 'full');
 applyPosters(localStorage.getItem('cinetrack_posters') || 'shown');
 applyEpisodeNotif(localStorage.getItem('cinetrack_notif') || 'off');
+
+// ── Cross-device preference sync ────────────────────────
+// Keys that should follow the user across devices. Saved to
+// profiles.preferences (jsonb) on change; read on sign-in and
+// applied to localStorage + the live UI.
+const SYNC_PREF_KEYS = [
+  'cinetrack_theme',
+  'cinetrack_bg',
+  'cinetrack_glass',
+  'cinetrack_accent',
+  'cinetrack_orbs',
+  'cinetrack_density',
+  'cinetrack_motion',
+  'cinetrack_posters',
+  'cinetrack_notif',
+  'cinetrack_appearance_open',
+  'cinetrack_provider_region',
+  'cinetrack_grid',
+  'cinetrack_pagesize',
+  'cinetrack_sort',
+];
+let prefSaveTimer = null;
+let prefMigrationWarned = false;
+
+function scheduleSavePrefs() {
+  clearTimeout(prefSaveTimer);
+  prefSaveTimer = setTimeout(savePreferences, 800);
+}
+
+async function savePreferences() {
+  if (!sb || !currentUser || offlineMode) return;
+  const prefs = {};
+  for (const k of SYNC_PREF_KEYS) {
+    const v = localStorage.getItem(k);
+    if (v != null) prefs[k] = v;
+  }
+  try {
+    const { error } = await sb.from('profiles').upsert({
+      user_id: currentUser.id,
+      preferences: prefs,
+    });
+    if (error) throw error;
+  } catch (e) {
+    const msg = (e?.message || '').toLowerCase();
+    const looksLikeMissingColumn = msg.includes('preferences') ||
+      msg.includes('column') || e?.code === 'PGRST204' || e?.code === '42703';
+    if (looksLikeMissingColumn && !prefMigrationWarned) {
+      prefMigrationWarned = true;
+      console.warn(
+        "[cinetrack] To sync appearance settings across devices, run this in your Supabase SQL editor:\n" +
+        "ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS preferences jsonb DEFAULT '{}'::jsonb;"
+      );
+      try { showToast("Cross-device sync needs a one-line SQL update — see console.", true); } catch {}
+    }
+  }
+}
+
+async function loadPreferences() {
+  if (!sb || !currentUser || offlineMode) return;
+  try {
+    const { data, error } = await sb.from('profiles')
+      .select('preferences')
+      .eq('user_id', currentUser.id)
+      .maybeSingle();
+    if (error) {
+      const msg = (error?.message || '').toLowerCase();
+      if (msg.includes('preferences') || msg.includes('column') || error?.code === '42703') {
+        // Column missing — first-time setup. Silent here; will warn on save.
+        return;
+      }
+      throw error;
+    }
+    const prefs = data?.preferences;
+    if (!prefs || typeof prefs !== 'object') return;
+
+    for (const k of SYNC_PREF_KEYS) {
+      if (prefs[k] != null) localStorage.setItem(k, String(prefs[k]));
+    }
+    applyAllAppearance();
+    refreshCurrentView();
+  } catch (e) {
+    console.warn('[cinetrack] Could not load preferences:', e?.message || e);
+  }
+}
+
+function applyAllAppearance() {
+  applyTheme(localStorage.getItem('cinetrack_theme') || 'dark');
+  applyBgPreset(localStorage.getItem('cinetrack_bg')   || 'default');
+  applyGlass(localStorage.getItem('cinetrack_glass')   || 'vivid');
+  applyAccent(localStorage.getItem('cinetrack_accent') || 'default');
+  applyOrbs(localStorage.getItem('cinetrack_orbs')     || 'static');
+  applyDensity(localStorage.getItem('cinetrack_density') || 'comfortable');
+  applyMotion(localStorage.getItem('cinetrack_motion') || 'full');
+  applyPosters(localStorage.getItem('cinetrack_posters') || 'shown');
+  applyEpisodeNotif(localStorage.getItem('cinetrack_notif') || 'off');
+}
 
 // ── State ──────────────────────────────────────────────
 const STORAGE_KEY = 'cinetrack_movies';
@@ -369,6 +466,7 @@ function applyGridSize(size) {
     b.classList.toggle('active', b.dataset.size === size)
   );
   localStorage.setItem('cinetrack_grid', size);
+  if (typeof scheduleSavePrefs === 'function') scheduleSavePrefs();
 }
 
 document.querySelectorAll('.size-btn').forEach(btn => {
@@ -546,6 +644,7 @@ pageSizeSelect.addEventListener('change', () => {
   localStorage.setItem('cinetrack_pagesize', pageSize);
   currentPage = 0;
   render();
+  scheduleSavePrefs();
 });
 
 // ── TMDB API ────────────────────────────────────────────
@@ -746,6 +845,7 @@ function renderProviders(providers) {
 
   el.querySelector('#provider-region-select')?.addEventListener('change', e => {
     localStorage.setItem('cinetrack_provider_region', e.target.value);
+    scheduleSavePrefs();
     renderProviders(providers);
   });
 }
@@ -1366,6 +1466,7 @@ async function setEpisodeNotifPref(value) {
   }
   localStorage.setItem('cinetrack_notif', value);
   applyEpisodeNotif(value);
+  scheduleSavePrefs();
   if (value === 'on') checkEpisodeNotifications();
   return true;
 }
@@ -2031,8 +2132,10 @@ async function renderCommunity() {
   const SETUP_SQL = `CREATE TABLE IF NOT EXISTS public.profiles (
   user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   username text, sharing_enabled boolean DEFAULT false,
+  preferences jsonb DEFAULT '{}'::jsonb,
   updated_at timestamptz DEFAULT now()
 );
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS preferences jsonb DEFAULT '{}'::jsonb;
 CREATE TABLE IF NOT EXISTS public.user_data (
   user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   movies jsonb DEFAULT '[]'::jsonb,
@@ -2467,6 +2570,7 @@ function renderProfile() {
       const isOpen = appearanceSection.classList.toggle('open');
       appearanceToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
       localStorage.setItem('cinetrack_appearance_open', isOpen ? '1' : '0');
+      scheduleSavePrefs();
     };
     appearanceToggle.addEventListener('click', toggleAppearance);
     appearanceToggle.addEventListener('keydown', e => {
@@ -2480,6 +2584,7 @@ function renderProfile() {
       const name = btn.dataset.bg;
       localStorage.setItem('cinetrack_bg', name);
       applyBgPreset(name);
+      scheduleSavePrefs();
       panel.querySelectorAll('.bg-swatch').forEach(b => b.classList.toggle('active', b === btn));
     });
   });
@@ -2490,6 +2595,7 @@ function renderProfile() {
       const name = btn.dataset.accent;
       localStorage.setItem('cinetrack_accent', name);
       applyAccent(name);
+      scheduleSavePrefs();
       panel.querySelectorAll('.accent-swatch').forEach(b => b.classList.toggle('active', b === btn));
     });
   });
@@ -2516,6 +2622,7 @@ function renderProfile() {
         } else {
           localStorage.setItem(cfg.key, val);
           cfg.fn(val);
+          scheduleSavePrefs();
         }
         group.querySelectorAll('.pill-btn').forEach(b => b.classList.toggle('active', b === btn));
       });
@@ -3030,6 +3137,7 @@ genreFilterEl.addEventListener('change', () => { genreFilter = genreFilterEl.val
 document.getElementById('sort-order').addEventListener('change', e => {
   sortOrder = e.target.value;
   localStorage.setItem('cinetrack_sort', sortOrder);
+  scheduleSavePrefs();
   currentPage = 0;
   render();
 });
@@ -3582,6 +3690,7 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
     updateUserMenu();
     hideAuthOverlay();
     await loadProfile();
+    await loadPreferences();
     await loadUserData();
   }
 
