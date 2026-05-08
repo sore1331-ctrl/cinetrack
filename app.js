@@ -3137,11 +3137,12 @@ function render() {
           <span class="lbl-md lbl-lg">Edit</span><span class="lbl-sm">✎</span>
         </button>
         ${epIncBtn}
+        ${m.status !== 'watched' ? `
         <button class="btn-sm" data-toggle="${m.id}">
-          <span class="lbl-lg">${m.status === 'watched' ? '⏳ Watchlist' : m.status === 'in_progress' ? '✓ Watched' : m.status === 'dropped' ? '▶ In Progress' : '▶ In Progress'}</span>
-          <span class="lbl-md">${m.status === 'watched' ? 'List' : m.status === 'in_progress' ? 'Watched' : 'In Prog'}</span>
-          <span class="lbl-sm">${m.status === 'watched' ? '⏳' : m.status === 'in_progress' ? '✓' : '▶'}</span>
-        </button>
+          <span class="lbl-lg">${m.status === 'in_progress' ? '✓ Watched' : '▶ In Progress'}</span>
+          <span class="lbl-md">${m.status === 'in_progress' ? 'Watched' : 'In Prog'}</span>
+          <span class="lbl-sm">${m.status === 'in_progress' ? '✓' : '▶'}</span>
+        </button>` : ''}
         <button class="btn-sm danger" data-delete="${m.id}">✕</button>
       </div>
     `;
