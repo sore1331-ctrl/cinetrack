@@ -615,8 +615,11 @@ function hoverStars(val) {
 
 // ── Country dropdown ────────────────────────────────────
 function updateCountryDropdown() {
+  const sourceFilter = activeType === 'dropped'
+    ? (m => m.status === 'dropped')
+    : (m => m.mediaType === activeType && m.status !== 'dropped');
   const countries = [...new Set(
-    movies.filter(m => m.mediaType === activeType).map(m => m.country).filter(Boolean)
+    movies.filter(sourceFilter).map(m => m.country).filter(Boolean)
   )].sort();
 
   const current = countryFilterEl.value;
@@ -630,9 +633,12 @@ function updateCountryDropdown() {
 const genreFilterEl = document.getElementById('genre-filter');
 
 function updateGenreDropdown() {
+  const sourceFilter = activeType === 'dropped'
+    ? (m => m.status === 'dropped')
+    : (m => m.mediaType === activeType && m.status !== 'dropped');
   const genres = [...new Set(
     movies
-      .filter(m => m.mediaType === activeType)
+      .filter(sourceFilter)
       .flatMap(m => (m.genre || '').split(',').map(g => g.trim()).filter(Boolean))
   )].sort();
 
@@ -644,8 +650,13 @@ function updateGenreDropdown() {
 // ── Filtering ───────────────────────────────────────────
 function filtered() {
   const list = movies.filter(m => {
-    if (m.mediaType !== activeType) return false;
-    if (activeStatus !== 'all' && m.status !== activeStatus) return false;
+    if (activeType === 'dropped') {
+      if (m.status !== 'dropped') return false;
+    } else {
+      if (m.mediaType !== activeType) return false;
+      if (m.status === 'dropped') return false;
+      if (activeStatus !== 'all' && m.status !== activeStatus) return false;
+    }
     if (countryFilter && m.country !== countryFilter) return false;
     if (genreFilter) {
       const genres = (m.genre || '').split(',').map(g => g.trim());
@@ -1735,7 +1746,9 @@ function renderProfile() {
 
 // ── Export CSV ──────────────────────────────────────────
 function exportCSV() {
-  const list = movies.filter(m => m.mediaType === activeType);
+  const list = activeType === 'dropped'
+    ? movies.filter(m => m.status === 'dropped')
+    : movies.filter(m => m.mediaType === activeType && m.status !== 'dropped');
   if (!list.length) { showToast('No titles to export for this tab.', true); return; }
 
   const headers = ['title','year','genre','director','country','status','rating','runtime','notes','type'];
@@ -1879,7 +1892,7 @@ function render() {
         </label>
       </div>
       <span class="badge badge-${m.status} card-status-badge">
-        ${m.status === 'watched' ? '✓ Watched' : m.status === 'in_progress' ? '▶ In Progress' : '⏳ Watchlist'}
+        ${m.status === 'watched' ? '✓ Watched' : m.status === 'in_progress' ? '▶ In Progress' : m.status === 'dropped' ? '📛 Dropped' : '⏳ Watchlist'}
       </span>
       ${m.tmdbId
         ? `<a class="card-title card-title-link" href="https://www.themoviedb.org/${m.mediaType === 'movie' ? 'movie' : 'tv'}/${m.tmdbId}" target="_blank" rel="noopener noreferrer">${esc(m.title)}</a>`
@@ -1900,7 +1913,7 @@ function render() {
         </button>
         ${epIncBtn}
         <button class="btn-sm" data-toggle="${m.id}">
-          <span class="lbl-lg">${m.status === 'watched' ? '⏳ Watchlist' : m.status === 'in_progress' ? '✓ Watched' : '▶ In Progress'}</span>
+          <span class="lbl-lg">${m.status === 'watched' ? '⏳ Watchlist' : m.status === 'in_progress' ? '✓ Watched' : m.status === 'dropped' ? '▶ In Progress' : '▶ In Progress'}</span>
           <span class="lbl-md">${m.status === 'watched' ? 'List' : m.status === 'in_progress' ? 'Watched' : 'In Prog'}</span>
           <span class="lbl-sm">${m.status === 'watched' ? '⏳' : m.status === 'in_progress' ? '✓' : '▶'}</span>
         </button>
@@ -2030,7 +2043,10 @@ function openModal(movie = null) {
   editingId = movie ? movie.id : null;
   modalTitle.textContent = movie ? 'Edit Title' : 'Add Title';
 
-  activeMediaType = movie?.mediaType || activeType;
+  const droppedOpt = document.getElementById('f-status-dropped-opt');
+  if (droppedOpt) droppedOpt.hidden = !editingId;
+
+  activeMediaType = movie?.mediaType || (activeType === 'dropped' ? 'movie' : activeType);
   document.querySelectorAll('.type-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.type === activeMediaType)
   );
@@ -2098,7 +2114,7 @@ modalTmdbRefreshBtn.addEventListener('click', async () => {
 
 function toggleRatingLabel() {
   const s = document.getElementById('f-status').value;
-  ratingLabel.classList.toggle('hidden', s !== 'watched' && s !== 'in_progress');
+  ratingLabel.classList.toggle('hidden', s !== 'watched' && s !== 'in_progress' && s !== 'dropped');
 }
 
 // ── Form submit ─────────────────────────────────────────
@@ -2223,7 +2239,10 @@ grid.addEventListener('click', e => {
   } else if (toggleId) {
     const m = movies.find(m => m.id === toggleId);
     if (m) {
-      m.status = m.status === 'watched' ? 'watchlist' : m.status === 'in_progress' ? 'watched' : 'in_progress';
+      m.status = m.status === 'watched' ? 'watchlist'
+               : m.status === 'in_progress' ? 'watched'
+               : m.status === 'dropped' ? 'in_progress'
+               : 'in_progress';
       if (m.status === 'watchlist') {
         m.rating = 0;
         m.watchedEpisodes = 0;
@@ -2339,6 +2358,7 @@ function normaliseRow(row) {
   const rawStatus = (row.status || '').toLowerCase().trim();
   let status      = rawStatus === 'watched' ? 'watched'
                   : (rawStatus === 'in_progress' || rawStatus === 'in progress' || rawStatus === 'inprogress') ? 'in_progress'
+                  : rawStatus === 'dropped' ? 'dropped'
                   : 'watchlist';
   const year      = (row.year || '').toString().slice(0, 4);
   const runtime   = parseInt(row.runtime) || 0;
