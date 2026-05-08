@@ -323,6 +323,7 @@ header h1 {
   border: none;
   border-bottom: 3px solid transparent;
   color: var(--muted);
+  position: relative;
   padding: 14px 28px;
   cursor: pointer;
   font-size: .95rem;
@@ -337,6 +338,46 @@ header h1 {
 .type-tab[data-type="tv"].active        { color: #3b9eff; border-bottom-color: #3b9eff; }
 .type-tab[data-type="anime"].active     { color: #a855f7; border-bottom-color: #a855f7; }
 .type-tab[data-type="calendar"].active  { color: #4caf82; border-bottom-color: #4caf82; }
+
+/* Airing-today indicator on the Calendar nav tab */
+.type-tab.has-airing::after {
+  content: ''; position: absolute; top: 6px; right: 4px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #e2405a; box-shadow: 0 0 0 2px var(--bg);
+  animation: airing-pulse 1.6s ease-in-out infinite;
+}
+@keyframes airing-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px var(--bg), 0 0 0 0 rgba(226,64,90,.5); }
+  50%      { box-shadow: 0 0 0 2px var(--bg), 0 0 0 6px rgba(226,64,90,0); }
+}
+:root[data-motion="reduced"] .type-tab.has-airing::after { animation: none; }
+
+/* Today highlights inside the calendar list */
+.cal-group-today {
+  background: rgba(76,175,130,.06);
+  border: 1px solid rgba(76,175,130,.25);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+.cal-airing-pill {
+  display: inline-block; margin-left: 8px;
+  font-size: .68rem; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 999px;
+  background: rgba(76,175,130,.18); color: #4caf82;
+  vertical-align: middle;
+}
+.cal-row-today {
+  border: 1px solid rgba(76,175,130,.35) !important;
+  box-shadow: 0 0 0 1px rgba(76,175,130,.18) inset;
+}
+.cal-row-pill {
+  margin-left: auto; align-self: center;
+  font-size: .68rem; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
+  padding: 3px 10px; border-radius: 999px;
+  background: rgba(76,175,130,.18); color: #4caf82;
+  flex-shrink: 0;
+}
 
 /* ── Main ── */
 main { max-width: 1200px; margin: 0 auto; padding: 20px 20px 0; }
