@@ -233,14 +233,19 @@ async function loadProfile() {
 }
 
 async function saveProfile(updates) {
-  if (!sb || !currentUser) return;
+  if (!sb || !currentUser) return { ok: false, error: 'Not signed in' };
   try {
-    await sb.from('profiles').upsert({
+    const { error } = await sb.from('profiles').upsert({
       user_id: currentUser.id,
       ...updates,
       updated_at: new Date().toISOString(),
     });
-  } catch {}
+    if (error) throw error;
+    return { ok: true };
+  } catch (e) {
+    console.error('[cinetrack] saveProfile failed:', e);
+    return { ok: false, error: e?.message || String(e) };
+  }
 }
 
 // ── User data load / save ───────────────────────────────
@@ -3520,10 +3525,29 @@ document.getElementById('username-save-btn').addEventListener('click', async e =
   e.stopPropagation();
   const val = document.getElementById('username-input').value.trim();
   if (!val) return;
+  const previous = currentUsername;
   currentUsername = val;
   updateUserMenu();
   closeUsernameForm();
-  await saveProfile({ username: val });
+  const result = await saveProfile({ username: val });
+  if (!result.ok) {
+    currentUsername = previous;
+    updateUserMenu();
+    showToast('Could not save username: ' + (result.error || 'unknown error'), true);
+    return;
+  }
+  // Confirm round-trip: re-read what the DB now has.
+  try {
+    const { data } = await sb.from('profiles')
+      .select('username').eq('user_id', currentUser.id).maybeSingle();
+    if (data?.username !== val) {
+      showToast('Username save did not persist (DB returned a different value). Check RLS policies.', true);
+      currentUsername = data?.username || previous;
+      updateUserMenu();
+    } else {
+      showToast('Username saved');
+    }
+  } catch { /* network blip on confirm — keep the optimistic state */ }
 });
 
 document.getElementById('username-input').addEventListener('keydown', async e => {
@@ -3537,7 +3561,13 @@ document.getElementById('username-input').addEventListener('keydown', async e =>
 document.getElementById('sharing-toggle').addEventListener('change', async e => {
   sharingEnabled = e.target.checked;
   localStorage.setItem('cinetrack_sharing', sharingEnabled);
-  await saveProfile({ sharing_enabled: sharingEnabled });
+  const result = await saveProfile({ sharing_enabled: sharingEnabled });
+  if (!result.ok) {
+    sharingEnabled = !sharingEnabled;
+    e.target.checked = sharingEnabled;
+    localStorage.setItem('cinetrack_sharing', sharingEnabled);
+    showToast('Could not update sharing: ' + (result.error || 'unknown error'), true);
+  }
 });
 
 // ── Reload from cloud ───────────────────────────────────
