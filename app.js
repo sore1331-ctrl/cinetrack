@@ -31,6 +31,7 @@ const ORBS_OPTIONS    = ['static', 'animated'];
 const DENSITY_OPTIONS = ['comfortable', 'compact'];
 const MOTION_OPTIONS  = ['full', 'reduced'];
 const POSTERS_OPTIONS = ['shown', 'hidden'];
+const NOTIF_OPTIONS   = ['off', 'on'];
 
 function applyAttrPreset(attr, value, defaultValue, allowed) {
   const safe = allowed.includes(value) ? value : defaultValue;
@@ -43,6 +44,7 @@ function applyOrbs(v)    { applyAttrPreset('data-orbs',    v, 'static',      ORB
 function applyDensity(v) { applyAttrPreset('data-density', v, 'comfortable', DENSITY_OPTIONS); }
 function applyMotion(v)  { applyAttrPreset('data-motion',  v, 'full',        MOTION_OPTIONS); }
 function applyPosters(v) { applyAttrPreset('data-posters', v, 'shown',       POSTERS_OPTIONS); }
+function applyEpisodeNotif(v) { applyAttrPreset('data-notif', v, 'off', NOTIF_OPTIONS); }
 
 applyGlass(localStorage.getItem('cinetrack_glass')   || 'vivid');
 applyAccent(localStorage.getItem('cinetrack_accent') || 'default');
@@ -50,6 +52,7 @@ applyOrbs(localStorage.getItem('cinetrack_orbs')     || 'static');
 applyDensity(localStorage.getItem('cinetrack_density') || 'comfortable');
 applyMotion(localStorage.getItem('cinetrack_motion') || 'full');
 applyPosters(localStorage.getItem('cinetrack_posters') || 'shown');
+applyEpisodeNotif(localStorage.getItem('cinetrack_notif') || 'off');
 
 // ── State ──────────────────────────────────────────────
 const STORAGE_KEY = 'cinetrack_movies';
@@ -171,6 +174,7 @@ async function loadUserData() {
   }
   updateCountryDropdown();
   refreshCurrentView();
+  checkEpisodeNotifications();
 }
 
 async function saveUserData() {
@@ -1250,6 +1254,84 @@ async function fetchUpcoming(ids, { force = false } = {}) {
   return ids.map(id => byId[id]).filter(Boolean);
 }
 
+// ── Episode-air-today notifications ─────────────────────
+const NOTIF_DEDUPE_KEY = 'cinetrack_notified_episodes';
+
+function todayDateString() {
+  const d = new Date(); d.setHours(0,0,0,0);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+async function checkEpisodeNotifications() {
+  if (localStorage.getItem('cinetrack_notif') !== 'on') return;
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+
+  const tracked = movies.filter(m =>
+    (m.mediaType === 'tv' || m.mediaType === 'anime') &&
+    m.status === 'in_progress' &&
+    m.tmdbId
+  );
+  if (!tracked.length) return;
+
+  let upcoming;
+  try {
+    upcoming = await fetchUpcoming(tracked.map(m => String(m.tmdbId)));
+  } catch { return; }
+
+  const todayStr = todayDateString();
+  let notified;
+  try { notified = new Set(JSON.parse(localStorage.getItem(NOTIF_DEDUPE_KEY) || '[]')); }
+  catch { notified = new Set(); }
+
+  let firedAny = false;
+  for (const item of upcoming) {
+    const ne = item?.nextEpisode;
+    if (!ne || ne.airDate !== todayStr) continue;
+    const key = `${item.tmdbId}:s${ne.season}e${ne.episode}:${ne.airDate}`;
+    if (notified.has(key)) continue;
+    try {
+      new Notification('📺 Episode airs today', {
+        body: `${item.title} — ${ne.name || `S${ne.season} E${ne.episode}`}`,
+        icon: item.poster_path ? `https://image.tmdb.org/t/p/w92${item.poster_path}` : undefined,
+        tag: key,
+      });
+      notified.add(key);
+      firedAny = true;
+    } catch { /* notification creation failed */ }
+  }
+
+  if (firedAny) {
+    // Cap to last 200 entries to avoid unbounded growth
+    const arr = [...notified];
+    const trimmed = arr.length > 200 ? arr.slice(-200) : arr;
+    localStorage.setItem(NOTIF_DEDUPE_KEY, JSON.stringify(trimmed));
+  }
+}
+
+async function setEpisodeNotifPref(value) {
+  if (value === 'on') {
+    if (typeof Notification === 'undefined') {
+      showToast('Your browser does not support notifications', true);
+      return false;
+    }
+    if (Notification.permission === 'denied') {
+      showToast('Notifications are blocked. Enable them in your browser settings.', true);
+      return false;
+    }
+    if (Notification.permission === 'default') {
+      const result = await Notification.requestPermission();
+      if (result !== 'granted') {
+        showToast('Notifications not enabled', true);
+        return false;
+      }
+    }
+  }
+  localStorage.setItem('cinetrack_notif', value);
+  applyEpisodeNotif(value);
+  if (value === 'on') checkEpisodeNotifications();
+  return true;
+}
+
 function relativeDayLabel(dateStr) {
   const today = new Date(); today.setHours(0,0,0,0);
   const d = new Date(dateStr + 'T00:00:00');
@@ -2284,6 +2366,17 @@ function renderProfile() {
       </div>
 
       <div class="appearance-row">
+        <div class="appearance-label">Notify when an episode airs today</div>
+        <div class="pill-group" data-pref="notif">
+          ${NOTIF_OPTIONS.map(name => {
+            const current = localStorage.getItem('cinetrack_notif') || 'off';
+            const label = name === 'off' ? 'Off' : 'On';
+            return `<button type="button" class="pill-btn ${name === current ? 'active' : ''}" data-value="${name}">${label}</button>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <div class="appearance-row">
         <div class="appearance-label">Reduce motion / no blur</div>
         <div class="pill-group" data-pref="motion">
           ${MOTION_OPTIONS.map(name => {
@@ -2364,16 +2457,22 @@ function renderProfile() {
     density: { fn: applyDensity, key: 'cinetrack_density' },
     motion:  { fn: applyMotion,  key: 'cinetrack_motion'  },
     posters: { fn: applyPosters, key: 'cinetrack_posters' },
+    notif:   { fn: applyEpisodeNotif, key: 'cinetrack_notif', custom: setEpisodeNotifPref },
   };
   panel.querySelectorAll('.pill-group[data-pref]').forEach(group => {
     const pref = group.dataset.pref;
     const cfg  = pillApplyMap[pref];
     if (!cfg) return;
     group.querySelectorAll('.pill-btn[data-value]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const val = btn.dataset.value;
-        localStorage.setItem(cfg.key, val);
-        cfg.fn(val);
+        if (cfg.custom) {
+          const ok = await cfg.custom(val);
+          if (!ok) return;
+        } else {
+          localStorage.setItem(cfg.key, val);
+          cfg.fn(val);
+        }
         group.querySelectorAll('.pill-btn').forEach(b => b.classList.toggle('active', b === btn));
       });
     });
@@ -3425,6 +3524,7 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
     if (movies.length === 0) seedData();
     updateCountryDropdown();
     render();
+    checkEpisodeNotifications();
     return;
   }
 
