@@ -30,6 +30,7 @@ const ACCENT_PRESETS  = ['default', 'blue', 'green', 'purple', 'amber', 'cyan'];
 const ORBS_OPTIONS    = ['static', 'animated'];
 const DENSITY_OPTIONS = ['comfortable', 'compact'];
 const MOTION_OPTIONS  = ['full', 'reduced'];
+const POSTERS_OPTIONS = ['shown', 'hidden'];
 
 function applyAttrPreset(attr, value, defaultValue, allowed) {
   const safe = allowed.includes(value) ? value : defaultValue;
@@ -41,12 +42,14 @@ function applyAccent(v)  { applyAttrPreset('data-accent',  v, 'default',     ACC
 function applyOrbs(v)    { applyAttrPreset('data-orbs',    v, 'static',      ORBS_OPTIONS); }
 function applyDensity(v) { applyAttrPreset('data-density', v, 'comfortable', DENSITY_OPTIONS); }
 function applyMotion(v)  { applyAttrPreset('data-motion',  v, 'full',        MOTION_OPTIONS); }
+function applyPosters(v) { applyAttrPreset('data-posters', v, 'shown',       POSTERS_OPTIONS); }
 
 applyGlass(localStorage.getItem('cinetrack_glass')   || 'vivid');
 applyAccent(localStorage.getItem('cinetrack_accent') || 'default');
 applyOrbs(localStorage.getItem('cinetrack_orbs')     || 'static');
 applyDensity(localStorage.getItem('cinetrack_density') || 'comfortable');
 applyMotion(localStorage.getItem('cinetrack_motion') || 'full');
+applyPosters(localStorage.getItem('cinetrack_posters') || 'shown');
 
 // ── State ──────────────────────────────────────────────
 const STORAGE_KEY = 'cinetrack_movies';
@@ -2121,6 +2124,17 @@ function renderProfile() {
       </div>
 
       <div class="appearance-row">
+        <div class="appearance-label">Hide posters in library</div>
+        <div class="pill-group" data-pref="posters">
+          ${POSTERS_OPTIONS.map(name => {
+            const current = localStorage.getItem('cinetrack_posters') || 'shown';
+            const label = name === 'shown' ? 'Off' : 'On';
+            return `<button type="button" class="pill-btn ${name === current ? 'active' : ''}" data-value="${name}">${label}</button>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <div class="appearance-row">
         <div class="appearance-label">Reduce motion / no blur</div>
         <div class="pill-group" data-pref="motion">
           ${MOTION_OPTIONS.map(name => {
@@ -2184,6 +2198,7 @@ function renderProfile() {
     orbs:    { fn: applyOrbs,    key: 'cinetrack_orbs'    },
     density: { fn: applyDensity, key: 'cinetrack_density' },
     motion:  { fn: applyMotion,  key: 'cinetrack_motion'  },
+    posters: { fn: applyPosters, key: 'cinetrack_posters' },
   };
   panel.querySelectorAll('.pill-group[data-pref]').forEach(group => {
     const pref = group.dataset.pref;
