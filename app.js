@@ -15,6 +15,15 @@ themeToggle.addEventListener('click', () => {
   applyTheme(next);
 });
 
+// ── Background preset ───────────────────────────────────
+const BG_PRESETS = ['default', 'aurora', 'sunset', 'ocean', 'midnight', 'mono'];
+function applyBgPreset(name) {
+  const safe = BG_PRESETS.includes(name) ? name : 'default';
+  if (safe === 'default') document.documentElement.removeAttribute('data-bg');
+  else document.documentElement.setAttribute('data-bg', safe);
+}
+applyBgPreset(localStorage.getItem('cinetrack_bg') || 'default');
+
 // ── State ──────────────────────────────────────────────
 const STORAGE_KEY = 'cinetrack_movies';
 const POSTER_BASE = 'https://image.tmdb.org/t/p/w200';
@@ -2032,6 +2041,17 @@ function renderProfile() {
 
     ${movies.length === 0 ? '<p class="profile-empty">Add some titles to see your profile stats.</p>' : ''}
 
+    <div class="profile-section">
+      <h3>Appearance</h3>
+      <div class="bg-picker" id="bg-picker">
+        ${BG_PRESETS.map(name => {
+          const current = localStorage.getItem('cinetrack_bg') || 'default';
+          const label = name[0].toUpperCase() + name.slice(1);
+          return `<button type="button" class="bg-swatch ${name === current ? 'active' : ''}" data-bg="${name}" title="${label}"><span class="bg-swatch-label">${label}</span></button>`;
+        }).join('')}
+      </div>
+    </div>
+
     <div class="profile-section profile-csv-section">
       <h3>
         Import / Export
@@ -2057,6 +2077,16 @@ function renderProfile() {
   panel.querySelector('#profile-export-btn')?.addEventListener('click', exportCSV);
   const tplLink = panel.querySelector('#profile-csv-template');
   if (tplLink) tplLink.href = TEMPLATE_URL;
+
+  // Wire background preset picker
+  panel.querySelectorAll('.bg-swatch[data-bg]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const name = btn.dataset.bg;
+      localStorage.setItem('cinetrack_bg', name);
+      applyBgPreset(name);
+      panel.querySelectorAll('.bg-swatch').forEach(b => b.classList.toggle('active', b === btn));
+    });
+  });
 }
 
 // ── Export CSV ──────────────────────────────────────────
