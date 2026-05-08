@@ -608,11 +608,25 @@ yearMaxEl?.addEventListener('input', () => { yearMaxFilter = yearMaxEl.value.tri
 ratingMinEl?.addEventListener('change', () => { ratingMinFilter = ratingMinEl.value; currentPage = 0; render(); });
 ratingMaxEl?.addEventListener('change', () => { ratingMaxFilter = ratingMaxEl.value; currentPage = 0; render(); });
 moreFiltersClear?.addEventListener('click', () => {
-  yearMinFilter = ''; yearMaxFilter = ''; ratingMinFilter = ''; ratingMaxFilter = '';
-  if (yearMinEl) yearMinEl.value = '';
-  if (yearMaxEl) yearMaxEl.value = '';
+  // Reset every filter that lives inside this popover (genre, country,
+  // sort, year-range, rating-range). Search and the status tabs sit
+  // outside the popover and are unaffected — use the floating
+  // "✕ Clear filters" button to reset those too.
+  genreFilter   = '';
+  countryFilter = '';
+  sortOrder     = 'added';
+  yearMinFilter = ''; yearMaxFilter = '';
+  ratingMinFilter = ''; ratingMaxFilter = '';
+  if (genreFilterEl)   genreFilterEl.value   = '';
+  if (countryFilterEl) countryFilterEl.value = '';
+  const sortEl = document.getElementById('sort-order');
+  if (sortEl) sortEl.value = 'added';
+  if (yearMinEl)   yearMinEl.value   = '';
+  if (yearMaxEl)   yearMaxEl.value   = '';
   if (ratingMinEl) ratingMinEl.value = '';
   if (ratingMaxEl) ratingMaxEl.value = '';
+  localStorage.setItem('cinetrack_sort', sortOrder);
+  scheduleSavePrefs();
   currentPage = 0;
   render();
 });
