@@ -1746,13 +1746,11 @@ async function renderCalendarDiscover(body, { force = false } = {}) {
         ).join('')}
       </div>
       ${isMovie ? `
-      <label class="cal-region-label">Region
-        <select id="cal-region-select" class="cal-region-select">
-          ${DISCOVER_REGIONS.map(r =>
-            `<option value="${r}"${r === discoverRegion ? ' selected' : ''}>${r}</option>`
-          ).join('')}
-        </select>
-      </label>` : ''}
+      <select id="cal-region-select" class="cal-region-select" aria-label="Region" title="Region">
+        ${DISCOVER_REGIONS.map(r =>
+          `<option value="${r}"${r === discoverRegion ? ' selected' : ''}>🌍 ${r}</option>`
+        ).join('')}
+      </select>` : ''}
       <button id="cal-discover-refresh" class="cal-refresh-btn" title="Re-fetch from TMDB now (bypasses 24h cache)">↻ Refresh</button>
     </div>
     <div id="cal-discover-grid" class="discover-grid"><div class="recs-loading"><span class="recs-spinner"></span> Loading…</div></div>
