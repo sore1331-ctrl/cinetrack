@@ -1400,8 +1400,9 @@ function renderRecsCards(section, results, genreCounts) {
     const recYear   = btn.dataset.recYear;
     const recPoster = btn.dataset.recPoster;
     if (movies.some(m => String(m.tmdbId) === recId)) { btn.textContent = '✓ Added'; btn.disabled = true; return; }
+    const newId = genId();
     movies.unshift({
-      id:        genId(),
+      id:        newId,
       addedAt:   Date.now(),
       title:     recTitle,
       year:      recYear,
@@ -1416,6 +1417,35 @@ function renderRecsCards(section, results, genreCounts) {
     btn.textContent = '✓ Added';
     btn.disabled = true;
     trackedTmdbIds.add(recId);
+
+    // Enrich with full TMDB metadata in the background.
+    (async () => {
+      try {
+        const fetchType = recType === 'anime' ? 'tv' : (recType === 'tv' ? 'tv' : 'movie');
+        const details = await fetchTMDBDetails(recId, fetchType);
+        const m = movies.find(m => m.id === newId);
+        if (!m) return;
+        if (details.title)    m.title    = details.title;
+        if (details.year)     m.year     = details.year;
+        if (details.genre)    m.genre    = details.genre;
+        if (details.director) m.director = details.director;
+        if (details.country)  m.country  = details.country;
+        if (details.runtime)  m.runtime  = details.runtime;
+        if (details.poster_path && !m.posterUrl) m.posterUrl = POSTER_BASE + details.poster_path;
+        if (Array.isArray(details.seasons) && details.seasons.length) {
+          m.seasons = details.seasons.map(s => ({
+            number: s.number, total: s.total, watched: 0, name: s.name,
+          }));
+          m.totalEpisodes   = m.seasons.reduce((sum, x) => sum + (x.total || 0), 0);
+          m.watchedEpisodes = 0;
+        } else if (details.total_episodes) {
+          m.totalEpisodes = details.total_episodes;
+        }
+        save();
+        updateCountryDropdown();
+        if (activeView === 'content') render();
+      } catch {}
+    })();
   };
 }
 
