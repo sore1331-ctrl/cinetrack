@@ -1431,6 +1431,7 @@ function renderRecsCards(section, results, genreCounts) {
         if (details.director) m.director = details.director;
         if (details.country)  m.country  = details.country;
         if (details.runtime)  m.runtime  = details.runtime;
+        if (details.overview && !m.notes) m.notes = details.overview;
         if (details.poster_path && !m.posterUrl) m.posterUrl = POSTER_BASE + details.poster_path;
         if (Array.isArray(details.seasons) && details.seasons.length) {
           m.seasons = details.seasons.map(s => ({
