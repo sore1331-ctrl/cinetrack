@@ -1283,6 +1283,16 @@ button.danger:hover { opacity: .85; }
 .random-pick-btn:hover,
 .more-filters-btn:hover { border-color: var(--accent); }
 .more-filters-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.more-filters-count {
+  display: inline-block; min-width: 18px; height: 18px;
+  padding: 0 5px; margin-left: 6px;
+  background: var(--accent); color: #fff; font-weight: 700;
+  font-size: .68rem; line-height: 18px; text-align: center;
+  border-radius: 999px; vertical-align: middle;
+}
+.more-filters-btn.active .more-filters-count {
+  background: #fff; color: var(--accent);
+}
 
 .more-filters {
   display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;

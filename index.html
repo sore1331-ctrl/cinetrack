@@ -87,30 +87,39 @@
     <!-- Controls row (hidden on stats/community) -->
     <section class="controls">
       <input type="text" id="search-input" placeholder="Search titles, genres, directors..." />
-      <select id="genre-filter">
-        <option value="">All Genres</option>
-      </select>
-      <select id="country-filter">
-        <option value="">All Countries</option>
-      </select>
-      <select id="sort-order">
-        <option value="added">Date Added</option>
-        <option value="title">Title (A–Z)</option>
-        <option value="year">Year (Newest)</option>
-        <option value="rating">My Rating</option>
-      </select>
       <div class="size-toggle">
         <button class="size-btn" data-size="sm">S</button>
         <button class="size-btn active" data-size="md">M</button>
         <button class="size-btn" data-size="lg">L</button>
       </div>
       <button id="random-pick-btn" class="random-pick-btn" title="Pick a random title from the visible list">🎲 Pick for me</button>
-      <button id="more-filters-btn" class="more-filters-btn" title="Year + rating filters">⚙ More</button>
+      <button id="more-filters-btn" class="more-filters-btn" title="All filters">⚙ Filters<span id="more-filters-count" class="more-filters-count hidden"></span></button>
       <button id="select-mode-btn" class="select-mode-btn" title="Toggle selection mode">☑ Select</button>
       <button id="clear-filters-btn" class="clear-filters-btn hidden" title="Clear all active filters">✕ Clear filters</button>
       <button id="add-btn">+ Add</button>
     </section>
     <section id="more-filters" class="more-filters hidden">
+      <label class="more-filter-field">
+        <span>Genre</span>
+        <select id="genre-filter">
+          <option value="">All Genres</option>
+        </select>
+      </label>
+      <label class="more-filter-field">
+        <span>Country</span>
+        <select id="country-filter">
+          <option value="">All Countries</option>
+        </select>
+      </label>
+      <label class="more-filter-field">
+        <span>Sort by</span>
+        <select id="sort-order">
+          <option value="added">Date Added</option>
+          <option value="title">Title (A–Z)</option>
+          <option value="year">Year (Newest)</option>
+          <option value="rating">My Rating</option>
+        </select>
+      </label>
       <label class="more-filter-field">
         <span>Year from</span>
         <input type="number" id="year-min" placeholder="e.g. 1990" inputmode="numeric" />

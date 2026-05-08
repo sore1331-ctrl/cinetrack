@@ -539,10 +539,32 @@ function hasActiveFilters() {
     || yearMinFilter || yearMaxFilter || ratingMinFilter || ratingMaxFilter);
 }
 
+// Count of filters that live behind the "⚙ Filters" popover. Excludes
+// search and the status-tab row since those have their own UI affordances.
+function countMoreFilters() {
+  let n = 0;
+  if (genreFilter)   n++;
+  if (countryFilter) n++;
+  if (sortOrder && sortOrder !== 'added') n++;
+  if (yearMinFilter)   n++;
+  if (yearMaxFilter)   n++;
+  if (ratingMinFilter) n++;
+  if (ratingMaxFilter) n++;
+  return n;
+}
+
 function updateClearFiltersBtn() {
   const active = hasActiveFilters();
   clearFiltersBtn.classList.toggle('hidden', !active);
   selectModeBtn.classList.toggle('hidden', active);
+
+  // Filter badge on the "⚙ Filters" button
+  const badge = document.getElementById('more-filters-count');
+  if (badge) {
+    const n = countMoreFilters();
+    if (n > 0) { badge.textContent = String(n); badge.classList.remove('hidden'); }
+    else       { badge.textContent = '';         badge.classList.add('hidden'); }
+  }
 }
 
 clearFiltersBtn.addEventListener('click', () => {
