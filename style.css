@@ -68,7 +68,12 @@
 }
 
 body {
-  background: var(--bg);
+  background:
+    radial-gradient(60vmax at 0% 0%,    var(--orb-a) 0%, transparent 55%),
+    radial-gradient(60vmax at 100% 100%, var(--orb-b) 0%, transparent 55%),
+    radial-gradient(45vmax at 100% 30%,  var(--orb-c) 0%, transparent 55%),
+    var(--bg);
+  background-attachment: fixed;
   color: var(--text);
   font-family: 'Segoe UI', system-ui, sans-serif;
   min-height: 100vh;
@@ -80,9 +85,10 @@ body {
 }
 
 /* Subtle blurred colour fields so glass surfaces have something to refract.
-   Solid-colour discs blurred via filter — no gradients used. Tweak the
-   --orb-* tokens to shift hues / intensity, or set --orb-opacity to 0
-   to disable entirely. */
+   Implemented as radial-gradients on body — works reliably on mobile
+   where heavy filter:blur() pseudo-elements get skipped or downgraded.
+   Tweak the --orb-* tokens to shift hues / intensity, or set
+   --orb-opacity to 0 to flatten the background. */
 :root {
   --orb-a: #3a4f8c;
   --orb-b: #8c2f4c;
@@ -126,12 +132,12 @@ body {
 :root[data-accent="cyan"]   { --accent: #06b6d4; }
 
 /* ── Animated orbs (data-orbs="animated") ── */
-@keyframes orb-drift-a { 0%, 100% { transform: translate(0,0) scale(1); } 50% { transform: translate(6vmax, 4vmax) scale(1.08); } }
-@keyframes orb-drift-b { 0%, 100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-6vmax, -4vmax) scale(1.06); } }
-@keyframes orb-drift-c { 0%, 100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-5vmax, 3vmax) scale(.95); } }
-:root[data-orbs="animated"] body::before { animation: orb-drift-a 28s ease-in-out infinite; }
-:root[data-orbs="animated"] body::after  { animation: orb-drift-b 32s ease-in-out infinite; }
-:root[data-orbs="animated"] main::before { animation: orb-drift-c 36s ease-in-out infinite; }
+@keyframes orb-drift {
+  0%, 100% { background-position: 0% 0%,    100% 100%, 100% 30%; }
+  50%      { background-position: 8% 6%,    92% 94%,   94% 28%; }
+}
+:root[data-orbs="animated"] body { animation: orb-drift 32s ease-in-out infinite; }
+:root[data-motion="reduced"][data-orbs="animated"] body { animation: none; }
 
 /* ── Density (data-density="compact") ── */
 :root[data-density="compact"] .movie-grid { gap: 10px; }
@@ -152,9 +158,7 @@ body {
   --glass-blur: 0px;
   --glass-saturate: 100%;
 }
-:root[data-motion="reduced"] body::before,
-:root[data-motion="reduced"] body::after,
-:root[data-motion="reduced"] main::before { animation: none !important; }
+:root[data-motion="reduced"] body { animation: none !important; }
 :root[data-motion="reduced"] .movie-card,
 :root[data-motion="reduced"] .community-card,
 :root[data-motion="reduced"] .bg-swatch { transition: none !important; }
@@ -162,7 +166,7 @@ body {
 :root[data-motion="reduced"] .community-card:hover,
 :root[data-motion="reduced"] .bg-swatch:hover { transform: none !important; }
 @media (prefers-reduced-motion: reduce) {
-  body::before, body::after, main::before { animation: none !important; }
+  body { animation: none !important; }
 }
 
 /* Background presets — switched via <html data-bg="…">.
@@ -177,34 +181,8 @@ body {
 :root.light[data-bg="midnight"] { --orb-a: #c8b8e0; --orb-b: #d0b8e6; --orb-c: #c0b8e2; }
 :root[data-bg="mono"]   { --orb-opacity: 0; }
 :root.light[data-bg="mono"] { --orb-opacity: 0; }
-body::before, body::after {
-  content: '';
-  position: fixed;
-  width: 60vmax;
-  height: 60vmax;
-  border-radius: 50%;
-  filter: blur(140px);
-  opacity: var(--orb-opacity);
-  z-index: -1;
-  pointer-events: none;
-}
-body::before { background: var(--orb-a); top:    -18vmax; left:  -18vmax; }
-body::after  { background: var(--orb-b); bottom: -18vmax; right: -18vmax; }
-/* Third orb for more colour variation */
-main::before {
-  content: '';
-  position: fixed;
-  width: 45vmax;
-  height: 45vmax;
-  border-radius: 50%;
-  background: var(--orb-c);
-  filter: blur(140px);
-  opacity: var(--orb-opacity);
-  top: 30vh;
-  right: -15vmax;
-  z-index: -1;
-  pointer-events: none;
-}
+:root[data-bg="mono"] body { background-image: none; }
+:root.light[data-bg="mono"] body { background-image: none; }
 
 /* ── Header ── */
 header {
@@ -2761,7 +2739,6 @@ a.top-rated-card:hover {
   }
 }
 @media (max-width: 480px) {
-  body::before, body::after, main::before { display: none; }
   /* Inputs ≥16px → no iOS zoom on focus. Selects don't trigger zoom so
      the existing smaller filter sizes can stay. */
   #search-input,
