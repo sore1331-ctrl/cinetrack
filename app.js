@@ -696,6 +696,53 @@ function applyTMDBSelection(details) {
   }
   if (!document.getElementById('f-notes').value)
     document.getElementById('f-notes').value  = details.overview || '';
+
+  renderProviders(details.providers);
+}
+
+const PROVIDER_LOGO_BASE = 'https://image.tmdb.org/t/p/w92';
+function renderProviders(providers) {
+  const el = document.getElementById('modal-providers');
+  if (!el) return;
+  if (!providers || typeof providers !== 'object') {
+    el.classList.add('hidden');
+    el.innerHTML = '';
+    return;
+  }
+  const region = localStorage.getItem('cinetrack_provider_region') || 'US';
+  const data = providers[region] || providers['US'] || providers[Object.keys(providers)[0]];
+  if (!data) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+
+  const logos = ps => ps.slice(0, 6).map(p =>
+    `<img class="provider-logo" src="${PROVIDER_LOGO_BASE}${p.logo}" alt="${esc(p.name)}" title="${esc(p.name)}" loading="lazy" />`
+  ).join('');
+
+  const sections = [];
+  if (data.flatrate?.length) sections.push(`<div class="provider-row"><span class="provider-row-label">Stream</span><div class="provider-logos">${logos(data.flatrate)}</div></div>`);
+  if (data.rent?.length)     sections.push(`<div class="provider-row"><span class="provider-row-label">Rent</span><div class="provider-logos">${logos(data.rent)}</div></div>`);
+  if (data.buy?.length)      sections.push(`<div class="provider-row"><span class="provider-row-label">Buy</span><div class="provider-logos">${logos(data.buy)}</div></div>`);
+
+  if (!sections.length) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+
+  const regionLabel = region;
+  el.innerHTML = `
+    <div class="modal-providers-header">
+      <span>📺 Where to watch</span>
+      <select class="provider-region-select" id="provider-region-select">
+        ${Object.keys(providers).map(r =>
+          `<option value="${r}"${r === regionLabel ? ' selected' : ''}>${r}</option>`
+        ).join('')}
+      </select>
+    </div>
+    ${sections.join('')}
+    ${data.link ? `<a class="provider-link" href="${esc(data.link)}" target="_blank" rel="noopener noreferrer">View on JustWatch ↗</a>` : ''}
+  `;
+  el.classList.remove('hidden');
+
+  el.querySelector('#provider-region-select')?.addEventListener('change', e => {
+    localStorage.setItem('cinetrack_provider_region', e.target.value);
+    renderProviders(providers);
+  });
 }
 
 function resetTMDBUI() {
@@ -706,6 +753,8 @@ function resetTMDBUI() {
   hideDropdown();
   tmdbError.classList.add('hidden');
   tmdbSearching.classList.add('hidden');
+  const provEl = document.getElementById('modal-providers');
+  if (provEl) { provEl.classList.add('hidden'); provEl.innerHTML = ''; }
 }
 
 tmdbClear.addEventListener('click', () => {
@@ -2479,7 +2528,7 @@ function render() {
         </label>
       </div>
       <span class="badge badge-${m.status} card-status-badge">
-        ${m.status === 'watched' ? '✓ Watched' : m.status === 'in_progress' ? '▶ In Progress' : m.status === 'dropped' ? '📛 Dropped' : '⏳ Watchlist'}
+        ${m.status === 'watched' ? `✓ Watched${(m.watchCount || 0) > 1 ? ` ×${m.watchCount}` : ''}` : m.status === 'in_progress' ? '▶ In Progress' : m.status === 'dropped' ? '📛 Dropped' : '⏳ Watchlist'}
       </span>
       ${m.tmdbId
         ? `<a class="card-title card-title-link" href="https://www.themoviedb.org/${m.mediaType === 'movie' ? 'movie' : 'tv'}/${m.tmdbId}" target="_blank" rel="noopener noreferrer">${esc(m.title)}</a>`
@@ -2667,10 +2716,55 @@ function openModal(movie = null) {
   }
   selectedRating = movie?.rating || 0;
 
+  // Re-watch count: default to 1 when status is watched, otherwise 0
+  editingWatchCount = movie?.watchCount != null
+    ? movie.watchCount
+    : (movie?.status === 'watched' ? 1 : 0);
+  updateRewatchUI();
+
   toggleRatingLabel();
   buildStars();
   modal.classList.remove('hidden');
   tmdbQuery.focus();
+
+  // Auto-load streaming providers for entries with a TMDB id
+  if (movie?.tmdbId) loadProvidersForEntry(movie);
+}
+
+let editingWatchCount = 0;
+function updateRewatchUI() {
+  const row = document.getElementById('rewatch-row');
+  if (!row) return;
+  const status = document.getElementById('f-status').value;
+  const visible = status === 'watched' && !!editingId;
+  row.classList.toggle('hidden', !visible);
+  document.getElementById('rewatch-count').textContent = String(Math.max(1, editingWatchCount));
+  document.getElementById('rewatch-plural').textContent = (editingWatchCount === 1) ? '' : 's';
+}
+
+document.getElementById('rewatch-inc-btn')?.addEventListener('click', () => {
+  editingWatchCount = Math.max(1, editingWatchCount) + 1;
+  updateRewatchUI();
+});
+document.getElementById('rewatch-dec-btn')?.addEventListener('click', () => {
+  if (editingWatchCount > 1) editingWatchCount -= 1;
+  updateRewatchUI();
+});
+
+const providerCache = new Map();
+async function loadProvidersForEntry(movie) {
+  if (!movie?.tmdbId) return;
+  const fetchType = movie.mediaType === 'anime' ? 'tv' : (movie.mediaType || 'movie');
+  const cacheKey  = `${fetchType}:${movie.tmdbId}`;
+  if (providerCache.has(cacheKey)) {
+    renderProviders(providerCache.get(cacheKey));
+    return;
+  }
+  try {
+    const details = await fetchTMDBDetails(movie.tmdbId, fetchType);
+    providerCache.set(cacheKey, details.providers);
+    renderProviders(details.providers);
+  } catch { /* silent */ }
 }
 
 function closeModal() {
@@ -2741,6 +2835,18 @@ form.addEventListener('submit', e => {
     else if (watchedEpisodes > 0)         status = 'in_progress';
   }
 
+  // Re-watch count: only meaningful for 'watched' status. Use the in-modal
+  // editor value when status is watched; otherwise preserve the existing
+  // count so downgrading and re-promoting doesn't lose the history.
+  let watchCount;
+  if (status === 'watched') {
+    watchCount = Math.max(1, editingWatchCount || 1);
+  } else if (existing?.watchCount != null) {
+    watchCount = existing.watchCount;
+  } else {
+    watchCount = 0;
+  }
+
   const data = {
     title,
     year:      document.getElementById('f-year').value     || '',
@@ -2755,6 +2861,7 @@ form.addEventListener('submit', e => {
     totalEpisodes,
     watchedEpisodes,
     seasons,
+    watchCount,
     posterUrl,
     tmdbId: tmdbSelection?.id || existing?.tmdbId || null,
   };
@@ -2773,7 +2880,7 @@ form.addEventListener('submit', e => {
 addBtn.addEventListener('click', () => openModal());
 cancelBtn.addEventListener('click', closeModal);
 modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
-document.getElementById('f-status').addEventListener('change', () => { toggleRatingLabel(); buildStars(); });
+document.getElementById('f-status').addEventListener('change', () => { toggleRatingLabel(); buildStars(); updateRewatchUI(); });
 searchInput.addEventListener('input', () => { searchQuery = searchInput.value; currentPage = 0; render(); });
 countryFilterEl.addEventListener('change', () => { countryFilter = countryFilterEl.value; currentPage = 0; render(); });
 genreFilterEl.addEventListener('change', () => { genreFilter = genreFilterEl.value; currentPage = 0; render(); });
