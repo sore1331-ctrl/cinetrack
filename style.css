@@ -2500,8 +2500,8 @@ a.top-rated-card:hover {
 /* ── Calendar panel (upcoming episodes) ── */
 .calendar-panel { padding: 24px 0 40px; max-width: 720px; margin: 0 auto; }
 .calendar-header {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; margin-bottom: 20px;
+  display: flex; align-items: center; justify-content: center;
+  gap: 12px; margin-bottom: 20px; flex-wrap: wrap;
 }
 .calendar-header h2 { font-size: 1.2rem; font-weight: 700; color: var(--text); }
 .cal-window { font-size: .82rem; font-weight: 500; color: var(--muted); margin-left: 6px; }
@@ -2516,7 +2516,7 @@ a.top-rated-card:hover {
 .cal-mode-toggle { display: flex; gap: 6px; }
 .cal-discover-types { display: flex; gap: 6px; }
 .cal-subheader {
-  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap;
   margin-bottom: 18px; font-size: .85rem; color: var(--muted);
 }
 .cal-region-label {
@@ -2528,7 +2528,7 @@ a.top-rated-card:hover {
   color: var(--text); border-radius: 8px;
   padding: 5px 9px; font-size: .85rem;
 }
-.cal-subheader .cal-refresh-btn { margin-left: auto; }
+/* refresh button sits inline with the rest, centered with siblings */
 
 /* Discover grid */
 .discover-grid {
