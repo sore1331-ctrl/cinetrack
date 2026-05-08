@@ -24,6 +24,30 @@ function applyBgPreset(name) {
 }
 applyBgPreset(localStorage.getItem('cinetrack_bg') || 'default');
 
+// ── Appearance: glass / accent / orbs / density / motion ─
+const GLASS_PRESETS   = ['vivid', 'medium', 'subtle'];
+const ACCENT_PRESETS  = ['default', 'blue', 'green', 'purple', 'amber', 'cyan'];
+const ORBS_OPTIONS    = ['static', 'animated'];
+const DENSITY_OPTIONS = ['comfortable', 'compact'];
+const MOTION_OPTIONS  = ['full', 'reduced'];
+
+function applyAttrPreset(attr, value, defaultValue, allowed) {
+  const safe = allowed.includes(value) ? value : defaultValue;
+  if (safe === defaultValue) document.documentElement.removeAttribute(attr);
+  else document.documentElement.setAttribute(attr, safe);
+}
+function applyGlass(v)   { applyAttrPreset('data-glass',   v, 'vivid',       GLASS_PRESETS); }
+function applyAccent(v)  { applyAttrPreset('data-accent',  v, 'default',     ACCENT_PRESETS); }
+function applyOrbs(v)    { applyAttrPreset('data-orbs',    v, 'static',      ORBS_OPTIONS); }
+function applyDensity(v) { applyAttrPreset('data-density', v, 'comfortable', DENSITY_OPTIONS); }
+function applyMotion(v)  { applyAttrPreset('data-motion',  v, 'full',        MOTION_OPTIONS); }
+
+applyGlass(localStorage.getItem('cinetrack_glass')   || 'vivid');
+applyAccent(localStorage.getItem('cinetrack_accent') || 'default');
+applyOrbs(localStorage.getItem('cinetrack_orbs')     || 'static');
+applyDensity(localStorage.getItem('cinetrack_density') || 'comfortable');
+applyMotion(localStorage.getItem('cinetrack_motion') || 'full');
+
 // ── State ──────────────────────────────────────────────
 const STORAGE_KEY = 'cinetrack_movies';
 const POSTER_BASE = 'https://image.tmdb.org/t/p/w200';
@@ -2043,12 +2067,68 @@ function renderProfile() {
 
     <div class="profile-section">
       <h3>Appearance</h3>
-      <div class="bg-picker" id="bg-picker">
-        ${BG_PRESETS.map(name => {
-          const current = localStorage.getItem('cinetrack_bg') || 'default';
-          const label = name[0].toUpperCase() + name.slice(1);
-          return `<button type="button" class="bg-swatch ${name === current ? 'active' : ''}" data-bg="${name}" title="${label}"><span class="bg-swatch-label">${label}</span></button>`;
-        }).join('')}
+
+      <div class="appearance-row">
+        <div class="appearance-label">Background</div>
+        <div class="bg-picker" id="bg-picker">
+          ${BG_PRESETS.map(name => {
+            const current = localStorage.getItem('cinetrack_bg') || 'default';
+            const label = name[0].toUpperCase() + name.slice(1);
+            return `<button type="button" class="bg-swatch ${name === current ? 'active' : ''}" data-bg="${name}" title="${label}"><span class="bg-swatch-label">${label}</span></button>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <div class="appearance-row">
+        <div class="appearance-label">Glass intensity</div>
+        <div class="pill-group" data-pref="glass">
+          ${GLASS_PRESETS.map(name => {
+            const current = localStorage.getItem('cinetrack_glass') || 'vivid';
+            return `<button type="button" class="pill-btn ${name === current ? 'active' : ''}" data-value="${name}">${name[0].toUpperCase() + name.slice(1)}</button>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <div class="appearance-row">
+        <div class="appearance-label">Accent colour</div>
+        <div class="accent-picker" data-pref="accent">
+          ${ACCENT_PRESETS.map(name => {
+            const current = localStorage.getItem('cinetrack_accent') || 'default';
+            return `<button type="button" class="accent-swatch ${name === current ? 'active' : ''}" data-accent="${name}" title="${name[0].toUpperCase() + name.slice(1)}"></button>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <div class="appearance-row">
+        <div class="appearance-label">Animated orbs</div>
+        <div class="pill-group" data-pref="orbs">
+          ${ORBS_OPTIONS.map(name => {
+            const current = localStorage.getItem('cinetrack_orbs') || 'static';
+            const label = name === 'static' ? 'Off' : 'On';
+            return `<button type="button" class="pill-btn ${name === current ? 'active' : ''}" data-value="${name}">${label}</button>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <div class="appearance-row">
+        <div class="appearance-label">Density</div>
+        <div class="pill-group" data-pref="density">
+          ${DENSITY_OPTIONS.map(name => {
+            const current = localStorage.getItem('cinetrack_density') || 'comfortable';
+            return `<button type="button" class="pill-btn ${name === current ? 'active' : ''}" data-value="${name}">${name[0].toUpperCase() + name.slice(1)}</button>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <div class="appearance-row">
+        <div class="appearance-label">Reduce motion / no blur</div>
+        <div class="pill-group" data-pref="motion">
+          ${MOTION_OPTIONS.map(name => {
+            const current = localStorage.getItem('cinetrack_motion') || 'full';
+            const label = name === 'full' ? 'Off' : 'On';
+            return `<button type="button" class="pill-btn ${name === current ? 'active' : ''}" data-value="${name}">${label}</button>`;
+          }).join('')}
+        </div>
       </div>
     </div>
 
@@ -2085,6 +2165,37 @@ function renderProfile() {
       localStorage.setItem('cinetrack_bg', name);
       applyBgPreset(name);
       panel.querySelectorAll('.bg-swatch').forEach(b => b.classList.toggle('active', b === btn));
+    });
+  });
+
+  // Wire accent swatches
+  panel.querySelectorAll('.accent-swatch[data-accent]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const name = btn.dataset.accent;
+      localStorage.setItem('cinetrack_accent', name);
+      applyAccent(name);
+      panel.querySelectorAll('.accent-swatch').forEach(b => b.classList.toggle('active', b === btn));
+    });
+  });
+
+  // Wire pill groups (glass / orbs / density / motion)
+  const pillApplyMap = {
+    glass:   { fn: applyGlass,   key: 'cinetrack_glass'   },
+    orbs:    { fn: applyOrbs,    key: 'cinetrack_orbs'    },
+    density: { fn: applyDensity, key: 'cinetrack_density' },
+    motion:  { fn: applyMotion,  key: 'cinetrack_motion'  },
+  };
+  panel.querySelectorAll('.pill-group[data-pref]').forEach(group => {
+    const pref = group.dataset.pref;
+    const cfg  = pillApplyMap[pref];
+    if (!cfg) return;
+    group.querySelectorAll('.pill-btn[data-value]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const val = btn.dataset.value;
+        localStorage.setItem(cfg.key, val);
+        cfg.fn(val);
+        group.querySelectorAll('.pill-btn').forEach(b => b.classList.toggle('active', b === btn));
+      });
     });
   });
 }
