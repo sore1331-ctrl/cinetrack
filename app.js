@@ -1438,9 +1438,15 @@ function renderStats() {
   ` : '';
 
   panel.innerHTML = `
-    <div class="stats-type-tabs">${filterTabs}</div>
+    <div class="stats-page-head">
+      <div>
+        <h2>Stats</h2>
+        <p>${watchedN.toLocaleString()} watched across ${scoped.length.toLocaleString()} tracked title${scoped.length === 1 ? '' : 's'}.</p>
+      </div>
+      <div class="stats-type-tabs">${filterTabs}</div>
+    </div>
 
-    <div class="stats-overview">
+    <div class="stats-overview stats-overview-primary">
       <div class="stat-card stat-card-clickable" data-stat-action="watched">
         <div class="stat-card-value">${watchedN}</div>
         <div class="stat-card-label">Watched</div>
