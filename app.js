@@ -1,5 +1,5 @@
 // ── Theme ───────────────────────────────────────────────
-const CINETRACK_BUILD = 'sync-entry-20260509-5';
+const CINETRACK_BUILD = 'sync-status-20260509-6';
 console.info(`[CineTrack] Build ${CINETRACK_BUILD}`);
 
 const themeToggle = document.getElementById('theme-toggle');
@@ -191,6 +191,7 @@ let cloudPollTimer  = null;
 let cloudRefreshInFlight = false;
 let lastCloudRefreshAttempt = 0;
 let lastCloudUpdatedAt = null;
+let lastCloudItemCount = null;
 let localChangeVersion = 0;
 let lastSavedLocalVersion = 0;
 let applyingRemoteData = false;
@@ -211,9 +212,32 @@ function setSyncState(state, detail = '') {
   currentSyncState = state;
   currentSyncTitle = { loading: 'Loading…', saving: 'Saving…', saved: 'Synced ✓', error: detail || 'Offline — saved locally' }[state] || '';
   const el = document.getElementById('sync-indicator');
-  if (!el) return;
-  el.dataset.state = state;
-  el.title = currentSyncTitle;
+  if (el) {
+    el.dataset.state = state;
+    el.title = currentSyncTitle;
+  }
+  updateSyncDetails();
+}
+
+function formatSyncDate(value) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function updateSyncDetails() {
+  const statusEl = document.getElementById('sync-status-text');
+  const countEl = document.getElementById('sync-item-count');
+  const updatedEl = document.getElementById('sync-updated-at');
+  if (statusEl) statusEl.textContent = currentSyncTitle || '-';
+  if (countEl) countEl.textContent = lastCloudItemCount == null ? '-' : String(lastCloudItemCount);
+  if (updatedEl) updatedEl.textContent = formatSyncDate(lastCloudUpdatedAt);
 }
 
 // ── Supabase init ───────────────────────────────────────
@@ -318,6 +342,7 @@ async function loadUserDataDirect() {
   return {
     movies: Array.isArray(data?.movies) ? data.movies : [],
     updated_at: data?.updated_at || null,
+    item_count: Array.isArray(data?.movies) ? data.movies.length : 0,
     exists: Boolean(data),
   };
 }
@@ -335,6 +360,7 @@ async function loadUserDataViaApi() {
     'Cloud load'
   );
   if (!r.ok) throw new Error(row?.error || `User data load failed (${r.status})`);
+  if (row && row.item_count == null && Array.isArray(row.movies)) row.item_count = row.movies.length;
   return row;
 }
 
@@ -356,6 +382,7 @@ async function saveUserDataDirect(payload) {
   return {
     ok: true,
     updated_at: data?.updated_at || payload.updated_at,
+    item_count: payload.movies.length,
   };
 }
 
@@ -377,6 +404,7 @@ async function saveUserDataViaApi(payload) {
     'Cloud save'
   );
   if (!r.ok || !result?.ok) throw new Error(result?.error || `User data save failed (${r.status})`);
+  if (result && result.item_count == null) result.item_count = payload.movies.length;
   return result;
 }
 
@@ -410,6 +438,8 @@ async function loadUserData(options = {}) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
       applyingRemoteData = false;
       lastCloudUpdatedAt = row.updated_at || lastCloudUpdatedAt;
+      lastCloudItemCount = row.item_count ?? row.movies.length;
+      updateSyncDetails();
       lastSavedLocalVersion = localChangeVersion;
     }
     if (!silent) setSyncState('saved');
@@ -447,6 +477,7 @@ async function saveUserData() {
     }
 
     lastCloudUpdatedAt = result.updated_at || payload.updated_at;
+    lastCloudItemCount = result.item_count ?? movies.length;
     lastSavedLocalVersion = Math.max(lastSavedLocalVersion, saveVersion);
     setSyncState('saved');
     return { ok: true };
@@ -4301,6 +4332,7 @@ signoutBtn.addEventListener('click', async () => {
   sharingEnabled  = false;
   movies          = [];
   lastCloudUpdatedAt = null;
+  lastCloudItemCount = null;
   localChangeVersion = 0;
   lastSavedLocalVersion = 0;
   localStorage.removeItem(STORAGE_KEY);

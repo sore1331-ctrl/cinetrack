@@ -61,6 +61,7 @@ export default async function handler(req, res) {
       const row = rows?.[0] || null;
       return json(res, 200, {
         movies: Array.isArray(row?.movies) ? row.movies : [],
+        item_count: Array.isArray(row?.movies) ? row.movies.length : 0,
         updated_at: row?.updated_at || null,
         exists: Boolean(row),
       });
@@ -88,6 +89,7 @@ export default async function handler(req, res) {
 
       return json(res, 200, {
         ok: true,
+        item_count: movies.length,
         updated_at: rows?.[0]?.updated_at || payload.updated_at,
       });
     }

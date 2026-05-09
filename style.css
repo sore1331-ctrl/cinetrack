@@ -2839,6 +2839,30 @@ a.top-rated-card:hover {
   padding: 0 8px 4px;
   opacity: .7;
 }
+.sync-details {
+  display: grid;
+  gap: 5px;
+  margin: 2px 0 4px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(0,0,0,.12);
+}
+.sync-details div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: .76rem;
+  line-height: 1.25;
+}
+.sync-details span {
+  color: var(--muted);
+}
+.sync-details strong {
+  color: var(--text);
+  font-weight: 650;
+  text-align: right;
+}
 
 .signout-btn {
   background: transparent;
