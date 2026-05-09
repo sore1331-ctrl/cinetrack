@@ -1006,6 +1006,12 @@ function filtered() {
   });
 
   list.sort((a, b) => {
+    // Pin anything airing/releasing today to the top, regardless of the
+    // user's sort choice. Within the "today" group and within "the rest"
+    // we still apply the chosen sort.
+    const aToday = isAiringToday(a) ? 0 : 1;
+    const bToday = isAiringToday(b) ? 0 : 1;
+    if (aToday !== bToday) return aToday - bToday;
     switch (sortOrder) {
       case 'title':  return a.title.localeCompare(b.title);
       case 'year':   return (parseInt(b.year) || 0) - (parseInt(a.year) || 0);
