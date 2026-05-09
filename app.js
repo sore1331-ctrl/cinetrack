@@ -1,5 +1,5 @@
 // ── Theme ───────────────────────────────────────────────
-const CINETRACK_BUILD = 'sync-20260509-1';
+const CINETRACK_BUILD = 'sync-api-20260509-2';
 console.info(`[CineTrack] Build ${CINETRACK_BUILD}`);
 
 const themeToggle = document.getElementById('theme-toggle');
@@ -264,21 +264,25 @@ function hasUnsyncedLocalChanges() {
   return Boolean(cloudSyncTimer) || localChangeVersion > lastSavedLocalVersion;
 }
 
+async function getSupabaseAccessToken() {
+  const { data: { session } } = await sb.auth.getSession();
+  return session?.access_token || '';
+}
+
 async function loadUserData(options = {}) {
   const { silent = false, onlyIfNewer = false } = options;
   if (!sb || !currentUser) return { ok: false, error: 'Not signed in' };
   if (!silent) setSyncState('loading');
   try {
-    // order + limit(1) instead of maybeSingle() so duplicate rows (if any exist
-    // due to a table without a unique user_id constraint) don't cause an error
-    const { data: rows, error } = await sb
-      .from('user_data')
-      .select('movies, updated_at')
-      .eq('user_id', currentUser.id)
-      .order('updated_at', { ascending: false })
-      .limit(1);
-    if (error) throw error;
-    const row = rows?.[0] ?? null;
+    const token = await getSupabaseAccessToken();
+    if (!token) throw new Error('Missing Supabase session token. Sign out and sign in again.');
+
+    const r = await fetch(`/api/user-data?userId=${encodeURIComponent(currentUser.id)}`, {
+      cache: 'no-store',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const row = await r.json();
+    if (!r.ok) throw new Error(row?.error || `User data load failed (${r.status})`);
 
     if (onlyIfNewer) {
       if (!row?.updated_at || (lastCloudUpdatedAt && row.updated_at <= lastCloudUpdatedAt)) {
@@ -290,7 +294,7 @@ async function loadUserData(options = {}) {
       }
     }
 
-    if (row?.movies && Array.isArray(row.movies)) {
+    if (row?.exists && Array.isArray(row.movies)) {
       applyingRemoteData = true;
       movies = row.movies;
       syncEpisodeProgress();
@@ -304,7 +308,7 @@ async function loadUserData(options = {}) {
     refreshCurrentView();
     checkEpisodeNotifications();
     warmUpcomingCacheForBadge();
-    return { ok: true, changed: Boolean(row?.movies) };
+    return { ok: true, changed: Boolean(row?.exists) };
   } catch (e) {
     applyingRemoteData = false;
     console.error('Failed to load data from cloud:', e);
@@ -324,28 +328,23 @@ async function saveUserData() {
   if (!sb || !currentUser) return { ok: false, error: 'Not signed in' };
   const saveVersion = localChangeVersion;
   try {
-    const payload = { user_id: currentUser.id, movies, updated_at: new Date().toISOString() };
+    const token = await getSupabaseAccessToken();
+    if (!token) throw new Error('Missing Supabase session token. Sign out and sign in again.');
 
-    // Try update first; inspect returned rows instead of relying on count.
-    // Supabase/PostgREST can return a null count here depending on response
-    // preferences, which made first-time saves silently skip the insert.
-    const { data: updatedRows, error: ue } = await sb
-      .from('user_data')
-      .update(payload)
-      .eq('user_id', currentUser.id)
-      .select('user_id, updated_at');
-    if (ue) throw ue;
+    const payload = { userId: currentUser.id, movies, updated_at: new Date().toISOString() };
+    const r = await fetch('/api/user-data', {
+      method: 'PUT',
+      cache: 'no-store',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    const result = await r.json();
+    if (!r.ok || !result?.ok) throw new Error(result?.error || `User data save failed (${r.status})`);
 
-    let savedRows = updatedRows || [];
-    if (!updatedRows || updatedRows.length === 0) {
-      const { data: insertedRows, error: ie } = await sb
-        .from('user_data')
-        .insert(payload)
-        .select('user_id, updated_at');
-      if (ie) throw ie;
-      savedRows = insertedRows || [];
-    }
-    lastCloudUpdatedAt = savedRows?.[0]?.updated_at || payload.updated_at;
+    lastCloudUpdatedAt = result.updated_at || payload.updated_at;
     lastSavedLocalVersion = Math.max(lastSavedLocalVersion, saveVersion);
     setSyncState('saved');
     return { ok: true };
