@@ -2620,33 +2620,52 @@ async function renderCommunity() {
 );
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS preferences jsonb DEFAULT '{}'::jsonb;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS sharing_enabled boolean DEFAULT false;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
 CREATE TABLE IF NOT EXISTS public.user_data (
   user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   movies jsonb DEFAULT '[]'::jsonb,
   updated_at timestamptz DEFAULT now()
 );
+ALTER TABLE public.user_data ADD COLUMN IF NOT EXISTS movies jsonb DEFAULT '[]'::jsonb;
+ALTER TABLE public.user_data ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_data ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "profiles_select" ON public.profiles;
 DROP POLICY IF EXISTS "profiles_modify" ON public.profiles;
+DROP POLICY IF EXISTS "Anyone can read profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Users manage their own profile" ON public.profiles;
 DROP POLICY IF EXISTS "profiles_select_authenticated" ON public.profiles;
 DROP POLICY IF EXISTS "profiles_insert_own" ON public.profiles;
 DROP POLICY IF EXISTS "profiles_update_own" ON public.profiles;
+DROP POLICY IF EXISTS "profiles_delete_own" ON public.profiles;
 DROP POLICY IF EXISTS "user_data_own" ON public.user_data;
 DROP POLICY IF EXISTS "user_data_shared" ON public.user_data;
+DROP POLICY IF EXISTS "Community read shared data" ON public.user_data;
+DROP POLICY IF EXISTS "Users manage their own data" ON public.user_data;
 DROP POLICY IF EXISTS "user_data_select_own" ON public.user_data;
 DROP POLICY IF EXISTS "user_data_insert_own" ON public.user_data;
 DROP POLICY IF EXISTS "user_data_update_own" ON public.user_data;
+DROP POLICY IF EXISTS "user_data_delete_own" ON public.user_data;
 DROP POLICY IF EXISTS "user_data_select_shared" ON public.user_data;
+DROP POLICY IF EXISTS "user_data_select_authenticated" ON public.user_data;
 CREATE POLICY "profiles_select_authenticated" ON public.profiles FOR SELECT TO authenticated USING (true);
-CREATE POLICY "profiles_insert_own" ON public.profiles FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "profiles_update_own" ON public.profiles FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "user_data_select_own" ON public.user_data FOR SELECT TO authenticated USING (auth.uid() = user_id);
-CREATE POLICY "user_data_insert_own" ON public.user_data FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "user_data_update_own" ON public.user_data FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "user_data_select_shared" ON public.user_data FOR SELECT TO authenticated USING (
-  EXISTS (SELECT 1 FROM public.profiles WHERE profiles.user_id = user_data.user_id AND profiles.sharing_enabled = true)
-);`;
+CREATE POLICY "profiles_insert_own" ON public.profiles FOR INSERT TO authenticated WITH CHECK ((select auth.uid()) = user_id);
+CREATE POLICY "profiles_update_own" ON public.profiles FOR UPDATE TO authenticated USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+CREATE POLICY "profiles_delete_own" ON public.profiles FOR DELETE TO authenticated USING ((select auth.uid()) = user_id);
+CREATE POLICY "user_data_select_authenticated" ON public.user_data FOR SELECT TO authenticated USING (
+  ((select auth.uid()) = user_id)
+  OR EXISTS (
+    SELECT 1 FROM public.profiles p
+    WHERE p.user_id = user_data.user_id
+      AND p.sharing_enabled = true
+  )
+);
+CREATE POLICY "user_data_insert_own" ON public.user_data FOR INSERT TO authenticated WITH CHECK ((select auth.uid()) = user_id);
+CREATE POLICY "user_data_update_own" ON public.user_data FOR UPDATE TO authenticated USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+CREATE POLICY "user_data_delete_own" ON public.user_data FOR DELETE TO authenticated USING ((select auth.uid()) = user_id);
+REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM anon;
+REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM authenticated;`;
 
   // Slow-query hint only. Do not replace the community panel with setup SQL
   // unless the actual Supabase request fails below.

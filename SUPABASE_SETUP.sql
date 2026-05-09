@@ -41,6 +41,8 @@ ALTER TABLE public.user_data ENABLE ROW LEVEL SECURITY;
 -- 4. Recreate policies idempotently.
 DROP POLICY IF EXISTS "profiles_select" ON public.profiles;
 DROP POLICY IF EXISTS "profiles_modify" ON public.profiles;
+DROP POLICY IF EXISTS "Anyone can read profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Users manage their own profile" ON public.profiles;
 DROP POLICY IF EXISTS "profiles_select_authenticated" ON public.profiles;
 DROP POLICY IF EXISTS "profiles_insert_own" ON public.profiles;
 DROP POLICY IF EXISTS "profiles_update_own" ON public.profiles;
@@ -48,11 +50,14 @@ DROP POLICY IF EXISTS "profiles_delete_own" ON public.profiles;
 
 DROP POLICY IF EXISTS "user_data_own" ON public.user_data;
 DROP POLICY IF EXISTS "user_data_shared" ON public.user_data;
+DROP POLICY IF EXISTS "Community read shared data" ON public.user_data;
+DROP POLICY IF EXISTS "Users manage their own data" ON public.user_data;
 DROP POLICY IF EXISTS "user_data_select_own" ON public.user_data;
 DROP POLICY IF EXISTS "user_data_insert_own" ON public.user_data;
 DROP POLICY IF EXISTS "user_data_update_own" ON public.user_data;
 DROP POLICY IF EXISTS "user_data_delete_own" ON public.user_data;
 DROP POLICY IF EXISTS "user_data_select_shared" ON public.user_data;
+DROP POLICY IF EXISTS "user_data_select_authenticated" ON public.user_data;
 
 -- Profiles:
 -- Signed-in users can read profile display data for community features.
@@ -63,45 +68,46 @@ CREATE POLICY "profiles_select_authenticated" ON public.profiles
 -- Users can create/update/delete only their own profile row.
 CREATE POLICY "profiles_insert_own" ON public.profiles
   FOR INSERT TO authenticated
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK ((select auth.uid()) = user_id);
 
 CREATE POLICY "profiles_update_own" ON public.profiles
   FOR UPDATE TO authenticated
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) = user_id);
 
 CREATE POLICY "profiles_delete_own" ON public.profiles
   FOR DELETE TO authenticated
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 -- User data:
--- Users fully control only their own library.
-CREATE POLICY "user_data_select_own" ON public.user_data
+-- Users can read their own library, plus shared community libraries.
+CREATE POLICY "user_data_select_authenticated" ON public.user_data
   FOR SELECT TO authenticated
-  USING (auth.uid() = user_id);
+  USING (
+    ((select auth.uid()) = user_id)
+    OR EXISTS (
+      SELECT 1
+      FROM public.profiles p
+      WHERE p.user_id = user_data.user_id
+        AND p.sharing_enabled = true
+    )
+  );
 
 CREATE POLICY "user_data_insert_own" ON public.user_data
   FOR INSERT TO authenticated
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK ((select auth.uid()) = user_id);
 
 CREATE POLICY "user_data_update_own" ON public.user_data
   FOR UPDATE TO authenticated
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) = user_id);
 
 CREATE POLICY "user_data_delete_own" ON public.user_data
   FOR DELETE TO authenticated
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
--- Shared community libraries are readable by signed-in users only when the
--- owner has enabled sharing.
-CREATE POLICY "user_data_select_shared" ON public.user_data
-  FOR SELECT TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1
-      FROM public.profiles
-      WHERE profiles.user_id = user_data.user_id
-        AND profiles.sharing_enabled = true
-    )
-  );
+-- This helper is not used by CineTrack at runtime and should not be callable
+-- from the API if it exists.
+REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM anon;
+REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM authenticated;
