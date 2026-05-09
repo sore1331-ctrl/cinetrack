@@ -204,6 +204,22 @@ let offlineMode     = false;
 let currentUsername = null;
 let sharingEnabled  = localStorage.getItem('cinetrack_sharing') === 'true';
 
+function usernameStorageKey() {
+  return currentUser?.id ? `cinetrack_username_${currentUser.id}` : null;
+}
+
+function getStoredUsername() {
+  const key = usernameStorageKey();
+  return key ? (localStorage.getItem(key) || null) : null;
+}
+
+function setStoredUsername(value) {
+  const key = usernameStorageKey();
+  if (!key) return;
+  if (value) localStorage.setItem(key, value);
+  else localStorage.removeItem(key);
+}
+
 // ── Sync indicator ──────────────────────────────────────
 let currentSyncState = 'loading';
 let currentSyncTitle = 'Loading…';
@@ -266,31 +282,52 @@ async function initSupabase() {
 // ── Profile load / save ─────────────────────────────────
 async function loadProfile() {
   if (!sb || !currentUser) return;
+  const localUsername = getStoredUsername();
+  if (localUsername && !currentUsername) {
+    currentUsername = localUsername;
+    updateUserMenu();
+  }
   try {
-    const { data } = await sb
+    const { data, error } = await sb
       .from('profiles')
       .select('username, sharing_enabled')
       .eq('user_id', currentUser.id)
       .maybeSingle();
+    if (error) throw error;
     if (data) {
-      currentUsername = data.username || null;
+      currentUsername = data.username || localUsername || null;
+      setStoredUsername(currentUsername);
       sharingEnabled  = !!data.sharing_enabled;
       localStorage.setItem('cinetrack_sharing', sharingEnabled);
     }
     updateUserMenu();
-  } catch {}
+  } catch (e) {
+    console.warn('[cinetrack] loadProfile failed:', e);
+  }
 }
 
 async function saveProfile(updates) {
   if (!sb || !currentUser) return { ok: false, error: 'Not signed in' };
   try {
-    const { error } = await sb.from('profiles').upsert({
-      user_id: currentUser.id,
-      ...updates,
-      updated_at: new Date().toISOString(),
-    });
+    const { data, error } = await sb.from('profiles')
+      .upsert({
+        user_id: currentUser.id,
+        ...updates,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' })
+      .select('username, sharing_enabled')
+      .single();
     if (error) throw error;
-    return { ok: true };
+    if (Object.prototype.hasOwnProperty.call(updates, 'username')) {
+      const savedUsername = data?.username || updates.username || null;
+      currentUsername = savedUsername;
+      setStoredUsername(savedUsername);
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'sharing_enabled') && data) {
+      sharingEnabled = !!data.sharing_enabled;
+      localStorage.setItem('cinetrack_sharing', sharingEnabled);
+    }
+    return { ok: true, data };
   } catch (e) {
     console.error('[cinetrack] saveProfile failed:', e);
     return { ok: false, error: e?.message || String(e) };
@@ -2723,6 +2760,7 @@ async function renderCommunity() {
   preferences jsonb DEFAULT '{}'::jsonb,
   updated_at timestamptz DEFAULT now()
 );
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS username text;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS preferences jsonb DEFAULT '{}'::jsonb;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS sharing_enabled boolean DEFAULT false;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
@@ -4191,27 +4229,22 @@ document.getElementById('username-save-btn').addEventListener('click', async e =
   if (!val) return;
   const previous = currentUsername;
   currentUsername = val;
+  setStoredUsername(val);
   updateUserMenu();
   closeUsernameForm();
   const result = await saveProfile({ username: val });
   if (!result.ok) {
     currentUsername = previous;
+    setStoredUsername(previous);
     updateUserMenu();
     showToast('Could not save username: ' + (result.error || 'unknown error'), true);
     return;
   }
-  // Confirm round-trip: re-read what the DB now has.
-  try {
-    const { data } = await sb.from('profiles')
-      .select('username').eq('user_id', currentUser.id).maybeSingle();
-    if (data?.username !== val) {
-      showToast('Username save did not persist (DB returned a different value). Check RLS policies.', true);
-      currentUsername = data?.username || previous;
-      updateUserMenu();
-    } else {
-      showToast('Username saved');
-    }
-  } catch { /* network blip on confirm — keep the optimistic state */ }
+  const savedUsername = result.data?.username || val;
+  currentUsername = savedUsername;
+  setStoredUsername(savedUsername);
+  updateUserMenu();
+  showToast('Username saved');
 });
 
 document.getElementById('username-input').addEventListener('keydown', async e => {

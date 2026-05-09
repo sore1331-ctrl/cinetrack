@@ -2917,34 +2917,60 @@ a.top-rated-card:hover {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  background: var(--glass-bg-strong);
+  background: var(--surface);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
           backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-highlight);
-  padding: 8px;
+  padding: 10px;
   min-width: 260px;
   max-width: min(340px, calc(100vw - 24px));
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
   z-index: 50;
 }
 .user-dropdown.hidden { display: none !important; }
 
+.user-dropdown .user-name-row {
+  padding: 4px 6px 2px;
+}
+.user-dropdown .username-display {
+  color: var(--text);
+  font-weight: 750;
+}
+.user-dropdown .username-placeholder {
+  color: var(--text);
+  font-weight: 500;
+  opacity: .9;
+}
+.user-dropdown .username-edit-btn {
+  color: var(--text);
+  opacity: .75;
+}
+.user-dropdown .username-edit-btn:hover {
+  opacity: 1;
+}
+.user-dropdown .username-form input {
+  background: var(--bg);
+  color: var(--text);
+  border-color: var(--border);
+}
+
 .user-email-label {
   font-size: .8rem;
-  color: var(--muted);
+  color: var(--text);
   padding: 4px 8px;
   word-break: break-all;
+  opacity: .78;
 }
 
 .build-label {
-  color: var(--muted);
+  color: var(--text);
   font-size: .68rem;
   padding: 0 8px 4px;
-  opacity: .7;
+  opacity: .62;
 }
 .sync-details {
   display: grid;
@@ -2953,7 +2979,7 @@ a.top-rated-card:hover {
   padding: 8px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: rgba(0,0,0,.12);
+  background: var(--surface2);
 }
 .sync-details div {
   display: grid;
@@ -2963,7 +2989,8 @@ a.top-rated-card:hover {
   line-height: 1.25;
 }
 .sync-details span {
-  color: var(--muted);
+  color: var(--text);
+  opacity: .72;
 }
 .sync-details strong {
   color: var(--text);
@@ -2973,16 +3000,31 @@ a.top-rated-card:hover {
   overflow-wrap: anywhere;
 }
 
+.reload-cloud-btn,
 .signout-btn {
-  background: transparent;
+  background: var(--surface2);
+  border-color: var(--border);
+  color: var(--text);
+}
+.reload-cloud-btn {
+  opacity: .86;
+}
+.reload-cloud-btn:hover,
+.signout-btn:hover {
+  opacity: 1;
+}
+
+.signout-btn {
+  background: var(--surface2);
   border: 1px solid var(--border);
-  color: var(--muted);
+  color: var(--text);
   padding: 7px 12px;
   border-radius: 8px;
   cursor: pointer;
   font-size: .85rem;
   transition: all .15s;
   text-align: left;
+  opacity: .86;
 }
 .signout-btn:hover { border-color: var(--accent); color: #e07070; }
 
