@@ -297,23 +297,94 @@ async function fetchJsonWithTimeout(url, options = {}, label = 'Request', timeou
   }
 }
 
+async function loadUserDataDirect() {
+  const { data, error } = await withTimeout(
+    sb
+      .from('user_data')
+      .select('movies,updated_at')
+      .eq('user_id', currentUser.id)
+      .maybeSingle(),
+    'Direct cloud load',
+    12000
+  );
+  if (error) throw error;
+  return {
+    movies: Array.isArray(data?.movies) ? data.movies : [],
+    updated_at: data?.updated_at || null,
+    exists: Boolean(data),
+  };
+}
+
+async function loadUserDataViaApi() {
+  const token = await getSupabaseAccessToken();
+  if (!token) throw new Error('Missing Supabase session token. Sign out and sign in again.');
+
+  const { response: r, data: row } = await fetchJsonWithTimeout(
+    `/api/user-data?userId=${encodeURIComponent(currentUser.id)}`,
+    {
+      cache: 'no-store',
+      headers: { Authorization: `Bearer ${token}` },
+    },
+    'Cloud load'
+  );
+  if (!r.ok) throw new Error(row?.error || `User data load failed (${r.status})`);
+  return row;
+}
+
+async function saveUserDataDirect(payload) {
+  const { data, error } = await withTimeout(
+    sb
+      .from('user_data')
+      .upsert({
+        user_id: payload.userId,
+        movies: payload.movies,
+        updated_at: payload.updated_at,
+      }, { onConflict: 'user_id' })
+      .select('updated_at')
+      .single(),
+    'Direct cloud save',
+    12000
+  );
+  if (error) throw error;
+  return {
+    ok: true,
+    updated_at: data?.updated_at || payload.updated_at,
+  };
+}
+
+async function saveUserDataViaApi(payload) {
+  const token = await getSupabaseAccessToken();
+  if (!token) throw new Error('Missing Supabase session token. Sign out and sign in again.');
+
+  const { response: r, data: result } = await fetchJsonWithTimeout(
+    '/api/user-data',
+    {
+      method: 'PUT',
+      cache: 'no-store',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    },
+    'Cloud save'
+  );
+  if (!r.ok || !result?.ok) throw new Error(result?.error || `User data save failed (${r.status})`);
+  return result;
+}
+
 async function loadUserData(options = {}) {
   const { silent = false, onlyIfNewer = false } = options;
   if (!sb || !currentUser) return { ok: false, error: 'Not signed in' };
   if (!silent) setSyncState('loading');
   try {
-    const token = await getSupabaseAccessToken();
-    if (!token) throw new Error('Missing Supabase session token. Sign out and sign in again.');
-
-    const { response: r, data: row } = await fetchJsonWithTimeout(
-      `/api/user-data?userId=${encodeURIComponent(currentUser.id)}`,
-      {
-        cache: 'no-store',
-        headers: { Authorization: `Bearer ${token}` },
-      },
-      'Cloud load'
-    );
-    if (!r.ok) throw new Error(row?.error || `User data load failed (${r.status})`);
+    let row;
+    try {
+      row = await loadUserDataDirect();
+    } catch (directError) {
+      console.warn('[cinetrack] Direct cloud load failed, trying API route:', directError?.message || directError);
+      row = await loadUserDataViaApi();
+    }
 
     if (onlyIfNewer) {
       if (!row?.updated_at || (lastCloudUpdatedAt && row.updated_at <= lastCloudUpdatedAt)) {
@@ -359,24 +430,14 @@ async function saveUserData() {
   if (!sb || !currentUser) return { ok: false, error: 'Not signed in' };
   const saveVersion = localChangeVersion;
   try {
-    const token = await getSupabaseAccessToken();
-    if (!token) throw new Error('Missing Supabase session token. Sign out and sign in again.');
-
     const payload = { userId: currentUser.id, movies, updated_at: new Date().toISOString() };
-    const { response: r, data: result } = await fetchJsonWithTimeout(
-      '/api/user-data',
-      {
-        method: 'PUT',
-        cache: 'no-store',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      },
-      'Cloud save'
-    );
-    if (!r.ok || !result?.ok) throw new Error(result?.error || `User data save failed (${r.status})`);
+    let result;
+    try {
+      result = await saveUserDataDirect(payload);
+    } catch (directError) {
+      console.warn('[cinetrack] Direct cloud save failed, trying API route:', directError?.message || directError);
+      result = await saveUserDataViaApi(payload);
+    }
 
     lastCloudUpdatedAt = result.updated_at || payload.updated_at;
     lastSavedLocalVersion = Math.max(lastSavedLocalVersion, saveVersion);
