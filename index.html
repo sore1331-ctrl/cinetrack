@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CineTrack</title>
-  <link rel="stylesheet" href="style.css?v=backgrounds-20260509-1" />
+  <link rel="stylesheet" href="style.css?v=design-pass-20260509-1" />
 </head>
 <body>
 
@@ -70,12 +70,13 @@
             <button id="username-save-btn" class="username-save-btn">Save</button>
           </div>
           <span id="user-email" class="user-email-label"></span>
+          <div class="account-panel-label">Cloud sync</div>
           <div class="sync-details" id="sync-details">
             <div><span>Status</span><strong id="sync-status-text">Loading...</strong></div>
             <div><span>Cloud items</span><strong id="sync-item-count">-</strong></div>
             <div><span>Last cloud update</span><strong id="sync-updated-at">-</strong></div>
           </div>
-          <span id="build-label" class="build-label">Build backgrounds-20260509-1</span>
+          <span id="build-label" class="build-label">Build design-pass-20260509-1</span>
           <hr class="dropdown-divider" />
           <button id="sync-now-btn" class="reload-cloud-btn" title="Push any pending local changes to the cloud, then pull the latest. Useful for reconciling after editing on another device.">↻ Sync now</button>
           <button id="reload-cloud-btn" class="reload-cloud-btn" title="Fetch your latest data from the cloud and replace local data. Use this if changes from another device aren't showing up.">↻ Reload from cloud</button>
@@ -87,6 +88,14 @@
       <button id="theme-toggle" class="theme-toggle" title="Toggle light/dark mode">🌙</button>
     </div>
   </header>
+
+  <nav class="mobile-bottom-nav" aria-label="Primary">
+    <button type="button" class="mobile-nav-btn active" data-mobile-view="movie"><span>🎬</span><small>Films</small></button>
+    <button type="button" class="mobile-nav-btn" data-mobile-view="tv"><span>📺</span><small>TV</small></button>
+    <button type="button" class="mobile-nav-btn" data-mobile-view="anime"><span>🎌</span><small>Anime</small></button>
+    <button type="button" class="mobile-nav-btn" data-mobile-view="stats"><span>📊</span><small>Stats</small></button>
+    <button type="button" class="mobile-nav-btn" data-mobile-view="profile"><span>👤</span><small>Profile</small></button>
+  </nav>
 
   <main>
     <!-- Controls row (hidden on stats/community) -->
@@ -454,6 +463,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <script src="app.js?v=backgrounds-20260509-1"></script>
+  <script src="app.js?v=design-pass-20260509-1"></script>
 </body>
 </html>

@@ -653,6 +653,13 @@ function refreshCurrentView() {
   else render();
 }
 
+function updateMobileNav() {
+  const activeKey = activeView === 'content' ? activeType : activeView;
+  document.querySelectorAll('.mobile-nav-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mobileView === activeKey);
+  });
+}
+
 function switchView(view, type) {
   activeView = view;
   if (type && view === 'content') {
@@ -671,6 +678,7 @@ function switchView(view, type) {
 
   // Sync header profile button active state
   document.getElementById('header-profile-btn')?.classList.toggle('active', isProfile);
+  updateMobileNav();
 
   document.querySelector('.controls').classList.toggle('hidden', !isContent);
   statsBar.classList.toggle('hidden', !isContent);
@@ -1461,6 +1469,9 @@ function renderStats() {
     return `<button class="stats-type-tab${statsTypeFilter === t ? ' active' : ''}" data-stats-type="${t}">${labels[t]}</button>`;
   }).join('');
 
+  const topGenreName = topGenres[0]?.[0] || 'No genre yet';
+  const topCountryName = topCountries[0]?.[0] || 'No country yet';
+
   const topRatedHTML = topRated.length ? `
     <div class="chart-section chart-section-wide">
       <h3>Your Top Rated</h3>
@@ -1493,6 +1504,25 @@ function renderStats() {
         <p>${watchedN.toLocaleString()} watched across ${scoped.length.toLocaleString()} tracked title${scoped.length === 1 ? '' : 's'}.</p>
       </div>
       <div class="stats-type-tabs">${filterTabs}</div>
+    </div>
+
+    <div class="stats-hero-summary">
+      <div>
+        <span class="stats-hero-label">Time watched</span>
+        <strong>${formatRuntime(totalMin) || '—'}</strong>
+      </div>
+      <div>
+        <span class="stats-hero-label">Top genre</span>
+        <strong>${esc(topGenreName)}</strong>
+      </div>
+      <div>
+        <span class="stats-hero-label">Top country</span>
+        <strong>${esc(topCountryName)}</strong>
+      </div>
+      <div>
+        <span class="stats-hero-label">Average rating</span>
+        <strong>${avgRating ? '★ ' + avgRating : '—'}</strong>
+      </div>
     </div>
 
     <div class="stats-overview stats-overview-primary">
@@ -3051,7 +3081,7 @@ function renderProfile() {
       </div>
     </div>
 
-    <div class="stats-overview">
+    <div class="stats-overview profile-summary-cards">
       <div class="stat-card">
         <div class="stat-card-value">${watched.length}</div>
         <div class="stat-card-label">Watched</div>
@@ -3087,7 +3117,7 @@ function renderProfile() {
       </div>
     </div>` : ''}
 
-    <div class="stats-charts">
+    <div class="stats-charts profile-charts">
       ${topGenres.length ? `
       <div class="chart-section">
         <h3>Top Genres</h3>
@@ -3131,90 +3161,100 @@ function renderProfile() {
         <span class="appearance-chevron" aria-hidden="true">▶</span>
       </h3>
       <div class="appearance-body">
-      <div class="appearance-row">
-        <div class="appearance-label">Background</div>
-        <div class="bg-picker" id="bg-picker">
-          ${BG_PRESETS.map(name => {
-            const current = localStorage.getItem('cinetrack_bg') || 'default';
-            const label = name[0].toUpperCase() + name.slice(1);
-            return `<button type="button" class="bg-swatch ${name === current ? 'active' : ''}" data-bg="${name}" title="${label}"><span class="bg-swatch-label">${label}</span></button>`;
-          }).join('')}
+        <div class="appearance-group appearance-group-wide">
+          <div class="appearance-group-title">Theme canvas</div>
+          <div class="appearance-row">
+            <div class="appearance-label">Background</div>
+            <div class="bg-picker" id="bg-picker">
+              ${BG_PRESETS.map(name => {
+                const current = localStorage.getItem('cinetrack_bg') || 'default';
+                const label = name[0].toUpperCase() + name.slice(1);
+                return `<button type="button" class="bg-swatch ${name === current ? 'active' : ''}" data-bg="${name}" title="${label}"><span class="bg-swatch-label">${label}</span></button>`;
+              }).join('')}
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div class="appearance-row">
-        <div class="appearance-label">Glass intensity</div>
-        <div class="pill-group" data-pref="glass">
-          ${GLASS_PRESETS.map(name => {
-            const current = localStorage.getItem('cinetrack_glass') || 'vivid';
-            return `<button type="button" class="pill-btn ${name === current ? 'active' : ''}" data-value="${name}">${name[0].toUpperCase() + name.slice(1)}</button>`;
-          }).join('')}
-        </div>
-      </div>
+        <div class="appearance-grid">
+          <div class="appearance-group">
+            <div class="appearance-group-title">Surface</div>
+            <div class="appearance-row">
+              <div class="appearance-label">Glass intensity</div>
+              <div class="pill-group" data-pref="glass">
+                ${GLASS_PRESETS.map(name => {
+                  const current = localStorage.getItem('cinetrack_glass') || 'vivid';
+                  return `<button type="button" class="pill-btn ${name === current ? 'active' : ''}" data-value="${name}">${name[0].toUpperCase() + name.slice(1)}</button>`;
+                }).join('')}
+              </div>
+            </div>
+            <div class="appearance-row">
+              <div class="appearance-label">Accent colour</div>
+              <div class="accent-picker" data-pref="accent">
+                ${ACCENT_PRESETS.map(name => {
+                  const current = localStorage.getItem('cinetrack_accent') || 'default';
+                  return `<button type="button" class="accent-swatch ${name === current ? 'active' : ''}" data-accent="${name}" title="${name[0].toUpperCase() + name.slice(1)}"></button>`;
+                }).join('')}
+              </div>
+            </div>
+          </div>
 
-      <div class="appearance-row">
-        <div class="appearance-label">Accent colour</div>
-        <div class="accent-picker" data-pref="accent">
-          ${ACCENT_PRESETS.map(name => {
-            const current = localStorage.getItem('cinetrack_accent') || 'default';
-            return `<button type="button" class="accent-swatch ${name === current ? 'active' : ''}" data-accent="${name}" title="${name[0].toUpperCase() + name.slice(1)}"></button>`;
-          }).join('')}
-        </div>
-      </div>
+          <div class="appearance-group">
+            <div class="appearance-group-title">Library</div>
+            <div class="appearance-row">
+              <div class="appearance-label">Density</div>
+              <div class="pill-group" data-pref="density">
+                ${DENSITY_OPTIONS.map(name => {
+                  const current = localStorage.getItem('cinetrack_density') || 'comfortable';
+                  return `<button type="button" class="pill-btn ${name === current ? 'active' : ''}" data-value="${name}">${name[0].toUpperCase() + name.slice(1)}</button>`;
+                }).join('')}
+              </div>
+            </div>
+            <div class="appearance-row">
+              <div class="appearance-label">Hide posters in library</div>
+              <div class="pill-group" data-pref="posters">
+                ${POSTERS_OPTIONS.map(name => {
+                  const current = localStorage.getItem('cinetrack_posters') || 'shown';
+                  const label = name === 'shown' ? 'Off' : 'On';
+                  return `<button type="button" class="pill-btn ${name === current ? 'active' : ''}" data-value="${name}">${label}</button>`;
+                }).join('')}
+              </div>
+            </div>
+          </div>
 
-      <div class="appearance-row">
-        <div class="appearance-label">Animated orbs</div>
-        <div class="pill-group" data-pref="orbs">
-          ${ORBS_OPTIONS.map(name => {
-            const current = localStorage.getItem('cinetrack_orbs') || 'static';
-            const label = name === 'static' ? 'Off' : 'On';
-            return `<button type="button" class="pill-btn ${name === current ? 'active' : ''}" data-value="${name}">${label}</button>`;
-          }).join('')}
+          <div class="appearance-group">
+            <div class="appearance-group-title">Motion & alerts</div>
+            <div class="appearance-row">
+              <div class="appearance-label">Animated orbs</div>
+              <div class="pill-group" data-pref="orbs">
+                ${ORBS_OPTIONS.map(name => {
+                  const current = localStorage.getItem('cinetrack_orbs') || 'static';
+                  const label = name === 'static' ? 'Off' : 'On';
+                  return `<button type="button" class="pill-btn ${name === current ? 'active' : ''}" data-value="${name}">${label}</button>`;
+                }).join('')}
+              </div>
+            </div>
+            <div class="appearance-row">
+              <div class="appearance-label">Reduce motion / no blur</div>
+              <div class="pill-group" data-pref="motion">
+                ${MOTION_OPTIONS.map(name => {
+                  const current = localStorage.getItem('cinetrack_motion') || 'full';
+                  const label = name === 'full' ? 'Off' : 'On';
+                  return `<button type="button" class="pill-btn ${name === current ? 'active' : ''}" data-value="${name}">${label}</button>`;
+                }).join('')}
+              </div>
+            </div>
+            <div class="appearance-row">
+              <div class="appearance-label">Episode airing alerts</div>
+              <div class="pill-group" data-pref="notif">
+                ${NOTIF_OPTIONS.map(name => {
+                  const current = localStorage.getItem('cinetrack_notif') || 'off';
+                  const label = name === 'off' ? 'Off' : 'On';
+                  return `<button type="button" class="pill-btn ${name === current ? 'active' : ''}" data-value="${name}">${label}</button>`;
+                }).join('')}
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
-
-      <div class="appearance-row">
-        <div class="appearance-label">Density</div>
-        <div class="pill-group" data-pref="density">
-          ${DENSITY_OPTIONS.map(name => {
-            const current = localStorage.getItem('cinetrack_density') || 'comfortable';
-            return `<button type="button" class="pill-btn ${name === current ? 'active' : ''}" data-value="${name}">${name[0].toUpperCase() + name.slice(1)}</button>`;
-          }).join('')}
-        </div>
-      </div>
-
-      <div class="appearance-row">
-        <div class="appearance-label">Hide posters in library</div>
-        <div class="pill-group" data-pref="posters">
-          ${POSTERS_OPTIONS.map(name => {
-            const current = localStorage.getItem('cinetrack_posters') || 'shown';
-            const label = name === 'shown' ? 'Off' : 'On';
-            return `<button type="button" class="pill-btn ${name === current ? 'active' : ''}" data-value="${name}">${label}</button>`;
-          }).join('')}
-        </div>
-      </div>
-
-      <div class="appearance-row">
-        <div class="appearance-label">Notify when an episode airs today</div>
-        <div class="pill-group" data-pref="notif">
-          ${NOTIF_OPTIONS.map(name => {
-            const current = localStorage.getItem('cinetrack_notif') || 'off';
-            const label = name === 'off' ? 'Off' : 'On';
-            return `<button type="button" class="pill-btn ${name === current ? 'active' : ''}" data-value="${name}">${label}</button>`;
-          }).join('')}
-        </div>
-      </div>
-
-      <div class="appearance-row">
-        <div class="appearance-label">Reduce motion / no blur</div>
-        <div class="pill-group" data-pref="motion">
-          ${MOTION_OPTIONS.map(name => {
-            const current = localStorage.getItem('cinetrack_motion') || 'full';
-            const label = name === 'full' ? 'Off' : 'On';
-            return `<button type="button" class="pill-btn ${name === current ? 'active' : ''}" data-value="${name}">${label}</button>`;
-          }).join('')}
-        </div>
-      </div>
       </div>
     </div>
 
@@ -4257,6 +4297,19 @@ document.getElementById('username-save-btn').addEventListener('click', async e =
   setStoredUsername(savedUsername);
   updateUserMenu();
   showToast('Username saved');
+});
+
+document.querySelectorAll('.mobile-nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const target = btn.dataset.mobileView;
+    document.querySelectorAll('.type-tab').forEach(tab => {
+      tab.classList.toggle('active', tab.dataset.type === target);
+    });
+    currentPage = 0;
+    if (target === 'stats') switchView('stats');
+    else if (target === 'profile') switchView('profile');
+    else switchView('content', target);
+  });
 });
 
 document.getElementById('username-input').addEventListener('keydown', async e => {

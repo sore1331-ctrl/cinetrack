@@ -340,6 +340,10 @@ header h1 {
 .type-tab[data-type="anime"].active     { color: #a855f7; border-bottom-color: #a855f7; }
 .type-tab[data-type="calendar"].active  { color: #4caf82; border-bottom-color: #4caf82; }
 
+.mobile-bottom-nav {
+  display: none;
+}
+
 /* Airing-today indicator on the Calendar nav tab */
 .type-tab.has-airing::after {
   content: ''; position: absolute; top: 6px; right: 4px;
@@ -1680,14 +1684,51 @@ button.danger:hover { opacity: .85; }
   .header-profile-btn { width: 32px; height: 32px; font-size: .85rem; }
   .user-avatar-btn { width: 32px; height: 32px; }
 
-  /* Tab bar: emoji-only at narrow widths to fit 6 tabs without scroll */
-  .type-tabs-inner { padding: 0 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
-  .type-tabs-inner::-webkit-scrollbar { display: none; }
-  .type-tab { padding: 10px 11px; font-size: 1.1rem; white-space: nowrap; }
-  .type-tab .tab-label { display: none; }
+  .type-tabs-bar { display: none; }
+  .mobile-bottom-nav {
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    z-index: 80;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 4px;
+    padding: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--glass-shadow);
+  }
+  .mobile-nav-btn {
+    min-width: 0;
+    min-height: 46px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    font-size: 1.05rem;
+  }
+  .mobile-nav-btn small {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: .62rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .mobile-nav-btn.active {
+    background: var(--surface2);
+    color: var(--accent);
+  }
 
   /* Main content */
-  main { padding: 12px 12px 0; }
+  main { padding: 12px 12px 84px; }
 
   /* Controls: search + add on top row, filters scroll below */
   .controls {
@@ -1916,6 +1957,38 @@ button.danger:hover { opacity: .85; }
   color: var(--muted);
   font-size: .88rem;
 }
+.stats-hero-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.stats-hero-summary > div {
+  min-width: 0;
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+          backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-highlight);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.stats-hero-label {
+  display: block;
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+.stats-hero-summary strong {
+  display: block;
+  color: var(--text);
+  font-size: 1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 /* ── Stats type filter tabs ── */
 .stats-type-tabs {
   display: flex;
@@ -1955,6 +2028,7 @@ button.danger:hover { opacity: .85; }
 }
 @media (max-width: 700px) {
   .stats-overview { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+  .stats-hero-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stats-page-head {
     align-items: stretch;
     flex-direction: column;
@@ -2328,6 +2402,14 @@ a.top-rated-card:hover {
 }
 
 .profile-section { margin: 22px 0 0; }
+.profile-summary-cards {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+@media (max-width: 700px) {
+  .profile-summary-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 .profile-panel > .profile-section {
   background: var(--glass-bg);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
@@ -2338,6 +2420,10 @@ a.top-rated-card:hover {
   padding: 18px;
 }
 .profile-panel > .profile-section h3 { font-size: 1rem; font-weight: 750; margin-bottom: 14px; }
+
+.profile-panel .profile-charts {
+  align-items: start;
+}
 
 .profile-type-grid {
   display: flex;
@@ -2548,12 +2634,32 @@ a.top-rated-card:hover {
 .appearance-section.open .appearance-chevron { transform: rotate(90deg); }
 .appearance-body {
   display: none;
-  margin-top: 14px;
+  margin-top: 16px;
 }
 .appearance-section.open .appearance-body { display: block; }
 
 /* Appearance — sub-rows */
-.appearance-row { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.appearance-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.appearance-group {
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+}
+.appearance-group-wide { padding: 14px 14px 16px; }
+.appearance-group-title {
+  color: var(--text);
+  font-size: .88rem;
+  font-weight: 800;
+  margin-bottom: 12px;
+}
+.appearance-row { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
 .appearance-row:last-child { margin-bottom: 0; }
 .appearance-label { font-size: .82rem; font-weight: 600; color: var(--muted); }
 .pill-group { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -2581,6 +2687,18 @@ a.top-rated-card:hover {
 .accent-swatch[data-accent="purple"]  { background: #a855f7; }
 .accent-swatch[data-accent="amber"]   { background: #f5a623; }
 .accent-swatch[data-accent="cyan"]    { background: #06b6d4; }
+
+@media (max-width: 760px) {
+  .appearance-grid { grid-template-columns: 1fr; }
+  .bg-picker {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .bg-swatch {
+    width: 100%;
+    min-height: 66px;
+  }
+}
 
 /* Community search/sort + clickable cards */
 .community-controls {
@@ -3013,6 +3131,15 @@ a.top-rated-card:hover {
   text-align: right;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.account-panel-label {
+  color: var(--text);
+  font-size: .7rem;
+  font-weight: 800;
+  opacity: .78;
+  padding: 4px 8px 0;
+  text-transform: uppercase;
 }
 
 .reload-cloud-btn,
