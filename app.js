@@ -1455,7 +1455,7 @@ function isAiringToday(m) {
   const todayStr = todayDateString();
   const isShow  = m.mediaType === 'tv' || m.mediaType === 'anime';
   const isMovie = m.mediaType === 'movie';
-  if (isShow && m.status === 'in_progress') {
+  if (isShow && (m.status === 'in_progress' || m.status === 'watchlist')) {
     return cache.byId[`tv:${m.tmdbId}`]?.nextEpisode?.airDate === todayStr;
   }
   if (isMovie && m.status === 'watchlist') {
@@ -1478,7 +1478,7 @@ function updateCalendarAiringBadge() {
       if (!m.tmdbId) continue;
       const isShow  = m.mediaType === 'tv' || m.mediaType === 'anime';
       const isMovie = m.mediaType === 'movie';
-      if (isShow && m.status === 'in_progress') {
+      if (isShow && (m.status === 'in_progress' || m.status === 'watchlist')) {
         const item = cache.byId[`tv:${m.tmdbId}`];
         if (item?.nextEpisode?.airDate === todayStr) count += 1;
       } else if (isMovie && m.status === 'watchlist') {
@@ -1547,7 +1547,7 @@ async function warmUpcomingCacheForBadge() {
   for (const m of movies) {
     if (!m.tmdbId) continue;
     const isShow = m.mediaType === 'tv' || m.mediaType === 'anime';
-    if (isShow && m.status === 'in_progress')      ids.push(`tv:${m.tmdbId}`);
+    if (isShow && (m.status === 'in_progress' || m.status === 'watchlist')) ids.push(`tv:${m.tmdbId}`);
     else if (m.mediaType === 'movie' && m.status === 'watchlist') ids.push(`movie:${m.tmdbId}`);
   }
   if (!ids.length) { updateCalendarAiringBadge(); return; }
@@ -1626,10 +1626,11 @@ async function renderCalendar({ force = false } = {}) {
 }
 
 async function renderCalendarTracked(body, { force = false } = {}) {
-  // What we track: in-progress TV/anime (next episode) + watchlist movies
-  // (theatrical release). Each entry is keyed as `${type}:${tmdbId}`.
+  // What we track: in-progress + watchlist TV/anime (next episode air date)
+  // and watchlist movies (theatrical release). Each entry is keyed as
+  // `${type}:${tmdbId}`.
   const tracked = movies.filter(m => m.tmdbId && (
-    ((m.mediaType === 'tv' || m.mediaType === 'anime') && m.status === 'in_progress') ||
+    ((m.mediaType === 'tv' || m.mediaType === 'anime') && (m.status === 'in_progress' || m.status === 'watchlist')) ||
     (m.mediaType === 'movie' && m.status === 'watchlist')
   ));
 
@@ -1639,7 +1640,7 @@ async function renderCalendarTracked(body, { force = false } = {}) {
   });
 
   if (!ids.length) {
-    body.innerHTML = `<p class="recs-empty">Mark a TV show or anime as <em>In Progress</em>, or add a movie to your <em>Watchlist</em>, to see what's coming up.</p>`;
+    body.innerHTML = `<p class="recs-empty">Add a TV show or anime to your <em>Watchlist</em> or mark it <em>In Progress</em>, or add a movie to your <em>Watchlist</em>, to see what's coming up.</p>`;
     return;
   }
 
