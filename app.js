@@ -3411,8 +3411,8 @@ function render() {
       </span>
       ${airingToday ? `<span class="card-airing-pill" title="${m.mediaType === 'movie' ? 'Theatrical release today' : 'New episode airs today'}">● Today</span>` : ''}
       ${m.tmdbId
-        ? `<a class="card-title card-title-link" href="https://www.themoviedb.org/${m.mediaType === 'movie' ? 'movie' : 'tv'}/${m.tmdbId}" target="_blank" rel="noopener noreferrer">${esc(m.title)}</a>`
-        : `<div class="card-title">${esc(m.title)}</div>`}
+        ? `<a class="card-title card-title-link" href="https://www.themoviedb.org/${m.mediaType === 'movie' ? 'movie' : 'tv'}/${m.tmdbId}" target="_blank" rel="noopener noreferrer" title="${esc(m.title)}">${esc(m.title)}</a>`
+        : `<div class="card-title" title="${esc(m.title)}">${esc(m.title)}</div>`}
       <div class="card-meta">
         ${m.year       ? `<span class="meta-year">${m.year}</span>` : ''}
         ${m.country    ? `<span class="meta-country">🌍 ${esc(m.country)}</span>` : ''}
