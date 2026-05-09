@@ -85,7 +85,10 @@
   <main>
     <!-- Controls row (hidden on stats/community) -->
     <section class="controls">
-      <input type="text" id="search-input" placeholder="Search titles, genres, directors..." />
+      <div class="search-wrap">
+        <input type="text" id="search-input" placeholder="Search titles, genres, directors..." />
+        <button type="button" id="search-clear-btn" class="search-clear-btn hidden" title="Clear search" aria-label="Clear search">✕</button>
+      </div>
       <div class="size-toggle">
         <button class="size-btn" data-size="sm">S</button>
         <button class="size-btn active" data-size="md">M</button>
@@ -325,6 +328,10 @@
           </div>
           <div id="tmdb-searching" class="tmdb-status hidden">Searching…</div>
           <div id="tmdb-error" class="tmdb-status error hidden"></div>
+          <div id="duplicate-warning" class="duplicate-warning hidden">
+            <span class="duplicate-warning-text">⚠️ <strong>Already in your library</strong> <span id="duplicate-warning-detail"></span></span>
+            <button type="button" id="duplicate-edit-btn" class="duplicate-edit-btn">Open existing</button>
+          </div>
           <div id="modal-providers" class="modal-providers hidden"></div>
         </div>
         <div id="manual-fields">

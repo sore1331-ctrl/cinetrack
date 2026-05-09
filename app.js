@@ -850,6 +850,32 @@ function applyTMDBSelection(details) {
     document.getElementById('f-notes').value  = details.overview || '';
 
   renderProviders(details.providers);
+  checkDuplicateForTMDBId(details.id);
+}
+
+// Show a warning + 'Open existing' button when the picked TMDB id is
+// already tracked in the user's library (under a different local entry).
+function checkDuplicateForTMDBId(tmdbId) {
+  const banner = document.getElementById('duplicate-warning');
+  const detail = document.getElementById('duplicate-warning-detail');
+  const btn    = document.getElementById('duplicate-edit-btn');
+  if (!banner || !tmdbId) { banner?.classList.add('hidden'); return; }
+
+  const existing = movies.find(m => Number(m.tmdbId) === Number(tmdbId) && m.id !== editingId);
+  if (!existing) { banner.classList.add('hidden'); return; }
+
+  const statusLabel = existing.status === 'watched'     ? '✓ Watched'
+                    : existing.status === 'in_progress' ? '▶ In Progress'
+                    : existing.status === 'dropped'     ? '📛 Dropped'
+                                                        : '⏳ Watchlist';
+  if (detail) detail.textContent = `as “${existing.title}” · ${statusLabel}`;
+  banner.classList.remove('hidden');
+  if (btn) {
+    btn.onclick = () => {
+      closeModal();
+      openModal(existing);
+    };
+  }
 }
 
 const PROVIDER_LOGO_BASE = 'https://image.tmdb.org/t/p/w92';
@@ -908,6 +934,7 @@ function resetTMDBUI() {
   tmdbSearching.classList.add('hidden');
   const provEl = document.getElementById('modal-providers');
   if (provEl) { provEl.classList.add('hidden'); provEl.innerHTML = ''; }
+  document.getElementById('duplicate-warning')?.classList.add('hidden');
 }
 
 tmdbClear.addEventListener('click', () => {
@@ -3510,7 +3537,26 @@ addBtn.addEventListener('click', () => openModal());
 cancelBtn.addEventListener('click', closeModal);
 modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
 document.getElementById('f-status').addEventListener('change', () => { toggleRatingLabel(); buildStars(); updateRewatchUI(); });
-searchInput.addEventListener('input', () => { searchQuery = searchInput.value; currentPage = 0; render(); });
+const searchClearBtn = document.getElementById('search-clear-btn');
+function updateSearchClearBtn() {
+  if (!searchClearBtn) return;
+  searchClearBtn.classList.toggle('hidden', !searchInput.value);
+}
+searchInput.addEventListener('input', () => {
+  searchQuery = searchInput.value;
+  currentPage = 0;
+  updateSearchClearBtn();
+  render();
+});
+searchClearBtn?.addEventListener('click', () => {
+  searchInput.value = '';
+  searchQuery = '';
+  currentPage = 0;
+  updateSearchClearBtn();
+  searchInput.focus();
+  render();
+});
+updateSearchClearBtn();
 countryFilterEl.addEventListener('change', () => { countryFilter = countryFilterEl.value; currentPage = 0; render(); });
 genreFilterEl.addEventListener('change', () => { genreFilter = genreFilterEl.value; currentPage = 0; render(); });
 document.getElementById('sort-order').addEventListener('change', e => {
