@@ -1,5 +1,5 @@
 // ── Theme ───────────────────────────────────────────────
-const CINETRACK_BUILD = 'sync-api-20260509-2';
+const CINETRACK_BUILD = 'sync-timeout-20260509-3';
 console.info(`[CineTrack] Build ${CINETRACK_BUILD}`);
 
 const themeToggle = document.getElementById('theme-toggle');
@@ -269,6 +269,25 @@ async function getSupabaseAccessToken() {
   return session?.access_token || '';
 }
 
+async function fetchJsonWithTimeout(url, options = {}, label = 'Request', timeoutMs = 15000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    let data = null;
+    try { data = await response.json(); }
+    catch { data = null; }
+    return { response, data };
+  } catch (e) {
+    if (e?.name === 'AbortError') {
+      throw new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s.`);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function loadUserData(options = {}) {
   const { silent = false, onlyIfNewer = false } = options;
   if (!sb || !currentUser) return { ok: false, error: 'Not signed in' };
@@ -277,11 +296,14 @@ async function loadUserData(options = {}) {
     const token = await getSupabaseAccessToken();
     if (!token) throw new Error('Missing Supabase session token. Sign out and sign in again.');
 
-    const r = await fetch(`/api/user-data?userId=${encodeURIComponent(currentUser.id)}`, {
-      cache: 'no-store',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const row = await r.json();
+    const { response: r, data: row } = await fetchJsonWithTimeout(
+      `/api/user-data?userId=${encodeURIComponent(currentUser.id)}`,
+      {
+        cache: 'no-store',
+        headers: { Authorization: `Bearer ${token}` },
+      },
+      'Cloud load'
+    );
     if (!r.ok) throw new Error(row?.error || `User data load failed (${r.status})`);
 
     if (onlyIfNewer) {
@@ -332,16 +354,19 @@ async function saveUserData() {
     if (!token) throw new Error('Missing Supabase session token. Sign out and sign in again.');
 
     const payload = { userId: currentUser.id, movies, updated_at: new Date().toISOString() };
-    const r = await fetch('/api/user-data', {
-      method: 'PUT',
-      cache: 'no-store',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
+    const { response: r, data: result } = await fetchJsonWithTimeout(
+      '/api/user-data',
+      {
+        method: 'PUT',
+        cache: 'no-store',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
       },
-      body: JSON.stringify(payload),
-    });
-    const result = await r.json();
+      'Cloud save'
+    );
     if (!r.ok || !result?.ok) throw new Error(result?.error || `User data save failed (${r.status})`);
 
     lastCloudUpdatedAt = result.updated_at || payload.updated_at;
@@ -2626,11 +2651,14 @@ CREATE POLICY "user_data_select_shared" ON public.user_data FOR SELECT TO authen
     const token = session?.access_token;
     if (!token) throw new Error('Missing Supabase session token. Sign out and sign in again.');
 
-    const communityRes = await fetch(`/api/community?currentUserId=${encodeURIComponent(currentUser.id)}`, {
-      cache: 'no-store',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const community = await communityRes.json();
+    const { response: communityRes, data: community } = await fetchJsonWithTimeout(
+      `/api/community?currentUserId=${encodeURIComponent(currentUser.id)}`,
+      {
+        cache: 'no-store',
+        headers: { Authorization: `Bearer ${token}` },
+      },
+      'Community load'
+    );
     if (!communityRes.ok) throw new Error(community?.error || `Community API failed (${communityRes.status})`);
 
     const sharingProfiles = community.profiles || [];
