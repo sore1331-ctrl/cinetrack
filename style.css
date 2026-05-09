@@ -2659,6 +2659,65 @@ a.top-rated-card:hover {
   font-weight: 800;
   margin-bottom: 12px;
 }
+.theme-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+.theme-preset-btn {
+  min-width: 0;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  text-align: left;
+  transition: border-color .15s, transform .15s;
+}
+.theme-preset-btn:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+.theme-preset-btn.active {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.theme-preset-btn > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .76rem;
+  font-weight: 750;
+}
+.theme-preset-preview {
+  position: relative;
+  display: block;
+  height: 42px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.theme-preset-preview::before,
+.theme-preset-preview::after {
+  content: '';
+  position: absolute;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  filter: blur(11px);
+  opacity: .9;
+}
+.theme-preset-preview::before { top: -10px; left: -8px; background: var(--tp-a); }
+.theme-preset-preview::after  { right: -8px; bottom: -10px; background: var(--tp-b); }
+.theme-preset-preview-cinema    { --tp-a: #e2405a; --tp-b: #111827; background: #171720; }
+.theme-preset-preview-neon      { --tp-a: #06b6d4; --tp-b: #7c3aed; background: #08111c; }
+.theme-preset-preview-minimal   { --tp-a: #4b5563; --tp-b: #111827; background: #16161c; }
+.theme-preset-preview-midnight  { --tp-a: #4c1d95; --tp-b: #7c3aed; background: #0f1020; }
+.theme-preset-preview-softLight { --tp-a: #bfdbfe; --tp-b: #e9d5ff; background: #f8fafc; }
 .appearance-row { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
 .appearance-row:last-child { margin-bottom: 0; }
 .appearance-label { font-size: .82rem; font-weight: 600; color: var(--muted); }
@@ -2690,6 +2749,7 @@ a.top-rated-card:hover {
 
 @media (max-width: 760px) {
   .appearance-grid { grid-template-columns: 1fr; }
+  .theme-preset-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .bg-picker {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

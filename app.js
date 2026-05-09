@@ -1,5 +1,5 @@
 // ── Theme ───────────────────────────────────────────────
-const CINETRACK_BUILD = 'sync-status-20260509-6';
+const CINETRACK_BUILD = 'theme-presets-20260509-1';
 console.info(`[CineTrack] Build ${CINETRACK_BUILD}`);
 
 const themeToggle = document.getElementById('theme-toggle');
@@ -14,6 +14,7 @@ applyTheme(savedTheme);
 
 themeToggle.addEventListener('click', () => {
   const next = document.documentElement.classList.contains('light') ? 'dark' : 'light';
+  localStorage.removeItem('cinetrack_theme_preset');
   localStorage.setItem('cinetrack_theme', next);
   applyTheme(next);
   if (typeof scheduleSavePrefs === 'function') scheduleSavePrefs();
@@ -48,6 +49,13 @@ const DENSITY_OPTIONS = ['comfortable', 'compact'];
 const MOTION_OPTIONS  = ['full', 'reduced'];
 const POSTERS_OPTIONS = ['shown', 'hidden'];
 const NOTIF_OPTIONS   = ['off', 'on'];
+const THEME_PRESETS = {
+  cinema:    { label: 'Cinema',    theme: 'dark',  bg: 'default',  glass: 'medium', accent: 'default', orbs: 'static',   density: 'comfortable', motion: 'full' },
+  neon:      { label: 'Neon',      theme: 'dark',  bg: 'cyber',    glass: 'vivid',  accent: 'cyan',    orbs: 'animated', density: 'comfortable', motion: 'full' },
+  minimal:   { label: 'Minimal',   theme: 'dark',  bg: 'mono',     glass: 'subtle', accent: 'default', orbs: 'static',   density: 'compact',     motion: 'reduced' },
+  midnight:  { label: 'Midnight',  theme: 'dark',  bg: 'midnight', glass: 'medium', accent: 'purple',  orbs: 'static',   density: 'comfortable', motion: 'full' },
+  softLight: { label: 'Soft Light', theme: 'light', bg: 'lavender', glass: 'medium', accent: 'blue',    orbs: 'static',   density: 'comfortable', motion: 'reduced' },
+};
 
 function applyAttrPreset(attr, value, defaultValue, allowed) {
   const safe = allowed.includes(value) ? value : defaultValue;
@@ -61,6 +69,20 @@ function applyDensity(v) { applyAttrPreset('data-density', v, 'comfortable', DEN
 function applyMotion(v)  { applyAttrPreset('data-motion',  v, 'full',        MOTION_OPTIONS); }
 function applyPosters(v) { applyAttrPreset('data-posters', v, 'shown',       POSTERS_OPTIONS); }
 function applyEpisodeNotif(v) { applyAttrPreset('data-notif', v, 'off', NOTIF_OPTIONS); }
+function applyThemePreset(name) {
+  const preset = THEME_PRESETS[name];
+  if (!preset) return false;
+  localStorage.setItem('cinetrack_theme_preset', name);
+  localStorage.setItem('cinetrack_theme', preset.theme);
+  localStorage.setItem('cinetrack_bg', preset.bg);
+  localStorage.setItem('cinetrack_glass', preset.glass);
+  localStorage.setItem('cinetrack_accent', preset.accent);
+  localStorage.setItem('cinetrack_orbs', preset.orbs);
+  localStorage.setItem('cinetrack_density', preset.density);
+  localStorage.setItem('cinetrack_motion', preset.motion);
+  applyAllAppearance();
+  return true;
+}
 
 applyGlass(localStorage.getItem('cinetrack_glass')   || 'vivid');
 applyAccent(localStorage.getItem('cinetrack_accent') || 'default');
@@ -76,6 +98,7 @@ applyEpisodeNotif(localStorage.getItem('cinetrack_notif') || 'off');
 // applied to localStorage + the live UI.
 const SYNC_PREF_KEYS = [
   'cinetrack_theme',
+  'cinetrack_theme_preset',
   'cinetrack_bg',
   'cinetrack_glass',
   'cinetrack_accent',
@@ -3162,6 +3185,19 @@ function renderProfile() {
       </h3>
       <div class="appearance-body">
         <div class="appearance-group appearance-group-wide">
+          <div class="appearance-group-title">Theme presets</div>
+          <div class="theme-preset-grid">
+            ${Object.entries(THEME_PRESETS).map(([key, preset]) => {
+              const current = localStorage.getItem('cinetrack_theme_preset') || '';
+              return `<button type="button" class="theme-preset-btn ${key === current ? 'active' : ''}" data-theme-preset="${key}">
+                <span class="theme-preset-preview theme-preset-preview-${key}" aria-hidden="true"></span>
+                <span>${preset.label}</span>
+              </button>`;
+            }).join('')}
+          </div>
+        </div>
+
+        <div class="appearance-group appearance-group-wide">
           <div class="appearance-group-title">Theme canvas</div>
           <div class="appearance-row">
             <div class="appearance-label">Background</div>
@@ -3304,10 +3340,12 @@ function renderProfile() {
   panel.querySelectorAll('.bg-swatch[data-bg]').forEach(btn => {
     btn.addEventListener('click', () => {
       const name = btn.dataset.bg;
+      localStorage.removeItem('cinetrack_theme_preset');
       localStorage.setItem('cinetrack_bg', name);
       applyBgPreset(name);
       scheduleSavePrefs();
       panel.querySelectorAll('.bg-swatch').forEach(b => b.classList.toggle('active', b === btn));
+      panel.querySelectorAll('.theme-preset-btn').forEach(b => b.classList.remove('active'));
     });
   });
 
@@ -3315,10 +3353,22 @@ function renderProfile() {
   panel.querySelectorAll('.accent-swatch[data-accent]').forEach(btn => {
     btn.addEventListener('click', () => {
       const name = btn.dataset.accent;
+      localStorage.removeItem('cinetrack_theme_preset');
       localStorage.setItem('cinetrack_accent', name);
       applyAccent(name);
       scheduleSavePrefs();
       panel.querySelectorAll('.accent-swatch').forEach(b => b.classList.toggle('active', b === btn));
+      panel.querySelectorAll('.theme-preset-btn').forEach(b => b.classList.remove('active'));
+    });
+  });
+
+  // Wire theme presets
+  panel.querySelectorAll('.theme-preset-btn[data-theme-preset]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const name = btn.dataset.themePreset;
+      if (!applyThemePreset(name)) return;
+      scheduleSavePrefs();
+      renderProfile();
     });
   });
 
@@ -3338,6 +3388,7 @@ function renderProfile() {
     group.querySelectorAll('.pill-btn[data-value]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const val = btn.dataset.value;
+        localStorage.removeItem('cinetrack_theme_preset');
         if (cfg.custom) {
           const ok = await cfg.custom(val);
           if (!ok) return;
@@ -3347,6 +3398,7 @@ function renderProfile() {
           scheduleSavePrefs();
         }
         group.querySelectorAll('.pill-btn').forEach(b => b.classList.toggle('active', b === btn));
+        panel.querySelectorAll('.theme-preset-btn').forEach(b => b.classList.remove('active'));
       });
     });
   });
