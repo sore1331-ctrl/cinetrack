@@ -1439,6 +1439,25 @@ function todayDateString() {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
+// True when the given local entry has something happening today according
+// to the upcoming cache (next episode airing, or theatrical release).
+// Returns false if the cache is missing — we fail closed.
+function isAiringToday(m) {
+  if (!m?.tmdbId) return false;
+  const cache = readUpcomingCache();
+  if (!cache?.byId) return false;
+  const todayStr = todayDateString();
+  const isShow  = m.mediaType === 'tv' || m.mediaType === 'anime';
+  const isMovie = m.mediaType === 'movie';
+  if (isShow && m.status === 'in_progress') {
+    return cache.byId[`tv:${m.tmdbId}`]?.nextEpisode?.airDate === todayStr;
+  }
+  if (isMovie && m.status === 'watchlist') {
+    return cache.byId[`movie:${m.tmdbId}`]?.releaseDate === todayStr;
+  }
+  return false;
+}
+
 // Updates the small "airing today" indicator on the Calendar nav tab.
 // Reads from the upcoming cache only (no network call) — refreshed
 // elsewhere whenever the cache is populated.
@@ -1528,6 +1547,9 @@ async function warmUpcomingCacheForBadge() {
   if (!ids.length) { updateCalendarAiringBadge(); return; }
   try { await fetchUpcoming(ids); } catch { /* offline-safe */ }
   updateCalendarAiringBadge();
+  // Re-render the content grid so any "Today" highlights appear without
+  // waiting for the next user interaction.
+  if (activeView === 'content') render();
 }
 
 async function setEpisodeNotifPref(value) {
@@ -3058,7 +3080,10 @@ function render() {
   pageList.forEach(m => {
     const card = document.createElement('div');
     const checked = selectedIds.has(m.id);
-    card.className = 'movie-card' + (checked ? ' selected' : '');
+    const airingToday = isAiringToday(m);
+    card.className = 'movie-card'
+      + (checked ? ' selected' : '')
+      + (airingToday ? ' card-airing-today' : '');
     card.dataset.id = m.id;
     const isTV    = m.mediaType === 'tv';
     const isShow  = isTV || m.mediaType === 'anime';
@@ -3119,6 +3144,7 @@ function render() {
       <span class="badge badge-${m.status} card-status-badge">
         ${m.status === 'watched' ? `✓ Watched${(m.watchCount || 0) > 1 ? ` ×${m.watchCount}` : ''}` : m.status === 'in_progress' ? '▶ In Progress' : m.status === 'dropped' ? '📛 Dropped' : '⏳ Watchlist'}
       </span>
+      ${airingToday ? `<span class="card-airing-pill" title="${m.mediaType === 'movie' ? 'Theatrical release today' : 'New episode airs today'}">● Today</span>` : ''}
       ${m.tmdbId
         ? `<a class="card-title card-title-link" href="https://www.themoviedb.org/${m.mediaType === 'movie' ? 'movie' : 'tv'}/${m.tmdbId}" target="_blank" rel="noopener noreferrer">${esc(m.title)}</a>`
         : `<div class="card-title">${esc(m.title)}</div>`}

@@ -349,6 +349,18 @@ header h1 {
   border: 1px solid rgba(76,175,130,.35) !important;
   box-shadow: 0 0 0 1px rgba(76,175,130,.18) inset;
 }
+/* Library card highlight when something is airing/releasing today */
+.movie-card.card-airing-today {
+  border-color: rgba(76,175,130,.55);
+  box-shadow: 0 0 0 1px rgba(76,175,130,.3) inset, 0 0 18px rgba(76,175,130,.18);
+}
+.card-airing-pill {
+  align-self: flex-start;
+  margin: 0 14px;
+  font-size: .65rem; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 999px;
+  background: rgba(76,175,130,.18); color: #4caf82;
+}
 .cal-row-pill {
   margin-left: auto; align-self: center;
   font-size: .68rem; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
