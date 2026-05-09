@@ -253,7 +253,7 @@ async function saveProfile(updates) {
 
 // ── User data load / save ───────────────────────────────
 async function loadUserData() {
-  if (!sb || !currentUser) return;
+  if (!sb || !currentUser) return { ok: false, error: 'Not signed in' };
   setSyncState('loading');
   try {
     // order + limit(1) instead of maybeSingle() so duplicate rows (if any exist
@@ -272,38 +272,49 @@ async function loadUserData() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
     }
     setSyncState('saved');
+    updateCountryDropdown();
+    refreshCurrentView();
+    checkEpisodeNotifications();
+    warmUpcomingCacheForBadge();
+    return { ok: true };
   } catch (e) {
     console.error('Failed to load data from cloud:', e);
     setSyncState('error', e.message);
     showToast('Could not load your data from the cloud: ' + e.message, true);
+    updateCountryDropdown();
+    refreshCurrentView();
+    checkEpisodeNotifications();
+    warmUpcomingCacheForBadge();
+    return { ok: false, error: e?.message || String(e) };
   }
-  updateCountryDropdown();
-  refreshCurrentView();
-  checkEpisodeNotifications();
-  warmUpcomingCacheForBadge();
 }
 
 async function saveUserData() {
-  if (!sb || !currentUser) return;
+  if (!sb || !currentUser) return { ok: false, error: 'Not signed in' };
   try {
     const payload = { user_id: currentUser.id, movies, updated_at: new Date().toISOString() };
-    // Try update first; if nothing was updated, insert (avoids duplicate rows
-    // when the table's primary key is not user_id)
-    const { count, error: ue } = await sb
+
+    // Try update first; inspect returned rows instead of relying on count.
+    // Supabase/PostgREST can return a null count here depending on response
+    // preferences, which made first-time saves silently skip the insert.
+    const { data: updatedRows, error: ue } = await sb
       .from('user_data')
       .update(payload)
       .eq('user_id', currentUser.id)
-      .select('user_id', { count: 'exact', head: true });
+      .select('user_id');
     if (ue) throw ue;
-    if (count === 0) {
+
+    if (!updatedRows || updatedRows.length === 0) {
       const { error: ie } = await sb.from('user_data').insert(payload);
       if (ie) throw ie;
     }
     setSyncState('saved');
+    return { ok: true };
   } catch (e) {
     console.error('Failed to save data to cloud:', e);
     setSyncState('error', e.message);
     showToast('Cloud sync failed — your changes are saved locally only. (' + e.message + ')', true);
+    return { ok: false, error: e?.message || String(e) };
   }
 }
 
@@ -3995,10 +4006,10 @@ reloadCloudBtn.addEventListener('click', async () => {
   document.getElementById('user-dropdown').classList.add('hidden');
   reloadCloudBtn.disabled = true;
   reloadCloudBtn.textContent = '↻ Loading…';
-  await loadUserData();
+  const result = await loadUserData();
   reloadCloudBtn.disabled = false;
   reloadCloudBtn.textContent = '↻ Reload from cloud';
-  showToast('Reloaded from cloud ✓');
+  if (result?.ok) showToast('Reloaded from cloud ✓');
 });
 
 // ── Sync now (push pending + pull latest) ──────────────
@@ -4015,8 +4026,10 @@ syncNowBtn.addEventListener('click', async () => {
   clearTimeout(cloudSyncTimer);
   cloudSyncTimer = null;
   try {
-    await saveUserData();
-    await loadUserData();
+    const saveResult = await saveUserData();
+    if (!saveResult?.ok) throw new Error(saveResult?.error || 'Cloud save failed');
+    const loadResult = await loadUserData();
+    if (!loadResult?.ok) throw new Error(loadResult?.error || 'Cloud reload failed');
     showToast('Synced ✓');
   } catch (e) {
     showToast('Sync failed: ' + (e?.message || 'unknown error'), true);
