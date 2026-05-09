@@ -1,5 +1,5 @@
 // ── Theme ───────────────────────────────────────────────
-const CINETRACK_BUILD = 'startup-safe-20260509-4';
+const CINETRACK_BUILD = 'sync-pull-20260509-3';
 console.info(`[CineTrack] Build ${CINETRACK_BUILD}`);
 
 const themeToggle = document.getElementById('theme-toggle');
