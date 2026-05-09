@@ -191,10 +191,11 @@ header {
           backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   border-bottom: 1px solid var(--glass-border);
   padding: 0 24px;
-  height: 52px;
+  min-height: 52px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0 8px;
+  flex-wrap: wrap;
   position: sticky;
   top: 0;
   z-index: 11;
@@ -272,14 +273,19 @@ header h1 {
 }
 
 /* ── Type tab bar ── */
+/* Tab bar lives inside <header>. On mobile it wraps to its own row
+   (full width) below the logo + actions; on desktop it sits inline
+   between them. The header itself supplies the glass background and
+   sticky positioning, so the bar is transparent. */
 .type-tabs-bar {
-  background: var(--glass-bg-strong);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-          backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  border-bottom: 1px solid var(--glass-border);
-  position: sticky;
-  top: 52px;
-  z-index: 10;
+  flex: 1 1 100%;
+  order: 3;
+  background: transparent;
+  -webkit-backdrop-filter: none;
+          backdrop-filter: none;
+  border-bottom: none;
+  position: static;
+  min-width: 0;
 }
 
 .type-tabs-inner {
@@ -295,6 +301,13 @@ header h1 {
   scrollbar-width: none;
 }
 .type-tabs-inner::-webkit-scrollbar { display: none; }
+
+/* Desktop: single-row header — tabs flow inline between logo and actions. */
+@media (min-width: 1024px) {
+  .type-tabs-bar { flex: 1 1 0; order: 2; }
+  .header-actions { order: 3; margin-left: 0; }
+  .type-tabs-inner { padding: 0 8px; justify-content: center; }
+}
 
 .type-tab {
   background: transparent;
@@ -1589,15 +1602,14 @@ button.danger:hover { opacity: .85; }
 
 /* ── Mobile (≤ 480px) ── */
 @media (max-width: 480px) {
-  /* Header */
-  header { padding: 0 14px; height: 48px; }
+  /* Header — top row stays compact, tab bar wraps below it */
+  header { padding: 0 14px; min-height: 48px; }
   header h1 { font-size: 1.1rem; }
   .theme-toggle { width: 32px; height: 32px; font-size: .85rem; }
   .header-profile-btn { width: 32px; height: 32px; font-size: .85rem; }
   .user-avatar-btn { width: 32px; height: 32px; }
 
   /* Tab bar: emoji-only at narrow widths to fit 6 tabs without scroll */
-  .type-tabs-bar { top: 48px; }
   .type-tabs-inner { padding: 0 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
   .type-tabs-inner::-webkit-scrollbar { display: none; }
   .type-tab { padding: 10px 11px; font-size: 1.1rem; white-space: nowrap; }

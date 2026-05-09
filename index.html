@@ -43,6 +43,18 @@
   <!-- Header -->
   <header>
     <h1 id="logo" title="Go to Profile">CineTrack</h1>
+    <!-- Type tab bar (renders inline on desktop, wraps to its own row on mobile) -->
+    <nav class="type-tabs-bar">
+      <div class="type-tabs-inner">
+        <button class="type-tab active" data-type="movie">🎬 <span class="tab-label">Films</span></button>
+        <button class="type-tab" data-type="tv">📺 <span class="tab-label">TV Shows</span></button>
+        <button class="type-tab" data-type="anime">🎌 <span class="tab-label">Anime</span></button>
+        <button class="type-tab" data-type="dropped">📛 <span class="tab-label">Dropped</span></button>
+        <button class="type-tab" data-type="calendar">📅 <span class="tab-label">Calendar</span></button>
+        <button class="type-tab" data-type="stats">📊 <span class="tab-label">Stats</span></button>
+        <button class="type-tab" data-type="community">👥 <span class="tab-label">Community</span></button>
+      </div>
+    </nav>
     <div class="header-actions">
       <div id="user-menu" class="user-menu hidden">
         <button class="user-avatar-btn" id="user-avatar-btn">
@@ -69,19 +81,6 @@
       <button id="theme-toggle" class="theme-toggle" title="Toggle light/dark mode">🌙</button>
     </div>
   </header>
-
-  <!-- Type tab bar -->
-  <div class="type-tabs-bar">
-    <div class="type-tabs-inner">
-      <button class="type-tab active" data-type="movie">🎬 <span class="tab-label">Films</span></button>
-      <button class="type-tab" data-type="tv">📺 <span class="tab-label">TV Shows</span></button>
-      <button class="type-tab" data-type="anime">🎌 <span class="tab-label">Anime</span></button>
-      <button class="type-tab" data-type="dropped">📛 <span class="tab-label">Dropped</span></button>
-      <button class="type-tab" data-type="calendar">📅 <span class="tab-label">Calendar</span></button>
-      <button class="type-tab" data-type="stats">📊 <span class="tab-label">Stats</span></button>
-      <button class="type-tab" data-type="community">👥 <span class="tab-label">Community</span></button>
-    </div>
-  </div>
 
   <main>
     <!-- Controls row (hidden on stats/community) -->
