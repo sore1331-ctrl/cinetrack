@@ -1775,7 +1775,7 @@ button.danger:hover { opacity: .85; }
   .community-grid { grid-template-columns: 1fr; }
 
   /* User dropdown: prevent overflow off-screen */
-  .user-dropdown { right: 0; min-width: 190px; }
+  .user-dropdown { right: 0; min-width: 0; width: calc(100vw - 28px); max-width: 320px; }
 
   /* Supabase setup block */
   .setup-sql-block { font-size: .68rem; }
@@ -2875,7 +2875,8 @@ a.top-rated-card:hover {
   border-radius: var(--radius);
   box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-highlight);
   padding: 8px;
-  min-width: 200px;
+  min-width: 260px;
+  max-width: min(340px, calc(100vw - 24px));
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -2906,9 +2907,9 @@ a.top-rated-card:hover {
   background: rgba(0,0,0,.12);
 }
 .sync-details div {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
+  display: grid;
+  grid-template-columns: minmax(82px, auto) minmax(0, 1fr);
+  gap: 10px;
   font-size: .76rem;
   line-height: 1.25;
 }
@@ -2919,6 +2920,8 @@ a.top-rated-card:hover {
   color: var(--text);
   font-weight: 650;
   text-align: right;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .signout-btn {
