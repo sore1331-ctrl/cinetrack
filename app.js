@@ -2537,22 +2537,38 @@ async function renderCommunity() {
 
   const SETUP_SQL = `CREATE TABLE IF NOT EXISTS public.profiles (
   user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  username text, sharing_enabled boolean DEFAULT false,
+  username text,
+  sharing_enabled boolean DEFAULT false,
   preferences jsonb DEFAULT '{}'::jsonb,
   updated_at timestamptz DEFAULT now()
 );
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS preferences jsonb DEFAULT '{}'::jsonb;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS sharing_enabled boolean DEFAULT false;
 CREATE TABLE IF NOT EXISTS public.user_data (
   user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   movies jsonb DEFAULT '[]'::jsonb,
   updated_at timestamptz DEFAULT now()
 );
-ALTER TABLE public.profiles  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_data ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "profiles_select" ON public.profiles FOR SELECT USING (true);
-CREATE POLICY "profiles_modify" ON public.profiles FOR ALL   USING (auth.uid() = user_id);
-CREATE POLICY "user_data_own"   ON public.user_data FOR ALL  USING (auth.uid() = user_id);
-CREATE POLICY "user_data_shared" ON public.user_data FOR SELECT USING (
+DROP POLICY IF EXISTS "profiles_select" ON public.profiles;
+DROP POLICY IF EXISTS "profiles_modify" ON public.profiles;
+DROP POLICY IF EXISTS "profiles_select_authenticated" ON public.profiles;
+DROP POLICY IF EXISTS "profiles_insert_own" ON public.profiles;
+DROP POLICY IF EXISTS "profiles_update_own" ON public.profiles;
+DROP POLICY IF EXISTS "user_data_own" ON public.user_data;
+DROP POLICY IF EXISTS "user_data_shared" ON public.user_data;
+DROP POLICY IF EXISTS "user_data_select_own" ON public.user_data;
+DROP POLICY IF EXISTS "user_data_insert_own" ON public.user_data;
+DROP POLICY IF EXISTS "user_data_update_own" ON public.user_data;
+DROP POLICY IF EXISTS "user_data_select_shared" ON public.user_data;
+CREATE POLICY "profiles_select_authenticated" ON public.profiles FOR SELECT TO authenticated USING (true);
+CREATE POLICY "profiles_insert_own" ON public.profiles FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "profiles_update_own" ON public.profiles FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "user_data_select_own" ON public.user_data FOR SELECT TO authenticated USING (auth.uid() = user_id);
+CREATE POLICY "user_data_insert_own" ON public.user_data FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "user_data_update_own" ON public.user_data FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "user_data_select_shared" ON public.user_data FOR SELECT TO authenticated USING (
   EXISTS (SELECT 1 FROM public.profiles WHERE profiles.user_id = user_data.user_id AND profiles.sharing_enabled = true)
 );`;
 
