@@ -1,4 +1,7 @@
 // ── Theme ───────────────────────────────────────────────
+const CINETRACK_BUILD = 'sync-20260509-1';
+console.info(`[CineTrack] Build ${CINETRACK_BUILD}`);
+
 const themeToggle = document.getElementById('theme-toggle');
 
 function applyTheme(theme) {
@@ -294,7 +297,7 @@ async function loadUserData(options = {}) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
       applyingRemoteData = false;
       lastCloudUpdatedAt = row.updated_at || lastCloudUpdatedAt;
-      localChangeVersion = lastSavedLocalVersion;
+      lastSavedLocalVersion = localChangeVersion;
     }
     if (!silent) setSyncState('saved');
     updateCountryDropdown();
