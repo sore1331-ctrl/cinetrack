@@ -182,6 +182,11 @@ let currentPage     = 0;
 let pageSize        = parseInt(localStorage.getItem('cinetrack_pagesize') || '50');
 let selectMode      = false;
 let cloudSyncTimer  = null;
+let cloudPollTimer  = null;
+let lastCloudUpdatedAt = null;
+let localChangeVersion = 0;
+let lastSavedLocalVersion = 0;
+let applyingRemoteData = false;
 
 // Supabase
 let sb              = null;
@@ -252,35 +257,58 @@ async function saveProfile(updates) {
 }
 
 // ── User data load / save ───────────────────────────────
-async function loadUserData() {
+function hasUnsyncedLocalChanges() {
+  return Boolean(cloudSyncTimer) || localChangeVersion > lastSavedLocalVersion;
+}
+
+async function loadUserData(options = {}) {
+  const { silent = false, onlyIfNewer = false } = options;
   if (!sb || !currentUser) return { ok: false, error: 'Not signed in' };
-  setSyncState('loading');
+  if (!silent) setSyncState('loading');
   try {
     // order + limit(1) instead of maybeSingle() so duplicate rows (if any exist
     // due to a table without a unique user_id constraint) don't cause an error
     const { data: rows, error } = await sb
       .from('user_data')
-      .select('movies')
+      .select('movies, updated_at')
       .eq('user_id', currentUser.id)
       .order('updated_at', { ascending: false })
       .limit(1);
     if (error) throw error;
     const row = rows?.[0] ?? null;
+
+    if (onlyIfNewer) {
+      if (!row?.updated_at || (lastCloudUpdatedAt && row.updated_at <= lastCloudUpdatedAt)) {
+        if (!silent) setSyncState('saved');
+        return { ok: true, changed: false };
+      }
+      if (hasUnsyncedLocalChanges()) {
+        return { ok: false, error: 'Skipped cloud refresh because this device has unsaved local changes.' };
+      }
+    }
+
     if (row?.movies && Array.isArray(row.movies)) {
+      applyingRemoteData = true;
       movies = row.movies;
       syncEpisodeProgress();
       localStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
+      applyingRemoteData = false;
+      lastCloudUpdatedAt = row.updated_at || lastCloudUpdatedAt;
+      localChangeVersion = lastSavedLocalVersion;
     }
-    setSyncState('saved');
+    if (!silent) setSyncState('saved');
     updateCountryDropdown();
     refreshCurrentView();
     checkEpisodeNotifications();
     warmUpcomingCacheForBadge();
-    return { ok: true };
+    return { ok: true, changed: Boolean(row?.movies) };
   } catch (e) {
+    applyingRemoteData = false;
     console.error('Failed to load data from cloud:', e);
-    setSyncState('error', e.message);
-    showToast('Could not load your data from the cloud: ' + e.message, true);
+    if (!silent) {
+      setSyncState('error', e.message);
+      showToast('Could not load your data from the cloud: ' + e.message, true);
+    }
     updateCountryDropdown();
     refreshCurrentView();
     checkEpisodeNotifications();
@@ -291,6 +319,7 @@ async function loadUserData() {
 
 async function saveUserData() {
   if (!sb || !currentUser) return { ok: false, error: 'Not signed in' };
+  const saveVersion = localChangeVersion;
   try {
     const payload = { user_id: currentUser.id, movies, updated_at: new Date().toISOString() };
 
@@ -301,13 +330,20 @@ async function saveUserData() {
       .from('user_data')
       .update(payload)
       .eq('user_id', currentUser.id)
-      .select('user_id');
+      .select('user_id, updated_at');
     if (ue) throw ue;
 
+    let savedRows = updatedRows || [];
     if (!updatedRows || updatedRows.length === 0) {
-      const { error: ie } = await sb.from('user_data').insert(payload);
+      const { data: insertedRows, error: ie } = await sb
+        .from('user_data')
+        .insert(payload)
+        .select('user_id, updated_at');
       if (ie) throw ie;
+      savedRows = insertedRows || [];
     }
+    lastCloudUpdatedAt = savedRows?.[0]?.updated_at || payload.updated_at;
+    lastSavedLocalVersion = Math.max(lastSavedLocalVersion, saveVersion);
     setSyncState('saved');
     return { ok: true };
   } catch (e) {
@@ -377,10 +413,14 @@ syncEpisodeProgress();
 function save() {
   syncEpisodeProgress();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
+  if (!applyingRemoteData) localChangeVersion++;
   if (offlineMode || !currentUser) return;
   setSyncState('saving');
   clearTimeout(cloudSyncTimer);
-  cloudSyncTimer = setTimeout(saveUserData, 300);
+  cloudSyncTimer = setTimeout(async () => {
+    cloudSyncTimer = null;
+    await saveUserData();
+  }, 300);
 }
 
 function genId() {
@@ -4126,10 +4166,14 @@ progressCancel.addEventListener('click', () => { cancelTmdbRefresh = true; });
 // ── Sign out ────────────────────────────────────────────
 signoutBtn.addEventListener('click', async () => {
   try { if (sb) await sb.auth.signOut(); } catch {}
+  stopCloudPolling();
   currentUser     = null;
   currentUsername = null;
   sharingEnabled  = false;
   movies          = [];
+  lastCloudUpdatedAt = null;
+  localChangeVersion = 0;
+  lastSavedLocalVersion = 0;
   localStorage.removeItem(STORAGE_KEY);
   localStorage.removeItem('cinetrack_sharing');
   document.getElementById('user-dropdown').classList.add('hidden');
@@ -4143,8 +4187,33 @@ document.addEventListener('visibilitychange', () => {
     clearTimeout(cloudSyncTimer);
     cloudSyncTimer = null;
     saveUserData();
+  } else if (!document.hidden && !offlineMode && currentUser) {
+    refreshFromCloudIfNewer();
   }
 });
+
+window.addEventListener('focus', () => {
+  if (!offlineMode && currentUser) refreshFromCloudIfNewer();
+});
+
+async function refreshFromCloudIfNewer() {
+  if (!sb || !currentUser || offlineMode || hasUnsyncedLocalChanges()) return;
+  const result = await loadUserData({ silent: true, onlyIfNewer: true });
+  if (result?.changed) showToast('Updated from cloud ✓');
+}
+
+function startCloudPolling() {
+  clearInterval(cloudPollTimer);
+  if (!sb || !currentUser || offlineMode) return;
+  cloudPollTimer = setInterval(() => {
+    if (!document.hidden) refreshFromCloudIfNewer();
+  }, 15000);
+}
+
+function stopCloudPolling() {
+  clearInterval(cloudPollTimer);
+  cloudPollTimer = null;
+}
 
 // ── Init ────────────────────────────────────────────────
 applyGridSize(gridSize);
@@ -4179,6 +4248,7 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
     await loadProfile();
     await loadPreferences();
     await loadUserData();
+    startCloudPolling();
   }
 
   sb.auth.onAuthStateChange(async (event, session) => {
@@ -4187,6 +4257,7 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
     } else if (event === 'SIGNED_OUT') {
       userDataFetched = false;
       currentUser = null;
+      stopCloudPolling();
       updateUserMenu();
     }
   });
