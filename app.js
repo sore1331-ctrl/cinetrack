@@ -1,5 +1,5 @@
 // ── Theme ───────────────────────────────────────────────
-const CINETRACK_BUILD = 'sync-auth-20260509-4';
+const CINETRACK_BUILD = 'sync-entry-20260509-5';
 console.info(`[CineTrack] Build ${CINETRACK_BUILD}`);
 
 const themeToggle = document.getElementById('theme-toggle');
@@ -188,6 +188,8 @@ let pageSize        = parseInt(localStorage.getItem('cinetrack_pagesize') || '50
 let selectMode      = false;
 let cloudSyncTimer  = null;
 let cloudPollTimer  = null;
+let cloudRefreshInFlight = false;
+let lastCloudRefreshAttempt = 0;
 let lastCloudUpdatedAt = null;
 let localChangeVersion = 0;
 let lastSavedLocalVersion = 0;
@@ -4315,12 +4317,16 @@ document.addEventListener('visibilitychange', () => {
     cloudSyncTimer = null;
     saveUserData();
   } else if (!document.hidden && !offlineMode && currentUser) {
-    refreshFromCloudIfNewer();
+    scheduleEntryCloudRefresh('visible');
   }
 });
 
 window.addEventListener('focus', () => {
-  if (!offlineMode && currentUser) refreshFromCloudIfNewer();
+  scheduleEntryCloudRefresh('focus');
+});
+
+window.addEventListener('pageshow', () => {
+  scheduleEntryCloudRefresh('pageshow');
 });
 
 async function refreshFromCloudIfNewer() {
@@ -4329,11 +4335,29 @@ async function refreshFromCloudIfNewer() {
   if (result?.changed) showToast('Updated from cloud ✓');
 }
 
+function scheduleEntryCloudRefresh(reason = 'entry') {
+  if (!sb || !currentUser || offlineMode || document.hidden) return;
+  if (hasUnsyncedLocalChanges()) return;
+
+  const now = Date.now();
+  if (cloudRefreshInFlight || now - lastCloudRefreshAttempt < 2500) return;
+  lastCloudRefreshAttempt = now;
+  cloudRefreshInFlight = true;
+
+  setTimeout(async () => {
+    try {
+      await refreshFromCloudIfNewer();
+    } finally {
+      cloudRefreshInFlight = false;
+    }
+  }, reason === 'pageshow' ? 250 : 0);
+}
+
 function startCloudPolling() {
   clearInterval(cloudPollTimer);
   if (!sb || !currentUser || offlineMode) return;
   cloudPollTimer = setInterval(() => {
-    if (!document.hidden) refreshFromCloudIfNewer();
+    if (!document.hidden) scheduleEntryCloudRefresh('poll');
   }, 15000);
 }
 
