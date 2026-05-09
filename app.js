@@ -2535,13 +2535,6 @@ async function renderCommunity() {
 
   communityGrid.innerHTML = '<p class="community-loading">Loading community…</p>';
 
-  const withQueryTimeout = (promise, label, ms = 30000) => Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => {
-      reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s. Supabase is reachable, so this is likely a slow response or an RLS/table policy issue.`));
-    }, ms)),
-  ]);
-
   const SETUP_SQL = `CREATE TABLE IF NOT EXISTS public.profiles (
   user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   username text,
@@ -2587,16 +2580,18 @@ CREATE POLICY "user_data_select_shared" ON public.user_data FOR SELECT TO authen
   }, 8000);
 
   try {
-    const { data: sharingProfiles, error: pe } = await withQueryTimeout(
-      sb
-        .from('profiles')
-        .select('user_id, username')
-        .eq('sharing_enabled', true)
-        .neq('user_id', currentUser.id),
-      'Community profiles query'
-    );
+    const { data: { session } } = await sb.auth.getSession();
+    const token = session?.access_token;
+    if (!token) throw new Error('Missing Supabase session token. Sign out and sign in again.');
 
-    if (pe) throw new Error(pe.message || pe.details || JSON.stringify(pe));
+    const communityRes = await fetch(`/api/community?currentUserId=${encodeURIComponent(currentUser.id)}`, {
+      cache: 'no-store',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const community = await communityRes.json();
+    if (!communityRes.ok) throw new Error(community?.error || `Community API failed (${communityRes.status})`);
+
+    const sharingProfiles = community.profiles || [];
 
     if (!sharingProfiles?.length) {
       communityGrid.innerHTML = `
@@ -2608,16 +2603,7 @@ CREATE POLICY "user_data_select_shared" ON public.user_data FOR SELECT TO authen
       return;
     }
 
-    const userIds = sharingProfiles.map(p => p.user_id);
-    const { data: sharedData, error: de } = await withQueryTimeout(
-      sb
-        .from('user_data')
-        .select('user_id, movies')
-        .in('user_id', userIds),
-      'Community shared library query'
-    );
-
-    if (de) throw new Error(de.message || de.details || JSON.stringify(de));
+    const sharedData = community.sharedData || [];
 
     const dataMap = Object.fromEntries(
       (sharedData || []).map(d => [d.user_id, Array.isArray(d.movies) ? d.movies : []])
