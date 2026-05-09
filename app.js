@@ -3388,6 +3388,8 @@ function render() {
          </button>`
       : '';
 
+    const titleLabel = esc(m.title);
+    const toggleActionLabel = m.status === 'in_progress' ? 'Mark watched' : 'Mark in progress';
     const hoverInfoParts = [
       m.genre    && `<div class="chi-genre">${esc(m.genre)}</div>`,
       m.director && `<div class="chi-dir">${isTV ? 'Created by' : 'Dir.'} ${esc(m.director)}</div>`,
@@ -3411,8 +3413,8 @@ function render() {
       </span>
       ${airingToday ? `<span class="card-airing-pill" title="${m.mediaType === 'movie' ? 'Theatrical release today' : 'New episode airs today'}">● Today</span>` : ''}
       ${m.tmdbId
-        ? `<a class="card-title card-title-link" href="https://www.themoviedb.org/${m.mediaType === 'movie' ? 'movie' : 'tv'}/${m.tmdbId}" target="_blank" rel="noopener noreferrer" title="${esc(m.title)}">${esc(m.title)}</a>`
-        : `<div class="card-title" title="${esc(m.title)}">${esc(m.title)}</div>`}
+        ? `<a class="card-title card-title-link" href="https://www.themoviedb.org/${m.mediaType === 'movie' ? 'movie' : 'tv'}/${m.tmdbId}" target="_blank" rel="noopener noreferrer" title="${titleLabel}">${titleLabel}</a>`
+        : `<div class="card-title" title="${titleLabel}">${titleLabel}</div>`}
       <div class="card-meta">
         ${m.year       ? `<span class="meta-year">${m.year}</span>` : ''}
         ${m.country    ? `<span class="meta-country">🌍 ${esc(m.country)}</span>` : ''}
@@ -3424,12 +3426,12 @@ function render() {
       ${epHTML}
       ${m.notes ? `<div class="card-notes">${esc(m.notes)}</div>` : ''}
       <div class="card-actions">
-        <button class="btn-sm" data-edit="${m.id}">
+        <button class="btn-sm" data-edit="${m.id}" title="Edit ${titleLabel}" aria-label="Edit ${titleLabel}">
           <span class="lbl-md lbl-lg">Edit</span><span class="lbl-sm">✎</span>
         </button>
         ${epIncBtn}
         ${(m.status !== 'watched' && !epIncBtn) ? `
-        <button class="btn-sm" data-toggle="${m.id}">
+        <button class="btn-sm" data-toggle="${m.id}" title="${toggleActionLabel} ${titleLabel}" aria-label="${toggleActionLabel} ${titleLabel}">
           <span class="lbl-lg">${m.status === 'in_progress' ? '✓ Watched' : '▶ In Progress'}</span>
           <span class="lbl-md">${m.status === 'in_progress' ? 'Watched' : 'In Prog'}</span>
           <span class="lbl-sm">${m.status === 'in_progress' ? '✓' : '▶'}</span>
@@ -3437,6 +3439,11 @@ function render() {
         <button class="btn-sm danger" data-delete="${m.id}">✕</button>
       </div>
     `;
+    const deleteBtn = card.querySelector('[data-delete]');
+    if (deleteBtn) {
+      deleteBtn.title = `Delete ${m.title}`;
+      deleteBtn.setAttribute('aria-label', `Delete ${m.title}`);
+    }
     grid.appendChild(card);
   });
 
