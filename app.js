@@ -3453,7 +3453,10 @@ form.addEventListener('submit', e => {
   }
 
   let status = document.getElementById('f-status').value;
-  if (isShow && totalEpisodes > 0) {
+  // Auto-derive watched/in_progress from episode counts — but only when
+  // the user hasn't explicitly chosen Dropped. Dropping a show with
+  // partial progress is a valid intent that should be respected.
+  if (status !== 'dropped' && isShow && totalEpisodes > 0) {
     if (watchedEpisodes >= totalEpisodes) status = 'watched';
     else if (watchedEpisodes > 0)         status = 'in_progress';
   }
@@ -3479,7 +3482,10 @@ form.addEventListener('submit', e => {
     status,
     notes:     document.getElementById('f-notes').value    || '',
     runtime:   parseInt(document.getElementById('f-runtime').value) || 0,
-    rating:    ['watched', 'in_progress'].includes(status) ? selectedRating : 0,
+    // Preserve rating for watched / in_progress / dropped (the user's
+    // verdict is still meaningful even after dropping). Only clear it
+    // when moving back to watchlist.
+    rating:    status === 'watchlist' ? 0 : selectedRating,
     mediaType: activeMediaType,
     totalEpisodes,
     watchedEpisodes,
@@ -3684,11 +3690,11 @@ function normaliseRow(row) {
   const totalEpisodes   = isShow ? Math.max(0, parseInt(row.totalEpisodes)   || 0) : 0;
   let   watchedEpisodes = isShow ? Math.max(0, parseInt(row.watchedEpisodes) || 0) : 0;
   if (totalEpisodes > 0 && watchedEpisodes > totalEpisodes) watchedEpisodes = totalEpisodes;
-  if (isShow && totalEpisodes > 0) {
+  if (status !== 'dropped' && isShow && totalEpisodes > 0) {
     if      (watchedEpisodes >= totalEpisodes) status = 'watched';
     else if (watchedEpisodes > 0)              status = 'in_progress';
   }
-  const rating    = (status === 'watched' || status === 'in_progress')
+  const rating    = (status === 'watched' || status === 'in_progress' || status === 'dropped')
                     ? Math.min(10, Math.max(0, parseInt(row.rating) || 0)) : 0;
   return { mediaType, status, rating, year, runtime, totalEpisodes, watchedEpisodes };
 }
