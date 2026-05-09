@@ -160,6 +160,8 @@ function applyAllAppearance() {
 // ── State ──────────────────────────────────────────────
 const STORAGE_KEY = 'cinetrack_movies';
 const POSTER_BASE = 'https://image.tmdb.org/t/p/w200';
+const SESSION_TIMEOUT_MS = 20000;
+const CLOUD_TIMEOUT_MS = 30000;
 
 let movies          = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
 let activeType      = 'movie';   // 'movie' | 'tv' | 'anime'
@@ -223,7 +225,7 @@ function withTimeout(promise, label = 'Operation', timeoutMs = 10000) {
 
 async function initSupabase() {
   try {
-    const r = await withTimeout(fetch('/api/config', { cache: 'no-store' }), 'Supabase config load', 8000);
+    const r = await withTimeout(fetch('/api/config', { cache: 'no-store' }), 'Supabase config load', 15000);
     if (!r.ok) throw new Error(`Config failed (${r.status})`);
     const { supabaseUrl, supabaseKey } = await withTimeout(r.json(), 'Supabase config parse', 3000);
     if (!supabaseUrl || !supabaseKey) throw new Error();
@@ -274,11 +276,11 @@ function hasUnsyncedLocalChanges() {
 }
 
 async function getSupabaseAccessToken() {
-  const { data: { session } } = await withTimeout(sb.auth.getSession(), 'Supabase session load', 8000);
+  const { data: { session } } = await withTimeout(sb.auth.getSession(), 'Supabase session load', SESSION_TIMEOUT_MS);
   return session?.access_token || '';
 }
 
-async function fetchJsonWithTimeout(url, options = {}, label = 'Request', timeoutMs = 15000) {
+async function fetchJsonWithTimeout(url, options = {}, label = 'Request', timeoutMs = CLOUD_TIMEOUT_MS) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -305,7 +307,7 @@ async function loadUserDataDirect() {
       .eq('user_id', currentUser.id)
       .maybeSingle(),
     'Direct cloud load',
-    12000
+    CLOUD_TIMEOUT_MS
   );
   if (error) throw error;
   return {
@@ -343,7 +345,7 @@ async function saveUserDataDirect(payload) {
       .select('updated_at')
       .single(),
     'Direct cloud save',
-    12000
+    CLOUD_TIMEOUT_MS
   );
   if (error) throw error;
   return {
@@ -374,7 +376,7 @@ async function saveUserDataViaApi(payload) {
 }
 
 async function loadUserData(options = {}) {
-  const { silent = false, onlyIfNewer = false } = options;
+  const { silent = false, onlyIfNewer = false, force = false } = options;
   if (!sb || !currentUser) return { ok: false, error: 'Not signed in' };
   if (!silent) setSyncState('loading');
   try {
@@ -391,7 +393,7 @@ async function loadUserData(options = {}) {
         if (!silent) setSyncState('saved');
         return { ok: true, changed: false };
       }
-      if (hasUnsyncedLocalChanges()) {
+      if (!force && hasUnsyncedLocalChanges()) {
         return { ok: false, error: 'Skipped cloud refresh because this device has unsaved local changes.' };
       }
     }
@@ -4187,9 +4189,11 @@ document.getElementById('sharing-toggle').addEventListener('change', async e => 
 // ── Reload from cloud ───────────────────────────────────
 reloadCloudBtn.addEventListener('click', async () => {
   document.getElementById('user-dropdown').classList.add('hidden');
+  clearTimeout(cloudSyncTimer);
+  cloudSyncTimer = null;
   reloadCloudBtn.disabled = true;
   reloadCloudBtn.textContent = '↻ Loading…';
-  const result = await loadUserData();
+  const result = await loadUserData({ force: true });
   reloadCloudBtn.disabled = false;
   reloadCloudBtn.textContent = '↻ Reload from cloud';
   if (result?.ok) showToast('Reloaded from cloud ✓');
@@ -4209,9 +4213,11 @@ syncNowBtn.addEventListener('click', async () => {
   clearTimeout(cloudSyncTimer);
   cloudSyncTimer = null;
   try {
-    const saveResult = await saveUserData();
-    if (!saveResult?.ok) throw new Error(saveResult?.error || 'Cloud save failed');
-    const loadResult = await loadUserData();
+    if (hasUnsyncedLocalChanges()) {
+      const saveResult = await saveUserData();
+      if (!saveResult?.ok) throw new Error(saveResult?.error || 'Cloud save failed');
+    }
+    const loadResult = await loadUserData({ force: true });
     if (!loadResult?.ok) throw new Error(loadResult?.error || 'Cloud reload failed');
     showToast('Synced ✓');
   } catch (e) {
@@ -4368,14 +4374,14 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
     render();
 
     try {
-      await withTimeout(loadProfile(), 'Profile load', 8000);
+      await withTimeout(loadProfile(), 'Profile load', 15000);
     } catch (e) {
       console.warn('[cinetrack] Profile load skipped:', e?.message || e);
       showToast('Profile load timed out. Library opened with local data.', true);
     }
 
     try {
-      await withTimeout(loadPreferences(), 'Preference load', 8000);
+      await withTimeout(loadPreferences(), 'Preference load', 15000);
     } catch (e) {
       console.warn('[cinetrack] Preference load skipped:', e?.message || e);
     }
@@ -4400,7 +4406,7 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
   });
 
   try {
-    const { data: { session } } = await withTimeout(sb.auth.getSession(), 'Initial session load', 8000);
+    const { data: { session } } = await withTimeout(sb.auth.getSession(), 'Initial session load', SESSION_TIMEOUT_MS);
     if (session?.user) {
       await handleUserSignIn(session.user);
     } else {
