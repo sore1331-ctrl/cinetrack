@@ -20,7 +20,19 @@ themeToggle.addEventListener('click', () => {
 });
 
 // ── Background preset ───────────────────────────────────
-const BG_PRESETS = ['default', 'aurora', 'sunset', 'ocean', 'midnight', 'mono'];
+const BG_PRESETS = [
+  'default',
+  'aurora',
+  'sunset',
+  'ocean',
+  'midnight',
+  'forest',
+  'rose',
+  'ember',
+  'cyber',
+  'lavender',
+  'mono',
+];
 function applyBgPreset(name) {
   const safe = BG_PRESETS.includes(name) ? name : 'default';
   if (safe === 'default') document.documentElement.removeAttribute('data-bg');

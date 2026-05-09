@@ -179,6 +179,16 @@ body {
 :root.light[data-bg="ocean"] { --orb-a: #b8c8e0; --orb-b: #b8d4ec; --orb-c: #b8e2ec; }
 :root[data-bg="midnight"] { --orb-a: #240046; --orb-b: #5a189a; --orb-c: #3a0ca3; --orb-opacity: .65; }
 :root.light[data-bg="midnight"] { --orb-a: #c8b8e0; --orb-b: #d0b8e6; --orb-c: #c0b8e2; }
+:root[data-bg="forest"] { --orb-a: #1b4332; --orb-b: #40916c; --orb-c: #0f766e; --orb-opacity: .58; }
+:root.light[data-bg="forest"] { --orb-a: #b7e4c7; --orb-b: #d8f3dc; --orb-c: #b8e2d8; }
+:root[data-bg="rose"] { --orb-a: #9d174d; --orb-b: #be185d; --orb-c: #fb7185; --orb-opacity: .58; }
+:root.light[data-bg="rose"] { --orb-a: #fbcfe8; --orb-b: #fecdd3; --orb-c: #f9a8d4; }
+:root[data-bg="ember"] { --orb-a: #7f1d1d; --orb-b: #b45309; --orb-c: #ea580c; --orb-opacity: .6; }
+:root.light[data-bg="ember"] { --orb-a: #fed7aa; --orb-b: #fecaca; --orb-c: #fde68a; }
+:root[data-bg="cyber"] { --orb-a: #0e7490; --orb-b: #6d28d9; --orb-c: #16a34a; --orb-opacity: .62; }
+:root.light[data-bg="cyber"] { --orb-a: #a5f3fc; --orb-b: #ddd6fe; --orb-c: #bbf7d0; }
+:root[data-bg="lavender"] { --orb-a: #4c1d95; --orb-b: #7c3aed; --orb-c: #db2777; --orb-opacity: .6; }
+:root.light[data-bg="lavender"] { --orb-a: #ddd6fe; --orb-b: #e9d5ff; --orb-c: #fbcfe8; }
 :root[data-bg="mono"]   { --orb-opacity: 0; }
 :root.light[data-bg="mono"] { --orb-opacity: 0; }
 :root[data-bg="mono"] body { background-image: none; }
@@ -2510,6 +2520,11 @@ a.top-rated-card:hover {
 .bg-swatch[data-bg="sunset"]   { --sw-a: #d62828; --sw-b: #f77f00; }
 .bg-swatch[data-bg="ocean"]    { --sw-a: #023e8a; --sw-b: #00b4d8; }
 .bg-swatch[data-bg="midnight"] { --sw-a: #240046; --sw-b: #5a189a; }
+.bg-swatch[data-bg="forest"]   { --sw-a: #1b4332; --sw-b: #40916c; }
+.bg-swatch[data-bg="rose"]     { --sw-a: #9d174d; --sw-b: #fb7185; }
+.bg-swatch[data-bg="ember"]    { --sw-a: #7f1d1d; --sw-b: #ea580c; }
+.bg-swatch[data-bg="cyber"]    { --sw-a: #0e7490; --sw-b: #6d28d9; }
+.bg-swatch[data-bg="lavender"] { --sw-a: #4c1d95; --sw-b: #db2777; }
 .bg-swatch[data-bg="mono"]     { --sw-a: transparent; --sw-b: transparent; }
 .bg-swatch-label {
   position: absolute; bottom: 4px; left: 0; right: 0;
