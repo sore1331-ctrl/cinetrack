@@ -2572,14 +2572,32 @@ CREATE POLICY "user_data_select_shared" ON public.user_data FOR SELECT TO authen
   EXISTS (SELECT 1 FROM public.profiles WHERE profiles.user_id = user_data.user_id AND profiles.sharing_enabled = true)
 );`;
 
-  // Timeout fallback — fires if Supabase project is paused or tables are missing
-  const timeoutId = setTimeout(() => {
+  // Timeout fallback — fires if Supabase is slow/unreachable or tables/policies
+  // are blocking the community query. It also checks server-side env/reachability
+  // so the user can distinguish SQL setup from Vercel config issues.
+  const timeoutId = setTimeout(async () => {
     if (!communityGrid.textContent.includes('Loading community')) return;
+    let diagnosis = '<p class="setup-error-body">Checking Supabase configuration…</p>';
+    try {
+      const hr = await fetch('/api/supabase-health', { cache: 'no-store' });
+      const health = await hr.json();
+      if (!health.env?.hasUrl || !health.env?.hasAnonKey) {
+        diagnosis = `<p class="setup-error-body"><strong>Diagnosis:</strong> Vercel is missing <code>SUPABASE_URL</code> or <code>SUPABASE_ANON_KEY</code>.</p>`;
+      } else if (health.reachable) {
+        diagnosis = `<p class="setup-error-body"><strong>Diagnosis:</strong> Supabase config is present and reachable. This is likely a table/RLS policy issue or a slow Supabase response.</p>`;
+      } else {
+        diagnosis = `<p class="setup-error-body"><strong>Diagnosis:</strong> Supabase config exists, but the server could not reach Supabase${health.error ? ` (${esc(health.error)})` : ''}.</p>`;
+      }
+    } catch {
+      diagnosis = '<p class="setup-error-body"><strong>Diagnosis:</strong> Could not run the Supabase health check endpoint.</p>';
+    }
     communityGrid.innerHTML = `
       <div class="supabase-setup-error">
         <p class="setup-error-title">⚠️ Could not reach the database</p>
-        <p class="setup-error-body">Two likely causes:</p>
+        ${diagnosis}
+        <p class="setup-error-body">Most common causes:</p>
         <ol class="setup-error-list">
+          <li><strong>Vercel env vars missing</strong> — add <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code>, then redeploy.</li>
           <li><strong>Supabase project is paused</strong> — free-tier projects pause after 7 days of inactivity.
               <a href="https://app.supabase.com" target="_blank" rel="noopener">Open Supabase dashboard</a> and click <em>Restore project</em>.</li>
           <li><strong>Tables not yet created</strong> — paste the SQL below into
