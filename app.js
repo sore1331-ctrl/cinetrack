@@ -2535,6 +2535,13 @@ async function renderCommunity() {
 
   communityGrid.innerHTML = '<p class="community-loading">Loading community…</p>';
 
+  const withQueryTimeout = (promise, label, ms = 30000) => Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => {
+      reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s. Supabase is reachable, so this is likely a slow response or an RLS/table policy issue.`));
+    }, ms)),
+  ]);
+
   const SETUP_SQL = `CREATE TABLE IF NOT EXISTS public.profiles (
   user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   username text,
@@ -2572,54 +2579,22 @@ CREATE POLICY "user_data_select_shared" ON public.user_data FOR SELECT TO authen
   EXISTS (SELECT 1 FROM public.profiles WHERE profiles.user_id = user_data.user_id AND profiles.sharing_enabled = true)
 );`;
 
-  // Timeout fallback — fires if Supabase is slow/unreachable or tables/policies
-  // are blocking the community query. It also checks server-side env/reachability
-  // so the user can distinguish SQL setup from Vercel config issues.
-  const timeoutId = setTimeout(async () => {
+  // Slow-query hint only. Do not replace the community panel with setup SQL
+  // unless the actual Supabase request fails below.
+  const slowTimer = setTimeout(() => {
     if (!communityGrid.textContent.includes('Loading community')) return;
-    let diagnosis = '<p class="setup-error-body">Checking Supabase configuration…</p>';
-    try {
-      const hr = await fetch('/api/supabase-health', { cache: 'no-store' });
-      const health = await hr.json();
-      if (!health.env?.hasUrl || !health.env?.hasAnonKey) {
-        diagnosis = `<p class="setup-error-body"><strong>Diagnosis:</strong> Vercel is missing <code>SUPABASE_URL</code> or <code>SUPABASE_ANON_KEY</code>.</p>`;
-      } else if (health.reachable) {
-        diagnosis = `<p class="setup-error-body"><strong>Diagnosis:</strong> Supabase config is present and reachable. This is likely a table/RLS policy issue or a slow Supabase response.</p>`;
-      } else {
-        diagnosis = `<p class="setup-error-body"><strong>Diagnosis:</strong> Supabase config exists, but the server could not reach Supabase${health.error ? ` (${esc(health.error)})` : ''}.</p>`;
-      }
-    } catch {
-      diagnosis = '<p class="setup-error-body"><strong>Diagnosis:</strong> Could not run the Supabase health check endpoint.</p>';
-    }
-    communityGrid.innerHTML = `
-      <div class="supabase-setup-error">
-        <p class="setup-error-title">⚠️ Could not reach the database</p>
-        ${diagnosis}
-        <p class="setup-error-body">Most common causes:</p>
-        <ol class="setup-error-list">
-          <li><strong>Vercel env vars missing</strong> — add <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code>, then redeploy.</li>
-          <li><strong>Supabase project is paused</strong> — free-tier projects pause after 7 days of inactivity.
-              <a href="https://app.supabase.com" target="_blank" rel="noopener">Open Supabase dashboard</a> and click <em>Restore project</em>.</li>
-          <li><strong>Tables not yet created</strong> — paste the SQL below into
-              <a href="https://app.supabase.com" target="_blank" rel="noopener">Supabase → SQL Editor</a> and run it once.</li>
-        </ol>
-        <pre class="setup-sql-block" id="setup-sql-pre">${esc(SETUP_SQL)}</pre>
-        <button class="setup-copy-btn" id="setup-copy-btn">Copy SQL</button>
-      </div>`;
-    document.getElementById('setup-copy-btn')?.addEventListener('click', () => {
-      navigator.clipboard.writeText(SETUP_SQL).then(() => {
-        const btn = document.getElementById('setup-copy-btn');
-        if (btn) { btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Copy SQL'; }, 2000); }
-      });
-    });
-  }, 10000);
+    communityGrid.innerHTML = '<p class="community-loading">Still connecting to Supabase… this can take a moment on a cold project.</p>';
+  }, 8000);
 
   try {
-    const { data: sharingProfiles, error: pe } = await sb
-      .from('profiles')
-      .select('user_id, username')
-      .eq('sharing_enabled', true)
-      .neq('user_id', currentUser.id);
+    const { data: sharingProfiles, error: pe } = await withQueryTimeout(
+      sb
+        .from('profiles')
+        .select('user_id, username')
+        .eq('sharing_enabled', true)
+        .neq('user_id', currentUser.id),
+      'Community profiles query'
+    );
 
     if (pe) throw new Error(pe.message || pe.details || JSON.stringify(pe));
 
@@ -2634,10 +2609,13 @@ CREATE POLICY "user_data_select_shared" ON public.user_data FOR SELECT TO authen
     }
 
     const userIds = sharingProfiles.map(p => p.user_id);
-    const { data: sharedData, error: de } = await sb
-      .from('user_data')
-      .select('user_id, movies')
-      .in('user_id', userIds);
+    const { data: sharedData, error: de } = await withQueryTimeout(
+      sb
+        .from('user_data')
+        .select('user_id, movies')
+        .in('user_id', userIds),
+      'Community shared library query'
+    );
 
     if (de) throw new Error(de.message || de.details || JSON.stringify(de));
 
@@ -2736,9 +2714,35 @@ CREATE POLICY "user_data_select_shared" ON public.user_data FOR SELECT TO authen
 
   } catch (e) {
     console.error('Community load error:', e);
-    communityGrid.innerHTML = `<p class="community-empty error">Failed to load: ${esc(String(e?.message || e))}</p>`;
+    let diagnosis = '';
+    try {
+      const hr = await fetch('/api/supabase-health', { cache: 'no-store' });
+      const health = await hr.json();
+      if (!health.env?.hasUrl || !health.env?.hasAnonKey) {
+        diagnosis = '<p class="setup-error-body"><strong>Diagnosis:</strong> Vercel is missing <code>SUPABASE_URL</code> or <code>SUPABASE_ANON_KEY</code>.</p>';
+      } else if (health.reachable) {
+        diagnosis = '<p class="setup-error-body"><strong>Diagnosis:</strong> Supabase config is present and reachable. The failed query above is probably table/RLS related.</p>';
+      } else {
+        diagnosis = `<p class="setup-error-body"><strong>Diagnosis:</strong> Supabase config exists, but the server could not reach Supabase${health.error ? ` (${esc(health.error)})` : ''}.</p>`;
+      }
+    } catch {}
+    communityGrid.innerHTML = `
+      <div class="supabase-setup-error">
+        <p class="setup-error-title">⚠️ Community failed to load</p>
+        <p class="setup-error-body"><strong>Error:</strong> ${esc(String(e?.message || e))}</p>
+        ${diagnosis}
+        <p class="setup-error-body">If this mentions RLS or missing tables, run the SQL below in Supabase → SQL Editor.</p>
+        <pre class="setup-sql-block" id="setup-sql-pre">${esc(SETUP_SQL)}</pre>
+        <button class="setup-copy-btn" id="setup-copy-btn">Copy SQL</button>
+      </div>`;
+    document.getElementById('setup-copy-btn')?.addEventListener('click', () => {
+      navigator.clipboard.writeText(SETUP_SQL).then(() => {
+        const btn = document.getElementById('setup-copy-btn');
+        if (btn) { btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Copy SQL'; }, 2000); }
+      });
+    });
   } finally {
-    clearTimeout(timeoutId);
+    clearTimeout(slowTimer);
   }
 }
 
