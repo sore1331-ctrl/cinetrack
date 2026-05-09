@@ -1,5 +1,5 @@
 // ── Theme ───────────────────────────────────────────────
-const CINETRACK_BUILD = 'sync-timeout-20260509-3';
+const CINETRACK_BUILD = 'startup-safe-20260509-4';
 console.info(`[CineTrack] Build ${CINETRACK_BUILD}`);
 
 const themeToggle = document.getElementById('theme-toggle');
@@ -212,11 +212,20 @@ function setSyncState(state, detail = '') {
 }
 
 // ── Supabase init ───────────────────────────────────────
+function withTimeout(promise, label = 'Operation', timeoutMs = 10000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => {
+      reject(new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s.`));
+    }, timeoutMs)),
+  ]);
+}
+
 async function initSupabase() {
   try {
-    const r = await fetch('/api/config');
-    if (!r.ok) throw new Error();
-    const { supabaseUrl, supabaseKey } = await r.json();
+    const r = await withTimeout(fetch('/api/config', { cache: 'no-store' }), 'Supabase config load', 8000);
+    if (!r.ok) throw new Error(`Config failed (${r.status})`);
+    const { supabaseUrl, supabaseKey } = await withTimeout(r.json(), 'Supabase config parse', 3000);
     if (!supabaseUrl || !supabaseKey) throw new Error();
     sb = window.supabase.createClient(supabaseUrl, supabaseKey);
     return true;
@@ -265,7 +274,7 @@ function hasUnsyncedLocalChanges() {
 }
 
 async function getSupabaseAccessToken() {
-  const { data: { session } } = await sb.auth.getSession();
+  const { data: { session } } = await withTimeout(sb.auth.getSession(), 'Supabase session load', 8000);
   return session?.access_token || '';
 }
 
@@ -4275,10 +4284,28 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
     currentUser = user;
     updateUserMenu();
     hideAuthOverlay();
-    await loadProfile();
-    await loadPreferences();
-    await loadUserData();
-    startCloudPolling();
+    updateCountryDropdown();
+    render();
+
+    try {
+      await withTimeout(loadProfile(), 'Profile load', 8000);
+    } catch (e) {
+      console.warn('[cinetrack] Profile load skipped:', e?.message || e);
+      showToast('Profile load timed out. Library opened with local data.', true);
+    }
+
+    try {
+      await withTimeout(loadPreferences(), 'Preference load', 8000);
+    } catch (e) {
+      console.warn('[cinetrack] Preference load skipped:', e?.message || e);
+    }
+
+    const loaded = await loadUserData();
+    if (!loaded?.ok) {
+      setSyncState('error', loaded?.error || 'Cloud load failed');
+    } else {
+      startCloudPolling();
+    }
   }
 
   sb.auth.onAuthStateChange(async (event, session) => {
@@ -4292,10 +4319,21 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
     }
   });
 
-  const { data: { session } } = await sb.auth.getSession();
-  if (session?.user) {
-    await handleUserSignIn(session.user);
-  } else {
-    showAuthOverlay('form');
+  try {
+    const { data: { session } } = await withTimeout(sb.auth.getSession(), 'Initial session load', 8000);
+    if (session?.user) {
+      await handleUserSignIn(session.user);
+    } else {
+      showAuthOverlay('form');
+    }
+  } catch (e) {
+    console.warn('[cinetrack] Initial session load failed:', e?.message || e);
+    offlineMode = true;
+    hideAuthOverlay();
+    setSyncState('error', e?.message || 'Session load failed');
+    if (movies.length === 0) seedData();
+    updateCountryDropdown();
+    render();
+    showToast('Cloud session timed out. Opened in local mode.', true);
   }
 })();
