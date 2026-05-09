@@ -1,5 +1,5 @@
 // ── Theme ───────────────────────────────────────────────
-const CINETRACK_BUILD = 'sync-pull-20260509-3';
+const CINETRACK_BUILD = 'sync-auth-20260509-4';
 console.info(`[CineTrack] Build ${CINETRACK_BUILD}`);
 
 const themeToggle = document.getElementById('theme-toggle');
@@ -196,6 +196,7 @@ let applyingRemoteData = false;
 // Supabase
 let sb              = null;
 let currentUser     = null;
+let currentAccessToken = '';
 let offlineMode     = false;
 let currentUsername = null;
 let sharingEnabled  = localStorage.getItem('cinetrack_sharing') === 'true';
@@ -276,8 +277,10 @@ function hasUnsyncedLocalChanges() {
 }
 
 async function getSupabaseAccessToken() {
+  if (currentAccessToken) return currentAccessToken;
   const { data: { session } } = await withTimeout(sb.auth.getSession(), 'Supabase session load', SESSION_TIMEOUT_MS);
-  return session?.access_token || '';
+  currentAccessToken = session?.access_token || '';
+  return currentAccessToken;
 }
 
 async function fetchJsonWithTimeout(url, options = {}, label = 'Request', timeoutMs = CLOUD_TIMEOUT_MS) {
@@ -382,9 +385,9 @@ async function loadUserData(options = {}) {
   try {
     let row;
     try {
-      row = await loadUserDataDirect();
-    } catch (directError) {
-      console.warn('[cinetrack] Direct cloud load failed, trying API route:', directError?.message || directError);
+      row = currentAccessToken ? await loadUserDataViaApi() : await loadUserDataDirect();
+    } catch (firstError) {
+      console.warn('[cinetrack] Primary cloud load failed, trying fallback:', firstError?.message || firstError);
       row = await loadUserDataViaApi();
     }
 
@@ -435,9 +438,9 @@ async function saveUserData() {
     const payload = { userId: currentUser.id, movies, updated_at: new Date().toISOString() };
     let result;
     try {
-      result = await saveUserDataDirect(payload);
-    } catch (directError) {
-      console.warn('[cinetrack] Direct cloud save failed, trying API route:', directError?.message || directError);
+      result = currentAccessToken ? await saveUserDataViaApi(payload) : await saveUserDataDirect(payload);
+    } catch (firstError) {
+      console.warn('[cinetrack] Primary cloud save failed, trying fallback:', firstError?.message || firstError);
       result = await saveUserDataViaApi(payload);
     }
 
@@ -2738,8 +2741,7 @@ REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM authenticated;`;
   }, 8000);
 
   try {
-    const { data: { session } } = await sb.auth.getSession();
-    const token = session?.access_token;
+    const token = await getSupabaseAccessToken();
     if (!token) throw new Error('Missing Supabase session token. Sign out and sign in again.');
 
     const { response: communityRes, data: community } = await fetchJsonWithTimeout(
@@ -4364,10 +4366,12 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
 
   let userDataFetched = false;
 
-  async function handleUserSignIn(user) {
+  async function handleUserSignIn(user, accessToken = '') {
     if (userDataFetched && currentUser?.id === user.id) return;
     userDataFetched = true;
     currentUser = user;
+    currentAccessToken = accessToken || currentAccessToken;
+    offlineMode = false;
     updateUserMenu();
     hideAuthOverlay();
     updateCountryDropdown();
@@ -4395,11 +4399,13 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
   }
 
   sb.auth.onAuthStateChange(async (event, session) => {
+    currentAccessToken = session?.access_token || currentAccessToken;
     if (event === 'SIGNED_IN' && session?.user) {
-      await handleUserSignIn(session.user);
+      await handleUserSignIn(session.user, session.access_token || '');
     } else if (event === 'SIGNED_OUT') {
       userDataFetched = false;
       currentUser = null;
+      currentAccessToken = '';
       stopCloudPolling();
       updateUserMenu();
     }
@@ -4408,12 +4414,19 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
   try {
     const { data: { session } } = await withTimeout(sb.auth.getSession(), 'Initial session load', SESSION_TIMEOUT_MS);
     if (session?.user) {
-      await handleUserSignIn(session.user);
+      await handleUserSignIn(session.user, session.access_token || '');
     } else {
       showAuthOverlay('form');
     }
   } catch (e) {
     console.warn('[cinetrack] Initial session load failed:', e?.message || e);
+    if (currentUser) {
+      hideAuthOverlay();
+      updateCountryDropdown();
+      render();
+      startCloudPolling();
+      return;
+    }
     offlineMode = true;
     hideAuthOverlay();
     setSyncState('error', e?.message || 'Session load failed');
