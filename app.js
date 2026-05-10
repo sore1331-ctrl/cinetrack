@@ -1,5 +1,5 @@
 // ── Theme ───────────────────────────────────────────────
-const CINETRACK_BUILD = 'calendar-discover-label-20260510-1';
+const CINETRACK_BUILD = 'profile-time-polish-20260510-1';
 console.info(`[CineTrack] Build ${CINETRACK_BUILD}`);
 
 const themeToggle = document.getElementById('theme-toggle');
@@ -115,6 +115,7 @@ const SYNC_PREF_KEYS = [
   'cinetrack_calendar_mode',
   'cinetrack_discover_region',
   'cinetrack_discover_type',
+  'cinetrack_time_spent_format',
 ];
 let prefSaveTimer = null;
 let prefMigrationWarned = false;
@@ -173,6 +174,7 @@ async function loadPreferences() {
     for (const k of SYNC_PREF_KEYS) {
       if (prefs[k] != null) localStorage.setItem(k, String(prefs[k]));
     }
+    timeSpentFormat = localStorage.getItem('cinetrack_time_spent_format') === 'calendar' ? 'calendar' : 'runtime';
     applyAllAppearance();
     refreshCurrentView();
   } catch (e) {
@@ -317,6 +319,7 @@ async function initSupabase() {
 // ── Profile load / save ─────────────────────────────────
 async function loadProfile() {
   if (!sb || !currentUser) return;
+  const userId = currentUser.id;
   const localUsername = getStoredUsername();
   if (localUsername && !currentUsername) {
     currentUsername = localUsername;
@@ -326,9 +329,10 @@ async function loadProfile() {
     const { data, error } = await sb
       .from('profiles')
       .select('username, sharing_enabled')
-      .eq('user_id', currentUser.id)
+      .eq('user_id', userId)
       .maybeSingle();
     if (error) throw error;
+    if (!currentUser || currentUser.id !== userId) return;
     if (data) {
       currentUsername = data.username || localUsername || null;
       setStoredUsername(currentUsername);
@@ -1344,6 +1348,39 @@ function formatRuntime(mins) {
   return h > 0 ? (m > 0 ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
 }
 
+let timeSpentFormat = localStorage.getItem('cinetrack_time_spent_format') === 'calendar' ? 'calendar' : 'runtime';
+
+function formatCalendarDuration(mins) {
+  if (!mins) return '';
+  let days = Math.floor(mins / 1440);
+  if (days < 1) return formatRuntime(mins);
+
+  const years = Math.floor(days / 365);
+  days %= 365;
+  const months = Math.floor(days / 30);
+  days %= 30;
+  const weeks = Math.floor(days / 7);
+  days %= 7;
+
+  const parts = [];
+  if (years) parts.push(`${years}y`);
+  if (months) parts.push(`${months}mo`);
+  if (weeks) parts.push(`${weeks}w`);
+  if (days) parts.push(`${days}d`);
+  return parts.join(' ') || formatRuntime(mins);
+}
+
+function formatTimeSpent(mins) {
+  return timeSpentFormat === 'calendar' ? formatCalendarDuration(mins) : formatRuntime(mins);
+}
+
+function toggleTimeSpentFormat() {
+  timeSpentFormat = timeSpentFormat === 'calendar' ? 'runtime' : 'calendar';
+  localStorage.setItem('cinetrack_time_spent_format', timeSpentFormat);
+  if (typeof scheduleSavePrefs === 'function') scheduleSavePrefs();
+  refreshCurrentView();
+}
+
 // ── Stats bar ───────────────────────────────────────────
 function updateStats() {
   const allOfType     = movies.filter(m => m.mediaType === activeType);
@@ -1533,7 +1570,7 @@ function renderStats() {
     <div class="stats-hero-summary">
       <div>
         <span class="stats-hero-label">Time watched</span>
-        <strong>${formatRuntime(totalMin) || '—'}</strong>
+        <strong data-time-spent-toggle>${formatTimeSpent(totalMin) || '—'}</strong>
       </div>
       <div>
         <span class="stats-hero-label">Top genre</span>
@@ -1567,8 +1604,8 @@ function renderStats() {
         <div class="stat-card-value">${epsWatched.toLocaleString()}<span class="stat-card-sub">/ ${epsTotal.toLocaleString()}</span></div>
         <div class="stat-card-label">Episodes</div>
       </div>` : ''}
-      <div class="stat-card" title="Total runtime, prorated by your progress on each series">
-        <div class="stat-card-value">${formatRuntime(totalMin) || '—'}</div>
+      <div class="stat-card" data-time-spent-toggle title="Total runtime, prorated by your progress on each series">
+        <div class="stat-card-value">${formatTimeSpent(totalMin) || '—'}</div>
         <div class="stat-card-label">Time Spent</div>
       </div>
       <div class="stat-card">
@@ -1647,6 +1684,10 @@ function renderStats() {
       const targetType = statsTypeFilter === 'all' ? 'movie' : statsTypeFilter;
       jumpToContent(targetType, { status: el.dataset.statAction });
     });
+  });
+
+  panel.querySelectorAll('[data-time-spent-toggle]').forEach(el => {
+    el.addEventListener('click', toggleTimeSpentFormat);
   });
 
   panel.querySelectorAll('[data-bar-action]').forEach(el => {
@@ -2709,8 +2750,8 @@ function openCommunityProfile(profile, userMovies) {
         <div class="stat-card-value">${watchlist.length}</div>
         <div class="stat-card-label">Watchlist</div>
       </div>
-      <div class="stat-card">
-        <div class="stat-card-value">${formatRuntime(totalMins) || '—'}</div>
+      <div class="stat-card" title="Total runtime across watched titles">
+        <div class="stat-card-value">${formatTimeSpent(totalMins) || '—'}</div>
         <div class="stat-card-label">Time Spent</div>
       </div>
       <div class="stat-card">
@@ -3130,8 +3171,8 @@ function renderProfile() {
         <div class="stat-card-value">${watchlist.length}</div>
         <div class="stat-card-label">Watchlist</div>
       </div>
-      <div class="stat-card">
-        <div class="stat-card-value">${formatRuntime(totalMins) || '—'}</div>
+      <div class="stat-card" data-time-spent-toggle title="Total runtime across watched titles">
+        <div class="stat-card-value">${formatTimeSpent(totalMins) || '—'}</div>
         <div class="stat-card-label">Time Spent</div>
       </div>
       <div class="stat-card">
@@ -3336,6 +3377,10 @@ function renderProfile() {
   panel.querySelector('#profile-export-btn')?.addEventListener('click', exportCSV);
   const tplLink = panel.querySelector('#profile-csv-template');
   if (tplLink) tplLink.href = TEMPLATE_URL;
+
+  panel.querySelectorAll('[data-time-spent-toggle]').forEach(el => {
+    el.addEventListener('click', toggleTimeSpentFormat);
+  });
 
   // Wire Appearance collapse/expand
   const appearanceSection = panel.querySelector('.appearance-section');
@@ -4615,12 +4660,9 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
     updateCountryDropdown();
     render();
 
-    try {
-      await withTimeout(loadProfile(), 'Profile load', 15000);
-    } catch (e) {
+    withTimeout(loadProfile(), 'Profile load', 15000).catch(e => {
       console.warn('[cinetrack] Profile load skipped:', e?.message || e);
-      showToast('Profile load timed out. Library opened with local data.', true);
-    }
+    });
 
     try {
       await withTimeout(loadPreferences(), 'Preference load', 15000);
