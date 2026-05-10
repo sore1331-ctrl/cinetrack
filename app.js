@@ -1062,7 +1062,7 @@ async function searchExternalTitle(q, type) {
 }
 
 async function fetchExternalDetails(id, type, rowData = null) {
-  if (type === 'tv') {
+  if (type === 'tv' && rowData?.source === 'tvmaze') {
     const show = rowData?.raw || {};
     const r = await fetch(`/api/external?provider=tvmaze&action=episodes&id=${encodeURIComponent(id)}`);
     if (!r.ok) throw new Error(`Could not load TVmaze episodes (${r.status}).`);
