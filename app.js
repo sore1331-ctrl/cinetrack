@@ -2753,6 +2753,31 @@ function writeRecsCache(cache) {
   localStorage.setItem(RECS_CACHE_KEY, JSON.stringify(cache));
 }
 
+function recommendationScopeType() {
+  return ['movie', 'tv', 'anime'].includes(statsTypeFilter) ? statsTypeFilter : 'all';
+}
+
+function recIdentity({ title, year, media_type }) {
+  return `${normaliseDuplicateTitle(title)}:${normaliseDuplicateYear(year)}:${media_type || ''}`;
+}
+
+async function resolveRecommendationSeed(movie) {
+  if (movie.tmdbId) return { ...movie, _recTmdbId: movie.tmdbId };
+  if (movie.externalSource !== 'tvmaze' || movie.mediaType !== 'tv' || !movie.externalId) return null;
+
+  try {
+    const params = new URLSearchParams({ title: movie.title || '', type: 'tv' });
+    if (movie.year) params.set('year', movie.year);
+    const r = await fetch(`/api/match?${params}`);
+    if (!r.ok) return null;
+    const data = await r.json();
+    if (!data?.matched || !data.tmdbId) return null;
+    return { ...movie, _recTmdbId: data.tmdbId };
+  } catch {
+    return null;
+  }
+}
+
 // Fisher–Yates partial shuffle: take n items at random from arr.
 function pickRandom(arr, n) {
   const copy = [...arr];
@@ -2766,20 +2791,23 @@ function pickRandom(arr, n) {
 async function loadRecommendations({ force = false } = {}) {
   const section = document.getElementById('recs-section');
   if (!section) return;
+  const scope = recommendationScopeType();
 
   // Pool: watched + in_progress titles with tmdbId. In-progress shows
   // reflect what you're currently watching → reasonable to seed from.
   const pool = movies.filter(m =>
-    (m.status === 'watched' || m.status === 'in_progress') && m.tmdbId
+    (m.status === 'watched' || m.status === 'in_progress') &&
+    (scope === 'all' || m.mediaType === scope) &&
+    (m.tmdbId || (m.externalSource === 'tvmaze' && m.externalId && m.mediaType === 'tv'))
   );
 
   if (!pool.length) {
-    section.innerHTML = '<p class="recs-empty">Mark some titles as watched to get personalised recommendations.</p>';
+    section.innerHTML = '<p class="recs-empty">Mark some titles as watched in this view to get personalised recommendations.</p>';
     return;
   }
 
   // Genre profile (only watched titles count toward the genre weights).
-  const watched = movies.filter(m => m.status === 'watched');
+  const watched = movies.filter(m => m.status === 'watched' && (scope === 'all' || m.mediaType === scope));
   const genreCounts = {};
   watched.forEach(m => {
     if (!m.genre) return;
@@ -2804,24 +2832,34 @@ async function loadRecommendations({ force = false } = {}) {
   // Top 20 → random sample 8. Sampling gives variety on refresh while
   // keeping seeds grounded in your strongest signals.
   const topPool = scored.slice(0, 20);
-  const poolKey = topPool.map(m => m.tmdbId).sort((a, b) => a - b).join(',');
+  const poolKey = `${scope}:` + topPool.map(m =>
+    m.tmdbId ? `tmdb:${m.tmdbId}` : `${m.externalSource}:${m.externalId}:${m.title}:${m.year}`
+  ).sort().join(',');
 
   // Cache check (skip when forced)
   if (!force) {
     const cache = readRecsCache();
     if (cache && cache.poolKey === poolKey && (Date.now() - cache.fetchedAt) < RECS_TTL_MS) {
-      renderRecsCards(section, cache.results, genreCounts);
+      renderRecsCards(section, cache.results, genreCounts, scope);
       return;
     }
   }
 
-  const sample = pickRandom(topPool, Math.min(8, topPool.length))
+  const seededPool = (await Promise.all(topPool.map(resolveRecommendationSeed))).filter(Boolean);
+  if (!seededPool.length) {
+    section.innerHTML = '<p class="recs-empty">Could not match your TV shows to recommendation sources yet. Try refreshing after adding a few more watched shows.</p>';
+    return;
+  }
+
+  const sample = pickRandom(seededPool, Math.min(8, seededPool.length))
     .sort((a, b) => b._score - a._score);  // best-scored first → API ranks them higher
-  const idParam = sample.map(m => `${m.tmdbId}:${m.mediaType}`).join(',');
+  const idParam = sample.map(m => `${m._recTmdbId}:${m.mediaType}`).join(',');
 
   let data;
   try {
-    const r = await fetch(`/api/recommend?ids=${encodeURIComponent(idParam)}`);
+    const params = new URLSearchParams({ ids: idParam });
+    if (scope !== 'all') params.set('type', scope);
+    const r = await fetch(`/api/recommend?${params}`);
     if (!r.ok) throw new Error(r.status);
     data = await r.json();
   } catch {
@@ -2831,15 +2869,27 @@ async function loadRecommendations({ force = false } = {}) {
 
   const results = data.results || [];
   writeRecsCache({ fetchedAt: Date.now(), poolKey, results });
-  renderRecsCards(section, results, genreCounts);
+  renderRecsCards(section, results, genreCounts, scope);
 }
 
-function renderRecsCards(section, results, genreCounts) {
+function renderRecsCards(section, results, genreCounts, scope = 'all') {
   const trackedTmdbIds = new Set(movies.map(m => String(m.tmdbId)).filter(Boolean));
+  const trackedKeys = new Set(movies.map(m => recIdentity({
+    title: m.title,
+    year: m.year,
+    media_type: m.mediaType,
+  })).filter(Boolean));
   const dismissed      = getDismissedRecs();
-  const recs = results.filter(r =>
-    !trackedTmdbIds.has(String(r.id)) && !dismissed.has(String(r.id))
-  ).slice(0, 18);
+  const seen = new Set();
+  const recs = [];
+  for (const r of results) {
+    const key = recIdentity(r);
+    if (scope !== 'all' && r.media_type !== scope) continue;
+    if (trackedTmdbIds.has(String(r.id)) || trackedKeys.has(key) || dismissed.has(String(r.id)) || seen.has(key)) continue;
+    seen.add(key);
+    recs.push(r);
+    if (recs.length >= 18) break;
+  }
 
   if (!recs.length) {
     section.innerHTML = `
@@ -2858,13 +2908,14 @@ function renderRecsCards(section, results, genreCounts) {
 
   const topGenres = Object.entries(genreCounts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(e => e[0]);
   const genreLabel = topGenres.length ? topGenres.join(', ') : 'your watch history';
+  const scopeLabel = scope === 'movie' ? 'films' : scope === 'tv' ? 'TV shows' : scope === 'anime' ? 'anime' : 'what';
 
   section.innerHTML = `
     <div class="recs-heading-row">
       <h3 class="recs-heading">✨ Recommended For You</h3>
       <button class="recs-refresh-btn" id="recs-refresh-btn" title="Re-sample your seeds and re-fetch from TMDB">↻ Refresh</button>
     </div>
-    <p class="recs-sub">Based on what you've watched · favouring ${esc(genreLabel)}</p>
+    <p class="recs-sub">Based on ${esc(scopeLabel)} you've watched · favouring ${esc(genreLabel)}</p>
     <div class="recs-grid">
       ${recs.map(r => `
         <div class="rec-card" data-rec-card="${r.id}">
@@ -2872,7 +2923,7 @@ function renderRecsCards(section, results, genreCounts) {
           <div class="rec-poster">
             ${r.poster_path
               ? `<img src="${POSTER_BASE}${r.poster_path}" alt="${esc(r.title)}" loading="lazy" />`
-              : `<div class="rec-poster-placeholder">${r.media_type === 'tv' ? '📺' : '🎬'}</div>`}
+              : `<div class="rec-poster-placeholder">${r.media_type === 'anime' ? '🎌' : r.media_type === 'tv' ? '📺' : '🎬'}</div>`}
           </div>
           <div class="rec-info">
             <div class="rec-title">${esc(r.title)}</div>
@@ -2933,7 +2984,14 @@ function renderRecsCards(section, results, genreCounts) {
     const recTitle  = btn.dataset.recTitle;
     const recYear   = btn.dataset.recYear;
     const recPoster = btn.dataset.recPoster;
-    if (movies.some(m => String(m.tmdbId) === recId)) { btn.textContent = '✓ Added'; btn.disabled = true; return; }
+    if (movies.some(m =>
+      String(m.tmdbId) === recId ||
+      recIdentity({ title: m.title, year: m.year, media_type: m.mediaType }) === recIdentity({ title: recTitle, year: recYear, media_type: recType })
+    )) {
+      btn.textContent = '✓ Added';
+      btn.disabled = true;
+      return;
+    }
     const newId = genId();
     movies.unshift({
       id:        newId,

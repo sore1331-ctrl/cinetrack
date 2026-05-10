@@ -1,5 +1,6 @@
 export default async function handler(req, res) {
   const { ids } = req.query;
+  const targetType = ['movie', 'tv', 'anime'].includes(req.query.type) ? req.query.type : '';
   if (!ids) return res.status(400).json({ error: 'Missing ids' });
 
   const key = process.env.TMDB_API_KEY;
@@ -27,6 +28,7 @@ export default async function handler(req, res) {
       const data = await r.json();
       (data.results || []).slice(0, 12).forEach(item => {
         const mtype  = item.media_type || apiType;
+        if (targetType && mtype !== (targetType === 'anime' ? 'tv' : targetType)) return;
         const mapKey = `${item.id}:${mtype}`;
         scoreMap[mapKey] = (scoreMap[mapKey] || 0) + weight;
         seedTypeScore[mapKey] = seedTypeScore[mapKey] || {};
@@ -40,6 +42,8 @@ export default async function handler(req, res) {
             overview:    item.overview || '',
             media_type:  mtype,
             popularity:  item.popularity || 0,
+            vote_average: item.vote_average || 0,
+            vote_count:   item.vote_count || 0,
           };
         }
       });
@@ -49,7 +53,6 @@ export default async function handler(req, res) {
   const results = Object.entries(scoreMap)
     .filter(([key]) => !seedSet.has(key.split(':')[0]))
     .sort((a, b) => b[1] - a[1] || (infoMap[b[0]].popularity - infoMap[a[0]].popularity))
-    .slice(0, 20)
     .map(([key]) => {
       const info = { ...infoMap[key] };
       const ts   = seedTypeScore[key] || {};
@@ -59,8 +62,23 @@ export default async function handler(req, res) {
         info.media_type = 'anime';
       }
       return info;
+    })
+    .filter(info => {
+      if (targetType === 'anime') return info.media_type === 'anime';
+      if (targetType) return info.media_type === targetType;
+      return true;
     });
 
+  const seen = new Set();
+  const deduped = [];
+  for (const item of results) {
+    const key = `${String(item.title || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()}:${item.year || ''}:${item.media_type}`;
+    if (!key.trim() || seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(item);
+    if (deduped.length >= 24) break;
+  }
+
   res.setHeader('Cache-Control', 'public, max-age=3600');
-  res.json({ results });
+  res.json({ results: deduped });
 }
