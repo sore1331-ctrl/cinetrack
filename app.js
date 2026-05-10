@@ -2840,6 +2840,9 @@ function recIdentity({ title, year, media_type }) {
 }
 
 async function resolveRecommendationSeed(movie) {
+  if (movie.mediaType === 'anime' && movie.externalSource === 'anilist' && movie.externalId) {
+    return { ...movie, _recAnilistId: movie.externalId };
+  }
   if (movie.tmdbId) return { ...movie, _recTmdbId: movie.tmdbId };
   if (movie.externalSource !== 'tvmaze' || movie.mediaType !== 'tv' || !movie.externalId) return null;
 
@@ -2854,6 +2857,22 @@ async function resolveRecommendationSeed(movie) {
   } catch {
     return null;
   }
+}
+
+function normaliseAnilistRecommendation(media) {
+  return {
+    id: media.id,
+    source: 'anilist',
+    externalId: media.id,
+    media_type: 'anime',
+    title: media.title,
+    year: media.year || media.seasonYear || '',
+    poster_path: media.coverImage || '',
+    overview: media.description || '',
+    genre: (media.genres || []).join(', '),
+    runtime: media.duration || 0,
+    total_episodes: media.episodes || 0,
+  };
 }
 
 // Fisher–Yates partial shuffle: take n items at random from arr.
@@ -2876,7 +2895,9 @@ async function loadRecommendations({ force = false } = {}) {
   const pool = movies.filter(m =>
     (m.status === 'watched' || m.status === 'in_progress') &&
     (scope === 'all' || m.mediaType === scope) &&
-    (m.tmdbId || (m.externalSource === 'tvmaze' && m.externalId && m.mediaType === 'tv'))
+    (m.tmdbId ||
+      (m.externalSource === 'tvmaze' && m.externalId && m.mediaType === 'tv') ||
+      (m.externalSource === 'anilist' && m.externalId && m.mediaType === 'anime'))
   );
 
   if (!pool.length) {
@@ -2925,11 +2946,45 @@ async function loadRecommendations({ force = false } = {}) {
 
   const seededPool = (await Promise.all(topPool.map(resolveRecommendationSeed))).filter(Boolean);
   if (!seededPool.length) {
-    section.innerHTML = '<p class="recs-empty">Could not match your TV shows to recommendation sources yet. Try refreshing after adding a few more watched shows.</p>';
+    section.innerHTML = '<p class="recs-empty">Could not match your watched titles to recommendation sources yet. Try refreshing after adding a few more watched titles.</p>';
     return;
   }
 
-  const sample = pickRandom(seededPool, Math.min(8, seededPool.length))
+  if (scope === 'anime') {
+    const anilistIds = seededPool
+      .filter(m => m._recAnilistId)
+      .map(m => String(m._recAnilistId))
+      .slice(0, 8);
+    if (anilistIds.length) {
+      try {
+        const params = new URLSearchParams({
+          provider: 'anilist',
+          action: 'recommendations',
+          ids: anilistIds.join(','),
+        });
+        const r = await fetch(`/api/external?${params}`);
+        if (r.ok) {
+          const anilistData = await r.json();
+          const anilistResults = (anilistData.results || []).map(normaliseAnilistRecommendation);
+          if (anilistResults.length) {
+            writeRecsCache({ fetchedAt: Date.now(), poolKey, results: anilistResults });
+            renderRecsCards(section, anilistResults, genreCounts, scope);
+            return;
+          }
+        }
+      } catch {
+        // Fall through to TMDB fallback below.
+      }
+    }
+  }
+
+  const tmdbSeededPool = seededPool.filter(m => m._recTmdbId);
+  if (!tmdbSeededPool.length) {
+    section.innerHTML = `<p class="recs-empty">No ${scope === 'anime' ? 'anime ' : ''}recommendations found yet. Try marking a few more titles as watched or in progress.</p>`;
+    return;
+  }
+
+  const sample = pickRandom(tmdbSeededPool, Math.min(8, tmdbSeededPool.length))
     .sort((a, b) => b._score - a._score);  // best-scored first → API ranks them higher
   const idParam = sample.map(m => `${m._recTmdbId}:${m.mediaType}`).join(',');
 
@@ -2963,7 +3018,7 @@ function renderRecsCards(section, results, genreCounts, scope = 'all') {
   for (const r of results) {
     const key = recIdentity(r);
     if (scope !== 'all' && r.media_type !== scope) continue;
-    if (trackedTmdbIds.has(String(r.id)) || trackedKeys.has(key) || dismissed.has(String(r.id)) || seen.has(key)) continue;
+    if (((r.source || 'tmdb') === 'tmdb' && trackedTmdbIds.has(String(r.id))) || trackedKeys.has(key) || dismissed.has(String(r.id)) || seen.has(key)) continue;
     seen.add(key);
     recs.push(r);
     if (recs.length >= 18) break;
@@ -3000,7 +3055,7 @@ function renderRecsCards(section, results, genreCounts, scope = 'all') {
           <button class="rec-dismiss-btn" data-rec-dismiss="${r.id}" title="Not interested">✕</button>
           <div class="rec-poster">
             ${r.poster_path
-              ? `<img src="${POSTER_BASE}${r.poster_path}" alt="${esc(r.title)}" loading="lazy" />`
+              ? `<img src="${externalPosterUrl(r.poster_path)}" alt="${esc(r.title)}" loading="lazy" />`
               : `<div class="rec-poster-placeholder">${r.media_type === 'anime' ? '🎌' : r.media_type === 'tv' ? '📺' : '🎬'}</div>`}
           </div>
           <div class="rec-info">
@@ -3008,7 +3063,7 @@ function renderRecsCards(section, results, genreCounts, scope = 'all') {
             ${r.year ? `<div class="rec-year">${r.year}</div>` : ''}
             ${r.overview ? `<div class="rec-overview" title="Tap to expand">${esc(r.overview)}</div>` : ''}
           </div>
-          <button class="rec-add-btn" data-rec-id="${r.id}" data-rec-type="${r.media_type}"
+          <button class="rec-add-btn" data-rec-id="${r.id}" data-rec-source="${r.source || 'tmdb'}" data-rec-type="${r.media_type}"
             data-rec-title="${esc(r.title)}" data-rec-year="${r.year || ''}"
             data-rec-poster="${r.poster_path || ''}" title="Add to Watchlist">＋ Watchlist</button>
         </div>
@@ -3058,6 +3113,7 @@ function renderRecsCards(section, results, genreCounts, scope = 'all') {
       : e.target.closest('.rec-add-btn');
     if (!btn) return;
     const recId     = btn.dataset.recId;
+    const recSource = btn.dataset.recSource || 'tmdb';
     const recType   = btn.dataset.recType;
     const recTitle  = btn.dataset.recTitle;
     const recYear   = btn.dataset.recYear;
@@ -3079,39 +3135,26 @@ function renderRecsCards(section, results, genreCounts, scope = 'all') {
       status:    'watchlist',
       rating:    0,
       mediaType: recType === 'anime' ? 'anime' : (recType === 'tv' ? 'tv' : 'movie'),
-      tmdbId:    Number(recId),
-      posterUrl: recPoster ? POSTER_BASE + recPoster : '',
+      tmdbId:    recSource === 'tmdb' ? Number(recId) : null,
+      externalSource: recSource,
+      externalId: recSource === 'tmdb' ? String(recId) : recId,
+      posterUrl: recPoster ? externalPosterUrl(recPoster) : '',
       genre: '', director: '', country: '', notes: '', runtime: 0,
     });
     save(); updateCountryDropdown();
     btn.textContent = '✓ Added';
     btn.disabled = true;
-    trackedTmdbIds.add(recId);
+    if (recSource === 'tmdb') trackedTmdbIds.add(recId);
 
-    // Enrich with full TMDB metadata in the background.
+    // Enrich with full metadata in the background.
     (async () => {
       try {
-        const fetchType = recType === 'anime' ? 'tv' : (recType === 'tv' ? 'tv' : 'movie');
-        const details = await fetchTMDBDetails(recId, fetchType);
+        const details = recSource === 'anilist'
+          ? await fetchExternalDetails(recId, 'anime')
+          : await fetchTMDBDetails(recId, recType === 'anime' ? 'tv' : (recType === 'tv' ? 'tv' : 'movie'));
         const m = movies.find(m => m.id === newId);
         if (!m) return;
-        if (details.title)    m.title    = details.title;
-        if (details.year)     m.year     = details.year;
-        if (details.genre)    m.genre    = details.genre;
-        if (details.director) m.director = details.director;
-        if (details.country)  m.country  = details.country;
-        if (details.runtime)  m.runtime  = details.runtime;
-        if (details.overview && !m.notes) m.notes = details.overview;
-        if (details.poster_path && !m.posterUrl) m.posterUrl = POSTER_BASE + details.poster_path;
-        if (Array.isArray(details.seasons) && details.seasons.length) {
-          m.seasons = details.seasons.map(s => ({
-            number: s.number, total: s.total, watched: 0, name: s.name,
-          }));
-          m.totalEpisodes   = m.seasons.reduce((sum, x) => sum + (x.total || 0), 0);
-          m.watchedEpisodes = 0;
-        } else if (details.total_episodes) {
-          m.totalEpisodes = details.total_episodes;
-        }
+        applyMetadataRefresh(m, details);
         save();
         updateCountryDropdown();
         if (activeView === 'content') render();

@@ -211,6 +211,49 @@ async function handleAnilist(req, res, action) {
     });
   }
 
+  if (action === 'recommendations') {
+    const ids = String(req.query.ids || '')
+      .split(',')
+      .map(id => Number(id.trim()))
+      .filter(Boolean)
+      .slice(0, 8);
+    if (!ids.length) return json(res, 400, { error: 'Missing AniList ids.' });
+
+    const blocks = ids.map((id, idx) => `
+      r${idx}: Page(page: 1, perPage: 12) {
+        recommendations(mediaId: ${id}, sort: RATING_DESC) {
+          id
+          rating
+          mediaRecommendation { ${MEDIA_FIELDS} }
+        }
+      }
+    `).join('\n');
+
+    const data = await anilistQuery(`query { ${blocks} }`);
+    const scores = new Map();
+    const info = new Map();
+    ids.forEach((_, idx) => {
+      const weight = Math.max(1, ids.length - idx);
+      for (const rec of data[`r${idx}`]?.recommendations || []) {
+        const media = rec.mediaRecommendation;
+        if (!media?.id) continue;
+        const score = (rec.rating || 0) + weight;
+        scores.set(media.id, (scores.get(media.id) || 0) + score);
+        if (!info.has(media.id)) info.set(media.id, slimMedia(media));
+      }
+    });
+
+    const seedIds = new Set(ids);
+    const results = [...scores.entries()]
+      .filter(([id]) => !seedIds.has(id))
+      .sort((a, b) => b[1] - a[1] || ((info.get(b[0])?.popularity || 0) - (info.get(a[0])?.popularity || 0)))
+      .slice(0, 24)
+      .map(([id]) => info.get(id))
+      .filter(Boolean);
+
+    return json(res, 200, { results });
+  }
+
   return json(res, 400, { error: 'Unknown AniList action.' });
 }
 
