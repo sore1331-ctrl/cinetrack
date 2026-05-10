@@ -1278,20 +1278,67 @@ function applyTMDBSelection(details) {
   checkDuplicateForSelection(details);
 }
 
-// Show a warning + 'Open existing' button when the picked external id is
-// already tracked in the user's library (under a different local entry).
+function normaliseDuplicateTitle(value) {
+  return String(value || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/\([^)]*\)|\[[^\]]*\]/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\b(the|a|an)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normaliseDuplicateYear(value) {
+  const match = String(value || '').match(/\d{4}/);
+  return match ? match[0] : '';
+}
+
+function findDuplicateTitle({ title, year, mediaType, source, externalId }) {
+  const selectedSource = source || 'tmdb';
+  const selectedExternalId = String(externalId || '');
+  const wantedType = mediaType || activeMediaType;
+  const wantedTitle = normaliseDuplicateTitle(title);
+  const wantedYear = normaliseDuplicateYear(year);
+
+  return movies.find(m => {
+    if (m.id === editingId) return false;
+
+    if (selectedExternalId) {
+      if (selectedSource === 'tmdb' && Number(m.tmdbId) === Number(selectedExternalId)) return true;
+      if (m.externalSource === selectedSource && String(m.externalId || '') === selectedExternalId) return true;
+    }
+
+    if (!wantedTitle || m.mediaType !== wantedType) return false;
+    const existingTitle = normaliseDuplicateTitle(m.title);
+    if (existingTitle !== wantedTitle) return false;
+
+    const existingYear = normaliseDuplicateYear(m.year);
+    if (wantedYear && existingYear) return wantedYear === existingYear;
+
+    // If one side is missing a year, only trust longer exact-normalised titles.
+    return wantedTitle.length >= 8;
+  });
+}
+
+// Show a warning + 'Open existing' button when the picked external id/title is
+// already tracked in the user's library, even if it came from another API.
 function checkDuplicateForSelection(selection) {
   const banner = document.getElementById('duplicate-warning');
   const detail = document.getElementById('duplicate-warning-detail');
   const btn    = document.getElementById('duplicate-edit-btn');
   const source = selection?.source || 'tmdb';
   const externalId = String(selection?.externalId || selection?.id || '');
-  if (!banner || !externalId) { banner?.classList.add('hidden'); return; }
+  if (!banner) return;
 
-  const existing = movies.find(m => {
-    if (m.id === editingId) return false;
-    if (source === 'tmdb') return Number(m.tmdbId) === Number(externalId);
-    return m.externalSource === source && String(m.externalId || '') === externalId;
+  const existing = findDuplicateTitle({
+    title: selection?.title,
+    year: selection?.year,
+    mediaType: activeMediaType,
+    source,
+    externalId,
   });
   if (!existing) { banner.classList.add('hidden'); return; }
 
@@ -4155,6 +4202,21 @@ form.addEventListener('submit', e => {
     : existing?.posterUrl || '';
   const selectedSource = tmdbSelection ? (tmdbSelection.source || 'tmdb') : null;
   const selectedExternalId = tmdbSelection ? String(tmdbSelection.externalId || tmdbSelection.id || '') : '';
+  if (!editingId) {
+    const duplicate = findDuplicateTitle({
+      title,
+      year: document.getElementById('f-year').value || tmdbSelection?.year || '',
+      mediaType: activeMediaType,
+      source: selectedSource || 'manual',
+      externalId: selectedExternalId,
+    });
+    if (duplicate) {
+      showToast(`"${duplicate.title}" is already in your ${duplicate.status === 'watchlist' ? 'watchlist' : 'library'}.`);
+      closeModal();
+      openModal(duplicate);
+      return;
+    }
+  }
 
   const isShow = activeMediaType === 'tv' || activeMediaType === 'anime';
 
