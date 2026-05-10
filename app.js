@@ -1144,6 +1144,20 @@ function sourceForEntry(movie) {
   return movie?.tmdbId ? 'tmdb' : 'manual';
 }
 
+function infoUrlForEntry(movie) {
+  if (!movie) return '';
+  if (movie.tmdbId) {
+    return `https://www.themoviedb.org/${movie.mediaType === 'movie' ? 'movie' : 'tv'}/${movie.tmdbId}`;
+  }
+  if (movie.externalSource === 'tvmaze' && movie.externalId) {
+    return `https://www.tvmaze.com/shows/${encodeURIComponent(movie.externalId)}`;
+  }
+  if (movie.externalSource === 'anilist' && movie.externalId) {
+    return `https://anilist.co/anime/${encodeURIComponent(movie.externalId)}`;
+  }
+  return '';
+}
+
 function metadataRefreshLabel(movie) {
   const source = sourceForEntry(movie);
   if (source === 'tvmaze') return 'Refresh from TVmaze';
@@ -1812,9 +1826,7 @@ function renderStats() {
       <h3>Your Top Rated</h3>
       <div class="top-rated-grid">
         ${topRated.map(m => {
-          const url = m.tmdbId
-            ? `https://www.themoviedb.org/${m.mediaType === 'movie' ? 'movie' : 'tv'}/${m.tmdbId}`
-            : null;
+          const url = infoUrlForEntry(m);
           const poster = m.posterUrl
             ? `<img src="${m.posterUrl}" alt="${esc(m.title)}" loading="lazy" />`
             : `<div class="tr-poster-emoji">${m.mediaType === 'anime' ? '🎌' : m.mediaType === 'tv' ? '📺' : posterEmoji(m.title)}</div>`;
@@ -3961,6 +3973,7 @@ function render() {
       : '';
 
     const titleLabel = esc(m.title);
+    const infoUrl = infoUrlForEntry(m);
     const toggleActionLabel = m.status === 'in_progress' ? 'Mark watched' : 'Mark in progress';
     const hoverInfoParts = [
       m.genre    && `<div class="chi-genre">${esc(m.genre)}</div>`,
@@ -3984,8 +3997,8 @@ function render() {
         ${m.status === 'watched' ? `✓ Watched${(m.watchCount || 0) > 1 ? ` ×${m.watchCount}` : ''}` : m.status === 'in_progress' ? '▶ In Progress' : m.status === 'dropped' ? '📛 Dropped' : '⏳ Watchlist'}
       </span>
       ${airingToday ? `<span class="card-airing-pill" title="${m.mediaType === 'movie' ? 'Theatrical release today' : 'New episode airs today'}">● Today</span>` : ''}
-      ${m.tmdbId
-        ? `<a class="card-title card-title-link" href="https://www.themoviedb.org/${m.mediaType === 'movie' ? 'movie' : 'tv'}/${m.tmdbId}" target="_blank" rel="noopener noreferrer" title="${titleLabel}">${titleLabel}</a>`
+      ${infoUrl
+        ? `<a class="card-title card-title-link" href="${infoUrl}" target="_blank" rel="noopener noreferrer" title="${titleLabel}">${titleLabel}</a>`
         : `<div class="card-title" title="${titleLabel}">${titleLabel}</div>`}
       <div class="card-meta">
         ${m.year       ? `<span class="meta-year">${m.year}</span>` : ''}
