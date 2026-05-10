@@ -2900,6 +2900,13 @@ a.top-rated-card:hover {
   font-weight: 650;
   padding: 7px 12px;
 }
+.cal-discover-label {
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 750;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
 .cal-refresh-btn {
   background: var(--surface2); border: 1px solid var(--border); color: var(--text);
   padding: 7px 13px; border-radius: 999px; font-size: .84rem; cursor: pointer;

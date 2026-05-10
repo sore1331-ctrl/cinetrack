@@ -1,5 +1,5 @@
 // ── Theme ───────────────────────────────────────────────
-const CINETRACK_BUILD = 'calendar-view-fix-20260510-1';
+const CINETRACK_BUILD = 'calendar-discover-label-20260510-1';
 console.info(`[CineTrack] Build ${CINETRACK_BUILD}`);
 
 const themeToggle = document.getElementById('theme-toggle');
@@ -2146,7 +2146,7 @@ async function renderCalendarDiscover(body, { force = false } = {}) {
 
   body.innerHTML = `
     <div class="cal-subheader">
-      <span class="cal-window">Browse upcoming releases</span>
+      <span class="cal-discover-label">Upcoming releases</span>
       <div class="cal-discover-types pill-group">
         ${DISCOVER_TYPES.map(t =>
           `<button type="button" class="pill-btn ${t === discoverType ? 'active' : ''}" data-disc-type="${t}">${typeLabels[t]}</button>`
