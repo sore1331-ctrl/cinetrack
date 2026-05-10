@@ -1025,6 +1025,120 @@ async function fetchTMDBDetails(id, type) {
   return r.json();
 }
 
+function countryNameFromCode(code) {
+  const map = {
+    JP: 'Japan', KR: 'South Korea', CN: 'China', US: 'United States of America',
+    GB: 'United Kingdom', CA: 'Canada', FR: 'France', DE: 'Germany',
+    ES: 'Spain', IT: 'Italy', PL: 'Poland',
+  };
+  return map[String(code || '').toUpperCase()] || code || '';
+}
+
+function externalPosterUrl(path) {
+  if (!path) return '';
+  return /^https?:\/\//i.test(path) ? path : POSTER_BASE + path;
+}
+
+async function searchExternalTitle(q, type) {
+  if (type === 'tv') {
+    const r = await fetch(`/api/tvmaze?action=search&q=${encodeURIComponent(q)}`);
+    if (!r.ok) throw new Error(`TVmaze request failed (${r.status}). Fill in details manually.`);
+    const data = await r.json();
+    return {
+      results: (data.results || []).map(show => ({
+        id: show.id,
+        source: 'tvmaze',
+        media_type: 'tv',
+        title: show.title,
+        year: show.year,
+        poster_path: show.image || '',
+        summary: show.summary || '',
+        raw: show,
+      })),
+    };
+  }
+
+  if (type === 'anime') {
+    const r = await fetch(`/api/anilist?action=search&q=${encodeURIComponent(q)}`);
+    if (!r.ok) throw new Error(`AniList request failed (${r.status}). Fill in details manually.`);
+    const data = await r.json();
+    return {
+      results: (data.results || []).map(media => ({
+        id: media.id,
+        source: 'anilist',
+        media_type: 'anime',
+        title: media.title,
+        year: media.year || media.seasonYear || '',
+        poster_path: media.coverImage || '',
+        summary: media.description || '',
+        raw: media,
+      })),
+    };
+  }
+
+  return searchTMDB(q, type);
+}
+
+async function fetchExternalDetails(id, type, rowData = null) {
+  if (type === 'tv') {
+    const show = rowData?.raw || {};
+    const r = await fetch(`/api/tvmaze?action=episodes&id=${encodeURIComponent(id)}`);
+    if (!r.ok) throw new Error(`Could not load TVmaze episodes (${r.status}).`);
+    const data = await r.json();
+    const episodes = data.episodes || [];
+    const seasonMap = new Map();
+    for (const ep of episodes) {
+      if (!ep.season) continue;
+      const curr = seasonMap.get(ep.season) || { number: ep.season, total: 0, watched: 0, name: `Season ${ep.season}` };
+      curr.total += 1;
+      seasonMap.set(ep.season, curr);
+    }
+    return {
+      id,
+      externalId: id,
+      source: 'tvmaze',
+      media_type: 'tv',
+      title: show.title || rowData?.title || '',
+      year: show.year || rowData?.year || '',
+      genre: (show.genres || []).join(', '),
+      director: show.network || '',
+      country: show.country || '',
+      runtime: show.runtime || 0,
+      overview: show.summary || rowData?.summary || '',
+      poster_path: show.image || rowData?.poster_path || '',
+      total_episodes: episodes.length || 0,
+      seasons: [...seasonMap.values()].sort((a, b) => a.number - b.number),
+      providers: null,
+    };
+  }
+
+  if (type === 'anime') {
+    const r = await fetch(`/api/anilist?action=details&id=${encodeURIComponent(id)}`);
+    if (!r.ok) throw new Error(`Could not load AniList details (${r.status}).`);
+    const data = await r.json();
+    const media = data.media || rowData?.raw || {};
+    return {
+      id,
+      externalId: id,
+      source: 'anilist',
+      media_type: 'anime',
+      title: media.title || rowData?.title || '',
+      year: media.year || media.seasonYear || rowData?.year || '',
+      genre: (media.genres || []).join(', '),
+      director: (media.studios || []).join(', '),
+      country: countryNameFromCode(media.country),
+      runtime: media.duration || 0,
+      overview: media.description || rowData?.summary || '',
+      poster_path: media.coverImage || rowData?.poster_path || '',
+      total_episodes: media.episodes || 0,
+      seasons: media.episodes ? [{ number: 1, total: media.episodes, watched: 0, name: 'Season 1' }] : [],
+      providers: null,
+    };
+  }
+
+  return fetchTMDBDetails(id, type);
+}
+
 // ── Media type toggle (modal) ───────────────────────────
 document.querySelectorAll('.type-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -1039,7 +1153,7 @@ document.querySelectorAll('.type-btn').forEach(btn => {
 function updateModalForType() {
   const isTV    = activeMediaType === 'tv';
   const isAnime = activeMediaType === 'anime';
-  const labels  = { movie: 'Search TMDB', tv: 'Search TMDB (TV)', anime: 'Search TMDB (Anime)' };
+  const labels  = { movie: 'Search TMDB', tv: 'Search TVmaze', anime: 'Search AniList' };
   const placeholders = { movie: 'Type a movie title...', tv: 'Type a show title...', anime: 'Type an anime title...' };
   tmdbSearchLabel.childNodes[0].textContent = labels[activeMediaType] || 'Search TMDB';
   tmdbQuery.placeholder = placeholders[activeMediaType] || 'Type a title...';
@@ -1061,7 +1175,7 @@ tmdbQuery.addEventListener('input', () => {
 
 async function runSearch(q) {
   try {
-    const data = await searchTMDB(q, activeMediaType);
+    const data = await searchExternalTitle(q, activeMediaType);
     tmdbSearching.classList.add('hidden');
     renderDropdown(data.results || []);
   } catch (err) {
@@ -1078,9 +1192,9 @@ function renderDropdown(results) {
     return;
   }
   tmdbDropdown.innerHTML = results.map(m => `
-    <div class="tmdb-result" data-id="${m.id}" data-media-type="${m.media_type}">
+    <div class="tmdb-result" data-id="${m.id}" data-source="${m.source || 'tmdb'}" data-media-type="${m.media_type}">
       <img class="tmdb-result-poster"
-           src="${m.poster_path ? POSTER_BASE + m.poster_path : ''}"
+           src="${externalPosterUrl(m.poster_path)}"
            alt="" onerror="this.style.display='none'" />
       <div class="tmdb-result-info">
         <span class="tmdb-result-title">${esc(m.title)}</span>
@@ -1088,6 +1202,9 @@ function renderDropdown(results) {
       </div>
     </div>
   `).join('');
+  tmdbDropdown.querySelectorAll('.tmdb-result').forEach((row, idx) => {
+    row._result = results[idx];
+  });
   tmdbDropdown.classList.remove('hidden');
 }
 
@@ -1100,14 +1217,17 @@ tmdbDropdown.addEventListener('click', async e => {
   const row = e.target.closest('.tmdb-result');
   if (!row) return;
   const id = row.dataset.id;
-  const fetchType = activeMediaType === 'anime' ? (row.dataset.mediaType || 'tv') : activeMediaType;
+  const rowData = row._result || null;
+  const fetchType = activeMediaType === 'anime' && row.dataset.source === 'tmdb'
+    ? (row.dataset.mediaType || 'tv')
+    : activeMediaType;
   hideDropdown();
   tmdbSearching.textContent = 'Loading details…';
   tmdbSearching.classList.remove('hidden');
   tmdbQuery.value = '';
 
   try {
-    const details = await fetchTMDBDetails(id, fetchType);
+    const details = await fetchExternalDetails(id, fetchType, rowData);
     tmdbSearching.classList.add('hidden');
     applyTMDBSelection(details);
   } catch (err) {
@@ -1119,10 +1239,10 @@ tmdbDropdown.addEventListener('click', async e => {
 
 function applyTMDBSelection(details) {
   tmdbSelection = details;
-  tmdbPosterThumb.src = details.poster_path ? POSTER_BASE + details.poster_path : '';
+  tmdbPosterThumb.src = externalPosterUrl(details.poster_path);
   tmdbPosterThumb.style.display = details.poster_path ? 'block' : 'none';
   tmdbSelTitle.textContent = details.title;
-  tmdbSelYear.textContent  = details.year || '';
+  tmdbSelYear.textContent  = [details.year, details.source === 'anilist' ? 'AniList' : details.source === 'tvmaze' ? 'TVmaze' : 'TMDB'].filter(Boolean).join(' · ');
   tmdbSelected.classList.remove('hidden');
   tmdbQuery.disabled = true;
 
@@ -1155,18 +1275,24 @@ function applyTMDBSelection(details) {
     document.getElementById('f-notes').value  = details.overview || '';
 
   renderProviders(details.providers);
-  checkDuplicateForTMDBId(details.id);
+  checkDuplicateForSelection(details);
 }
 
-// Show a warning + 'Open existing' button when the picked TMDB id is
+// Show a warning + 'Open existing' button when the picked external id is
 // already tracked in the user's library (under a different local entry).
-function checkDuplicateForTMDBId(tmdbId) {
+function checkDuplicateForSelection(selection) {
   const banner = document.getElementById('duplicate-warning');
   const detail = document.getElementById('duplicate-warning-detail');
   const btn    = document.getElementById('duplicate-edit-btn');
-  if (!banner || !tmdbId) { banner?.classList.add('hidden'); return; }
+  const source = selection?.source || 'tmdb';
+  const externalId = String(selection?.externalId || selection?.id || '');
+  if (!banner || !externalId) { banner?.classList.add('hidden'); return; }
 
-  const existing = movies.find(m => Number(m.tmdbId) === Number(tmdbId) && m.id !== editingId);
+  const existing = movies.find(m => {
+    if (m.id === editingId) return false;
+    if (source === 'tmdb') return Number(m.tmdbId) === Number(externalId);
+    return m.externalSource === source && String(m.externalId || '') === externalId;
+  });
   if (!existing) { banner.classList.add('hidden'); return; }
 
   const statusLabel = existing.status === 'watched'     ? '✓ Watched'
@@ -1852,6 +1978,76 @@ async function fetchUpcoming(ids, { force = false } = {}) {
   return keys.map(k => byId[k]).filter(Boolean);
 }
 
+function calendarKeyForEntry(m) {
+  if (!m) return '';
+  const isShow = m.mediaType === 'tv' || m.mediaType === 'anime';
+  if (m.tmdbId) return `${isShow ? 'tv' : 'movie'}:${m.tmdbId}`;
+  if ((m.externalSource === 'tvmaze' || m.externalSource === 'anilist') && m.externalId) {
+    return `${m.externalSource}:${m.externalId}`;
+  }
+  return '';
+}
+
+async function fetchExternalUpcomingForEntries(entries) {
+  const todayStr = todayDateString();
+  const tvHorizon = new Date(); tvHorizon.setHours(0,0,0,0); tvHorizon.setDate(tvHorizon.getDate() + UPCOMING_HORIZON_DAYS);
+  const tvHorizonStr = `${tvHorizon.getFullYear()}-${String(tvHorizon.getMonth()+1).padStart(2,'0')}-${String(tvHorizon.getDate()).padStart(2,'0')}`;
+
+  const tasks = entries.map(async m => {
+    const key = calendarKeyForEntry(m);
+    if (m.externalSource === 'tvmaze') {
+      const r = await fetch(`/api/tvmaze?action=episodes&id=${encodeURIComponent(m.externalId)}`);
+      if (!r.ok) return null;
+      const data = await r.json();
+      const next = (data.episodes || [])
+        .filter(ep => ep.airdate && ep.airdate >= todayStr && ep.airdate <= tvHorizonStr)
+        .sort((a, b) => a.airdate.localeCompare(b.airdate))[0];
+      return {
+        type: 'tv',
+        sourceKey: key,
+        title: m.title,
+        poster_url: m.posterUrl || '',
+        externalUrl: `https://www.tvmaze.com/shows/${m.externalId}`,
+        nextEpisode: next ? {
+          season: next.season,
+          episode: next.episode,
+          name: next.title || '',
+          airDate: next.airdate,
+          overview: next.summary || '',
+        } : null,
+      };
+    }
+
+    if (m.externalSource === 'anilist') {
+      const r = await fetch(`/api/anilist?action=details&id=${encodeURIComponent(m.externalId)}`);
+      if (!r.ok) return null;
+      const data = await r.json();
+      const airing = data.media?.nextAiringEpisode;
+      if (!airing?.airingAt) return null;
+      const airDate = new Date(airing.airingAt * 1000);
+      const airDateStr = `${airDate.getFullYear()}-${String(airDate.getMonth()+1).padStart(2,'0')}-${String(airDate.getDate()).padStart(2,'0')}`;
+      return {
+        type: 'tv',
+        sourceKey: key,
+        title: m.title || data.media?.title || '',
+        poster_url: m.posterUrl || data.media?.coverImage || '',
+        externalUrl: data.media?.siteUrl || `https://anilist.co/anime/${m.externalId}`,
+        nextEpisode: {
+          season: 1,
+          episode: airing.episode,
+          name: '',
+          airDate: airDateStr,
+          overview: '',
+        },
+      };
+    }
+
+    return null;
+  });
+
+  return (await Promise.all(tasks)).filter(Boolean);
+}
+
 // ── Episode-air-today notifications ─────────────────────
 const NOTIF_DEDUPE_KEY = 'cinetrack_notified_episodes';
 
@@ -2019,7 +2215,7 @@ async function renderCalendar({ force = false } = {}) {
       <div class="calendar-title-block">
         <span class="calendar-kicker">Schedule</span>
         <h2>📅 Calendar</h2>
-        <p>Upcoming episodes and watchlist film releases from TMDB.</p>
+        <p>Upcoming episodes and watchlist film releases from your connected sources.</p>
       </div>
       <div class="cal-mode-toggle pill-group">
         <button type="button" class="pill-btn ${calendarMode === 'tracked' ? 'active' : ''}" data-mode="tracked">📅 Tracked</button>
@@ -2048,15 +2244,12 @@ async function renderCalendarTracked(body, { force = false } = {}) {
   // What we track: in-progress + watchlist TV/anime (next episode air date)
   // and watchlist movies (theatrical release). Each entry is keyed as
   // `${type}:${tmdbId}`.
-  const tracked = movies.filter(m => m.tmdbId && (
+  const tracked = movies.filter(m => calendarKeyForEntry(m) && (
     ((m.mediaType === 'tv' || m.mediaType === 'anime') && (m.status === 'in_progress' || m.status === 'watchlist')) ||
     (m.mediaType === 'movie' && m.status === 'watchlist')
   ));
 
-  const ids = tracked.map(m => {
-    const t = (m.mediaType === 'tv' || m.mediaType === 'anime') ? 'tv' : 'movie';
-    return `${t}:${m.tmdbId}`;
-  });
+  const ids = tracked.map(calendarKeyForEntry).filter(Boolean);
 
   if (!ids.length) {
     body.innerHTML = `<p class="recs-empty">Add a TV show or anime to your <em>Watchlist</em> or mark it <em>In Progress</em>, or add a movie to your <em>Watchlist</em>, to see what's coming up.</p>`;
@@ -2075,7 +2268,16 @@ async function renderCalendarTracked(body, { force = false } = {}) {
 
   let upcoming;
   try {
-    upcoming = await fetchUpcoming(ids, { force });
+    const tmdbIds = ids.filter(id => id.startsWith('tv:') || id.startsWith('movie:'));
+    const externalEntries = tracked.filter(m => {
+      const key = calendarKeyForEntry(m);
+      return key.startsWith('tvmaze:') || key.startsWith('anilist:');
+    });
+    const [tmdbUpcoming, externalUpcoming] = await Promise.all([
+      fetchUpcoming(tmdbIds, { force }),
+      fetchExternalUpcomingForEntries(externalEntries),
+    ]);
+    upcoming = [...tmdbUpcoming, ...externalUpcoming];
   } catch (e) {
     body.querySelector('.calendar-list').innerHTML =
       `<p class="recs-empty">Couldn't load upcoming dates: ${esc(e.message)}</p>`;
@@ -2083,10 +2285,7 @@ async function renderCalendarTracked(body, { force = false } = {}) {
   }
 
   // Index local entries so we can read user posters / titles back
-  const localByKey = new Map(tracked.map(m => {
-    const t = (m.mediaType === 'tv' || m.mediaType === 'anime') ? 'tv' : 'movie';
-    return [`${t}:${m.tmdbId}`, m];
-  }));
+  const localByKey = new Map(tracked.map(m => [calendarKeyForEntry(m), m]));
 
   const todayStr = todayDateString();
   const dPlus = (n) => {
@@ -2101,7 +2300,7 @@ async function renderCalendarTracked(body, { force = false } = {}) {
   const undated = [];   // TV between seasons / no scheduled date
 
   for (const u of upcoming) {
-    const key   = `${u.type}:${u.tmdbId}`;
+    const key   = u.sourceKey || `${u.type}:${u.tmdbId}`;
     const local = localByKey.get(key);
 
     if (u.type === 'movie') {
@@ -2112,9 +2311,9 @@ async function renderCalendarTracked(body, { force = false } = {}) {
           kind: 'movie',
           tmdbId: u.tmdbId,
           title:   local?.title || u.title,
-          poster:  local?.posterUrl || (u.poster_path ? POSTER_BASE + u.poster_path : ''),
+          poster:  local?.posterUrl || u.poster_url || (u.poster_path ? POSTER_BASE + u.poster_path : ''),
           sublabel: '🎬 Theatrical release',
-          tmdbUrl:  `https://www.themoviedb.org/movie/${u.tmdbId}`,
+          tmdbUrl:  u.externalUrl || `https://www.themoviedb.org/movie/${u.tmdbId}`,
         });
       }
       continue;
@@ -2126,19 +2325,19 @@ async function renderCalendarTracked(body, { force = false } = {}) {
       dated.push({
         date: ne.airDate,
         kind: local?.mediaType === 'anime' ? 'anime' : 'tv',
-        tmdbId: u.tmdbId,
+        tmdbId: u.tmdbId || u.externalId || '',
         title:  local?.title || u.title,
-        poster: local?.posterUrl || (u.poster_path ? POSTER_BASE + u.poster_path : ''),
+        poster: local?.posterUrl || u.poster_url || (u.poster_path ? POSTER_BASE + u.poster_path : ''),
         sublabel: `S${ne.season}E${ne.episode}${ne.name ? ` · ${esc(ne.name)}` : ''}`,
-        tmdbUrl:  `https://www.themoviedb.org/tv/${u.tmdbId}`,
+        tmdbUrl:  u.externalUrl || `https://www.themoviedb.org/tv/${u.tmdbId}`,
       });
     } else if (!ne || !ne.airDate) {
       undated.push({
         kind: local?.mediaType === 'anime' ? 'anime' : 'tv',
-        tmdbId: u.tmdbId,
+        tmdbId: u.tmdbId || u.externalId || '',
         title:  local?.title || u.title,
-        poster: local?.posterUrl || (u.poster_path ? POSTER_BASE + u.poster_path : ''),
-        tmdbUrl: `https://www.themoviedb.org/tv/${u.tmdbId}`,
+        poster: local?.posterUrl || u.poster_url || (u.poster_path ? POSTER_BASE + u.poster_path : ''),
+        tmdbUrl: u.externalUrl || `https://www.themoviedb.org/tv/${u.tmdbId}`,
       });
     }
   }
@@ -3952,8 +4151,10 @@ form.addEventListener('submit', e => {
 
   const existing  = editingId ? movies.find(m => m.id === editingId) : null;
   const posterUrl = tmdbSelection?.poster_path
-    ? POSTER_BASE + tmdbSelection.poster_path
+    ? externalPosterUrl(tmdbSelection.poster_path)
     : existing?.posterUrl || '';
+  const selectedSource = tmdbSelection ? (tmdbSelection.source || 'tmdb') : null;
+  const selectedExternalId = tmdbSelection ? String(tmdbSelection.externalId || tmdbSelection.id || '') : '';
 
   const isShow = activeMediaType === 'tv' || activeMediaType === 'anime';
 
@@ -4015,7 +4216,11 @@ form.addEventListener('submit', e => {
     seasons,
     watchCount,
     posterUrl,
-    tmdbId: tmdbSelection?.id || existing?.tmdbId || null,
+    tmdbId: selectedSource === 'tmdb'
+      ? (tmdbSelection?.id || existing?.tmdbId || null)
+      : (tmdbSelection ? null : existing?.tmdbId || null),
+    externalSource: selectedSource || existing?.externalSource || (existing?.tmdbId ? 'tmdb' : 'manual'),
+    externalId: selectedExternalId || existing?.externalId || (existing?.tmdbId ? String(existing.tmdbId) : null),
   };
 
   if (editingId) {
