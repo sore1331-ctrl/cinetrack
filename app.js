@@ -1041,7 +1041,7 @@ function externalPosterUrl(path) {
 
 async function searchExternalTitle(q, type) {
   if (type === 'tv') {
-    const r = await fetch(`/api/tvmaze?action=search&q=${encodeURIComponent(q)}`);
+    const r = await fetch(`/api/external?provider=tvmaze&action=search&q=${encodeURIComponent(q)}`);
     if (!r.ok) throw new Error(`TVmaze request failed (${r.status}). Fill in details manually.`);
     const data = await r.json();
     return {
@@ -1059,7 +1059,7 @@ async function searchExternalTitle(q, type) {
   }
 
   if (type === 'anime') {
-    const r = await fetch(`/api/anilist?action=search&q=${encodeURIComponent(q)}`);
+    const r = await fetch(`/api/external?provider=anilist&action=search&q=${encodeURIComponent(q)}`);
     if (!r.ok) throw new Error(`AniList request failed (${r.status}). Fill in details manually.`);
     const data = await r.json();
     return {
@@ -1082,7 +1082,7 @@ async function searchExternalTitle(q, type) {
 async function fetchExternalDetails(id, type, rowData = null) {
   if (type === 'tv') {
     const show = rowData?.raw || {};
-    const r = await fetch(`/api/tvmaze?action=episodes&id=${encodeURIComponent(id)}`);
+    const r = await fetch(`/api/external?provider=tvmaze&action=episodes&id=${encodeURIComponent(id)}`);
     if (!r.ok) throw new Error(`Could not load TVmaze episodes (${r.status}).`);
     const data = await r.json();
     const episodes = data.episodes || [];
@@ -1113,7 +1113,7 @@ async function fetchExternalDetails(id, type, rowData = null) {
   }
 
   if (type === 'anime') {
-    const r = await fetch(`/api/anilist?action=details&id=${encodeURIComponent(id)}`);
+    const r = await fetch(`/api/external?provider=anilist&action=details&id=${encodeURIComponent(id)}`);
     if (!r.ok) throw new Error(`Could not load AniList details (${r.status}).`);
     const data = await r.json();
     const media = data.media || rowData?.raw || {};
@@ -1996,7 +1996,7 @@ async function fetchExternalUpcomingForEntries(entries) {
   const tasks = entries.map(async m => {
     const key = calendarKeyForEntry(m);
     if (m.externalSource === 'tvmaze') {
-      const r = await fetch(`/api/tvmaze?action=episodes&id=${encodeURIComponent(m.externalId)}`);
+      const r = await fetch(`/api/external?provider=tvmaze&action=episodes&id=${encodeURIComponent(m.externalId)}`);
       if (!r.ok) return null;
       const data = await r.json();
       const next = (data.episodes || [])
@@ -2019,7 +2019,7 @@ async function fetchExternalUpcomingForEntries(entries) {
     }
 
     if (m.externalSource === 'anilist') {
-      const r = await fetch(`/api/anilist?action=details&id=${encodeURIComponent(m.externalId)}`);
+      const r = await fetch(`/api/external?provider=anilist&action=details&id=${encodeURIComponent(m.externalId)}`);
       if (!r.ok) return null;
       const data = await r.json();
       const airing = data.media?.nextAiringEpisode;
