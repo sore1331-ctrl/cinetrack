@@ -680,9 +680,6 @@ const confirmMsg      = document.getElementById('confirm-msg');
 const confirmCancel   = document.getElementById('confirm-cancel');
 const confirmOk       = document.getElementById('confirm-ok');
 const statsBar        = document.getElementById('stats-bar');
-const libraryKicker   = document.getElementById('library-kicker');
-const libraryTitle    = document.getElementById('library-title');
-const librarySummary  = document.getElementById('library-summary');
 const paginationEl    = document.getElementById('pagination');
 const selectModeBtn   = document.getElementById('select-mode-btn');
 const pageSizeSelect  = document.getElementById('page-size-select');
@@ -1678,7 +1675,7 @@ function toggleTimeSpentFormat() {
 }
 
 // ── Stats bar ───────────────────────────────────────────
-function updateStats(filteredList = null) {
+function updateStats() {
   const isDroppedView = activeType === 'dropped';
   const allOfType     = isDroppedView
     ? movies.filter(m => m.status === 'dropped')
@@ -1686,26 +1683,8 @@ function updateStats(filteredList = null) {
   const watchedCnt    = isDroppedView ? 0 : allOfType.filter(m => m.status === 'watched').length;
   const inProgressCnt = isDroppedView ? 0 : allOfType.filter(m => m.status === 'in_progress').length;
   const watchlistCnt  = isDroppedView ? 0 : allOfType.filter(m => m.status === 'watchlist').length;
-  const droppedCnt    = isDroppedView ? allOfType.length : 0;
-  const visibleCnt     = Array.isArray(filteredList) ? filteredList.length : filtered().length;
-  const totalCnt       = allOfType.length;
 
   const a = s => activeStatus === s ? ' stat-active' : '';
-  const typeMeta = {
-    movie: { title: 'Films', icon: '🎬', noun: 'films' },
-    tv:    { title: 'TV Shows', icon: '📺', noun: 'TV shows' },
-    anime: { title: 'Anime', icon: '🎌', noun: 'anime titles' },
-    dropped: { title: 'Dropped', icon: '📛', noun: 'dropped titles' },
-  }[activeType] || { title: 'Library', icon: '🎞', noun: 'titles' };
-
-  if (libraryKicker) libraryKicker.textContent = 'Library';
-  if (libraryTitle) libraryTitle.textContent = `${typeMeta.icon} ${typeMeta.title}`;
-  if (librarySummary) {
-    const filteredNote = hasActiveFilters() ? `${visibleCnt} shown from ` : '';
-    librarySummary.textContent = isDroppedView
-      ? `${filteredNote}${totalCnt} ${typeMeta.noun}`
-      : `${filteredNote}${totalCnt} ${typeMeta.noun} · ${watchedCnt} watched · ${inProgressCnt} in progress · ${watchlistCnt} on watchlist`;
-  }
 
   let countryHTML = '';
   if (countryFilter) {
@@ -1724,11 +1703,12 @@ function updateStats(filteredList = null) {
   }
 
   statsBar.innerHTML = isDroppedView
-    ? `<button class="stat-item stat-all stat-active" data-filter-status="all"><span>📛 Dropped</span><strong>${droppedCnt}</strong></button>${countryHTML}`
-    : `<button class="stat-item stat-all${a('all')}" data-filter-status="all"><span>All</span><strong>${totalCnt}</strong></button>` +
-      `<button class="stat-item stat-watched${a('watched')}" data-filter-status="watched"><span>✓ Watched</span><strong>${watchedCnt}</strong></button>` +
-      `<button class="stat-item stat-in-progress${a('in_progress')}" data-filter-status="in_progress"><span>▶ In progress</span><strong>${inProgressCnt}</strong></button>` +
-      `<button class="stat-item stat-watchlist${a('watchlist')}" data-filter-status="watchlist"><span>⏳ Watchlist</span><strong>${watchlistCnt}</strong></button>` +
+    ? `<button class="stat-item stat-active" data-filter-status="all">📛 <strong>${allOfType.length}</strong> dropped</button>` + countryHTML
+    : `<button class="stat-item stat-watched${a('watched')}" data-filter-status="watched">✓ <strong>${watchedCnt}</strong> watched</button>` +
+      `<span class="stat-sep">·</span>` +
+      `<button class="stat-item stat-in-progress${a('in_progress')}" data-filter-status="in_progress">▶ <strong>${inProgressCnt}</strong> in progress</button>` +
+      `<span class="stat-sep">·</span>` +
+      `<button class="stat-item stat-watchlist${a('watchlist')}" data-filter-status="watchlist">⏳ <strong>${watchlistCnt}</strong> on watchlist</button>` +
       countryHTML;
 }
 
@@ -4123,7 +4103,7 @@ function render() {
     if (!visibleIds.has(id)) selectedIds.delete(id);
   }
   updateBulkBar();
-  updateStats(list);
+  updateStats();
   updateClearFiltersBtn();
 
   const totalPages = Math.max(1, Math.ceil(list.length / pageSize));
