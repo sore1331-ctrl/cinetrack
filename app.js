@@ -1,5 +1,5 @@
 // ── Theme ───────────────────────────────────────────────
-const CINETRACK_BUILD = 'calendar-redesign-20260510-1';
+const CINETRACK_BUILD = 'calendar-view-fix-20260510-1';
 console.info(`[CineTrack] Build ${CINETRACK_BUILD}`);
 
 const themeToggle = document.getElementById('theme-toggle');
@@ -673,6 +673,7 @@ function refreshCurrentView() {
   if (activeView === 'stats') renderStats();
   else if (activeView === 'profile') renderProfile();
   else if (activeView === 'community') { /* don't auto-reload community */ }
+  else if (activeView === 'calendar') renderCalendar();
   else render();
 }
 
@@ -3480,6 +3481,8 @@ function renderPagination(totalItems) {
 
 // ── Render ──────────────────────────────────────────────
 function render() {
+  if (activeView !== 'content') return;
+
   const list = filtered();
 
   const visibleIds = new Set(list.map(m => m.id));
