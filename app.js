@@ -1,5 +1,5 @@
 // ── Theme ───────────────────────────────────────────────
-const CINETRACK_BUILD = 'filtered-empty-state-20260510-1';
+const CINETRACK_BUILD = 'selection-filter-state-20260510-1';
 console.info(`[CineTrack] Build ${CINETRACK_BUILD}`);
 
 const themeToggle = document.getElementById('theme-toggle');
@@ -852,6 +852,12 @@ function countMoreFilters() {
 
 function updateClearFiltersBtn() {
   const active = hasActiveFilters();
+  if (active && selectMode) {
+    selectMode = false;
+    selectedIds.clear();
+    selectModeBtn.classList.remove('active');
+    updateBulkBar();
+  }
   clearFiltersBtn.classList.toggle('hidden', !active);
   selectModeBtn.classList.toggle('hidden', active);
 
