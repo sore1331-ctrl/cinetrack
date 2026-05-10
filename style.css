@@ -3110,6 +3110,194 @@ a.top-rated-card:hover {
 .cal-kind-tv { color: #5ba3f5; border-color: rgba(91,163,245,.35); }
 .cal-kind-anime { color: #a855f7; border-color: rgba(168,85,247,.35); }
 
+/* ── Sitewide glass refinement ──────────────────────────── */
+:root {
+  --glass-control-bg: color-mix(in srgb, var(--glass-bg) 72%, var(--surface) 28%);
+  --glass-control-bg-hover: color-mix(in srgb, var(--glass-bg-strong) 78%, var(--surface2) 22%);
+  --glass-panel-soft: color-mix(in srgb, var(--glass-bg) 86%, transparent);
+  --glass-panel-strong: color-mix(in srgb, var(--glass-bg-strong) 82%, var(--surface) 18%);
+  --glass-ring: color-mix(in srgb, var(--glass-border) 72%, var(--accent) 28%);
+}
+
+.controls,
+.more-filters,
+.modal-card,
+.auth-card,
+.user-dropdown,
+.bulk-bar,
+.import-progress-card,
+.onboarding-card,
+.stats-hero-summary > div,
+.stat-card,
+.chart-section,
+.profile-hero,
+.profile-panel > .profile-section,
+.profile-type-card,
+.profile-recent-card,
+.community-card,
+.calendar-header,
+.cal-group,
+.discover-card,
+.rec-card,
+.supabase-setup-error,
+.appearance-group,
+.theme-preset-btn,
+.fav-card,
+.curr-watching-row,
+.top-rated-card {
+  background: var(--glass-panel-soft);
+  border-color: var(--glass-border);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, .18), inset 0 1px 0 var(--glass-highlight);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * .72)) saturate(var(--glass-saturate));
+          backdrop-filter: blur(calc(var(--glass-blur) * .72)) saturate(var(--glass-saturate));
+}
+
+.modal-card,
+.auth-card,
+.user-dropdown,
+.calendar-header,
+.cal-group {
+  background: var(--glass-panel-strong);
+}
+
+#search-input,
+#type-filter,
+#country-filter,
+#genre-filter,
+#sort-order,
+#year-min,
+#year-max,
+#rating-min,
+#rating-max,
+label input,
+label select,
+label textarea,
+.community-search,
+.community-sort,
+.cal-region-select,
+.provider-region-select {
+  background: var(--glass-control-bg);
+  border-color: var(--glass-border);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.035);
+}
+
+#search-input:focus,
+#type-filter:focus,
+#country-filter:focus,
+#genre-filter:focus,
+#sort-order:focus,
+#year-min:focus,
+#year-max:focus,
+#rating-min:focus,
+#rating-max:focus,
+label input:focus,
+label select:focus,
+label textarea:focus,
+.community-search:focus,
+.community-sort:focus,
+.cal-region-select:focus {
+  border-color: var(--glass-ring);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 34%, transparent), inset 0 1px 0 rgba(255,255,255,.05);
+}
+
+.size-toggle,
+.status-tabs,
+.stats-type-tabs,
+.auth-tabs,
+.cal-subheader,
+.sync-details,
+.setup-sql-block,
+.modal-providers,
+.season-editor,
+.streaming-debug-panel,
+.pill-group {
+  background: color-mix(in srgb, var(--glass-bg) 64%, transparent);
+  border-color: var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * .48)) saturate(var(--glass-saturate));
+          backdrop-filter: blur(calc(var(--glass-blur) * .48)) saturate(var(--glass-saturate));
+}
+
+.random-pick-btn,
+.more-filters-btn,
+.select-mode-btn,
+.clear-filters-btn,
+.more-filters-clear,
+.csv-action-btn,
+.recs-refresh-btn,
+.cal-refresh-btn,
+.pill-btn,
+.page-btn,
+.page-num,
+.page-size-select,
+.modal-tmdb-refresh-btn,
+.reload-cloud-btn,
+.signout-btn,
+.auth-offline-btn,
+.random-pick-actions button,
+.provider-region-select,
+.where-refresh-btn,
+.community-profile-close,
+.info-btn {
+  background: var(--glass-control-bg);
+  border-color: var(--glass-border);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+}
+
+.random-pick-btn:hover,
+.more-filters-btn:hover,
+.select-mode-btn:hover,
+.clear-filters-btn:hover,
+.more-filters-clear:hover,
+.csv-action-btn:hover,
+.recs-refresh-btn:hover,
+.cal-refresh-btn:hover,
+.pill-btn:hover,
+.page-btn:hover:not(:disabled),
+.page-num:hover,
+.page-size-select:hover,
+.modal-tmdb-refresh-btn:hover:not(:disabled),
+.reload-cloud-btn:hover,
+.auth-offline-btn:hover,
+.random-pick-actions button:hover,
+.where-refresh-btn:hover,
+.community-profile-close:hover,
+.info-btn:hover {
+  background: var(--glass-control-bg-hover);
+  border-color: var(--glass-ring);
+}
+
+.size-btn.active,
+.status-btn.active,
+.auth-tab.active {
+  background: color-mix(in srgb, var(--glass-bg-strong) 72%, var(--surface) 28%);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), 0 1px 8px rgba(0,0,0,.18);
+}
+
+.chart-row-clickable:hover,
+.cal-row:hover {
+  background: color-mix(in srgb, var(--glass-bg-strong) 55%, transparent);
+}
+
+.chart-track,
+.ep-progress-bar,
+.curr-watching-bar,
+.sync-details,
+.setup-sql-block {
+  background: color-mix(in srgb, var(--surface2) 62%, transparent);
+}
+
+.movie-card:hover,
+.rec-card:hover,
+.discover-card:hover,
+.profile-recent-card:hover,
+.community-card:hover,
+.top-rated-card:hover,
+.theme-preset-btn:hover,
+.bg-swatch:hover {
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .24), inset 0 1px 0 var(--glass-highlight);
+}
+
 @media (max-width: 700px) {
   .calendar-panel { padding-top: 16px; }
   .calendar-header { align-items: stretch; padding: 16px; }
