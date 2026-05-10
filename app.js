@@ -1,5 +1,5 @@
 // ── Theme ───────────────────────────────────────────────
-const CINETRACK_BUILD = 'layout-polish-20260510-1';
+const CINETRACK_BUILD = 'filter-panel-scope-20260510-1';
 console.info(`[CineTrack] Build ${CINETRACK_BUILD}`);
 
 const themeToggle = document.getElementById('theme-toggle');
@@ -732,6 +732,8 @@ function switchView(view, type) {
   updateMobileNav();
 
   document.querySelector('.controls').classList.toggle('hidden', !isContent);
+  document.getElementById('more-filters')?.classList.toggle('hidden', !isContent);
+  if (!isContent) document.getElementById('more-filters-btn')?.classList.remove('active');
   statsBar.classList.toggle('hidden', !isContent);
   grid.classList.toggle('hidden', !isContent);
   emptyMsg.classList.add('hidden');
