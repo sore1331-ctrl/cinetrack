@@ -1122,17 +1122,15 @@ async function fetchExternalDetails(id, type, rowData = null) {
 }
 
 function sourceForEntry(movie) {
+  if (movie?.tmdbId) return 'tmdb';
   if (movie?.externalSource && movie.externalSource !== 'manual') return movie.externalSource;
-  return movie?.tmdbId ? 'tmdb' : 'manual';
+  return 'manual';
 }
 
 function infoUrlForEntry(movie) {
   if (!movie) return '';
   if (movie.tmdbId) {
     return `https://www.themoviedb.org/${movie.mediaType === 'movie' ? 'movie' : 'tv'}/${movie.tmdbId}`;
-  }
-  if (movie.externalSource === 'tvmaze' && movie.externalId) {
-    return `https://www.tvmaze.com/shows/${encodeURIComponent(movie.externalId)}`;
   }
   if (movie.externalSource === 'anilist' && movie.externalId) {
     return `https://anilist.co/anime/${encodeURIComponent(movie.externalId)}`;
@@ -1142,30 +1140,32 @@ function infoUrlForEntry(movie) {
 
 function metadataRefreshLabel(movie) {
   const source = sourceForEntry(movie);
-  if (source === 'tvmaze') return 'Refresh from TVmaze';
   if (source === 'anilist') return 'Refresh from AniList';
   if (source === 'tmdb') return 'Refresh from TMDB';
   return 'Refresh metadata';
 }
 
+async function matchEntryWithTMDB(movie) {
+  const mediaType = movie?.mediaType === 'anime' ? 'anime' : (movie?.mediaType === 'tv' ? 'tv' : 'movie');
+  const params = new URLSearchParams({ title: movie?.title || '', type: mediaType });
+  if (movie?.year) params.set('year', movie.year);
+  const r = await fetch(`/api/match?${params}`);
+  if (!r.ok) return null;
+  const data = await r.json();
+  return data?.matched && data.tmdbId ? data : null;
+}
+
 async function fetchDetailsForEntry(movie) {
   const source = sourceForEntry(movie);
-  if (source === 'tvmaze') return fetchExternalDetails(movie.externalId, 'tv', {
-    title: movie.title,
-    year: movie.year,
-    poster_path: movie.posterUrl,
-    summary: movie.notes,
-    raw: {
-      title: movie.title,
-      year: movie.year,
-      genres: (movie.genre || '').split(',').map(g => g.trim()).filter(Boolean),
-      network: movie.director,
-      country: movie.country,
-      runtime: movie.runtime,
-      summary: movie.notes,
-      image: movie.posterUrl,
-    },
-  });
+  if (source === 'tvmaze' && movie?.mediaType === 'tv') {
+    const tmdb = await matchEntryWithTMDB(movie);
+    if (tmdb) {
+      movie.tmdbId = tmdb.tmdbId;
+      movie.externalSource = 'tmdb';
+      movie.externalId = String(tmdb.tmdbId);
+      return tmdb;
+    }
+  }
   if (source === 'anilist') return fetchExternalDetails(movie.externalId, 'anime');
   if (source === 'tmdb') {
     const fetchType = movie.mediaType === 'anime' ? 'tv' : (movie.mediaType || 'movie');
@@ -4300,7 +4300,7 @@ function openModal(movie = null) {
   modalTmdbRefreshBtn.classList.toggle('hidden', !(movie?.tmdbId || movie?.externalId));
   modalTmdbRefreshBtn.textContent = movie ? `↻ ${metadataRefreshLabel(movie)}` : '↻ Refresh metadata';
   modalTmdbRefreshBtn.title = movie
-    ? `Re-fetch metadata from ${sourceForEntry(movie) === 'tmdb' ? 'TMDB' : sourceForEntry(movie) === 'tvmaze' ? 'TVmaze' : sourceForEntry(movie) === 'anilist' ? 'AniList' : 'the saved source'} while preserving watch progress`
+    ? `Re-fetch metadata from ${sourceForEntry(movie) === 'tmdb' ? 'TMDB' : sourceForEntry(movie) === 'anilist' ? 'AniList' : 'TMDB when available'} while preserving watch progress`
     : 'Re-fetch metadata from this title source while preserving watch progress';
 
   document.getElementById('f-title').value    = movie?.title    || '';
@@ -4402,6 +4402,7 @@ modalTmdbRefreshBtn.addEventListener('click', async () => {
   } finally {
     modalTmdbRefreshBtn.disabled = false;
     modalTmdbRefreshBtn.textContent = `↻ ${metadataRefreshLabel(movie)}`;
+    modalTmdbRefreshBtn.title = `Re-fetch metadata from ${sourceForEntry(movie) === 'tmdb' ? 'TMDB' : sourceForEntry(movie) === 'anilist' ? 'AniList' : 'TMDB when available'} while preserving watch progress`;
   }
 });
 
