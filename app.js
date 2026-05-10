@@ -1,5 +1,5 @@
 // ── Theme ───────────────────────────────────────────────
-const CINETRACK_BUILD = 'theme-presets-20260509-1';
+const CINETRACK_BUILD = 'calendar-redesign-20260510-1';
 console.info(`[CineTrack] Build ${CINETRACK_BUILD}`);
 
 const themeToggle = document.getElementById('theme-toggle');
@@ -1922,7 +1922,11 @@ async function renderCalendar({ force = false } = {}) {
 
   panel.innerHTML = `
     <div class="calendar-header">
-      <h2>📅 Calendar</h2>
+      <div class="calendar-title-block">
+        <span class="calendar-kicker">Schedule</span>
+        <h2>📅 Calendar</h2>
+        <p>Upcoming episodes and watchlist film releases from TMDB.</p>
+      </div>
       <div class="cal-mode-toggle pill-group">
         <button type="button" class="pill-btn ${calendarMode === 'tracked' ? 'active' : ''}" data-mode="tracked">📅 Tracked</button>
         <button type="button" class="pill-btn ${calendarMode === 'discover' ? 'active' : ''}" data-mode="discover">✨ Discover</button>
@@ -1967,7 +1971,8 @@ async function renderCalendarTracked(body, { force = false } = {}) {
 
   body.innerHTML = `
     <div class="cal-subheader">
-      <span class="cal-window">episodes · next ${UPCOMING_HORIZON_DAYS}d &nbsp;·&nbsp; film releases · next ${MOVIE_HORIZON_DAYS}d</span>
+      <span class="cal-window">Episodes: next ${UPCOMING_HORIZON_DAYS} days</span>
+      <span class="cal-window">Films: next ${MOVIE_HORIZON_DAYS} days</span>
       <button id="calendar-refresh-btn" class="cal-refresh-btn" title="Re-fetch from TMDB now (bypasses 6h cache)">↻ Refresh</button>
     </div>
     <div class="calendar-list"><div class="recs-loading"><span class="recs-spinner"></span> Loading…</div></div>
@@ -2058,9 +2063,14 @@ async function renderCalendarTracked(body, { force = false } = {}) {
   const groupHTML = Object.keys(groups).sort().map(date => {
     const isToday = date === todayStr;
     const rows = groups[date].map(r => calRow(r, { airingToday: isToday })).join('');
+    const count = groups[date].length;
     return `
       <div class="cal-group${isToday ? ' cal-group-today' : ''}">
-        <h3 class="cal-group-date">${esc(relativeDayLabel(date))}${isToday ? ' <span class="cal-airing-pill">● Today</span>' : ''}</h3>
+        <div class="cal-group-head">
+          <h3 class="cal-group-date">${esc(relativeDayLabel(date))}</h3>
+          <span class="cal-count">${count} ${count === 1 ? 'item' : 'items'}</span>
+          ${isToday ? '<span class="cal-airing-pill">● Today</span>' : ''}
+        </div>
         ${rows}
       </div>
     `;
@@ -2068,7 +2078,10 @@ async function renderCalendarTracked(body, { force = false } = {}) {
 
   const hiatusHTML = undated.length ? `
     <div class="cal-group cal-group-hiatus">
-      <h3 class="cal-group-date">Between seasons / no date yet</h3>
+      <div class="cal-group-head">
+        <h3 class="cal-group-date">Between seasons / no date yet</h3>
+        <span class="cal-count">${undated.length} ${undated.length === 1 ? 'title' : 'titles'}</span>
+      </div>
       ${undated.map(r => calRow(r, { hideSub: true })).join('')}
     </div>
   ` : '';
@@ -2086,6 +2099,7 @@ async function renderCalendarTracked(body, { force = false } = {}) {
     const sub = !opts.hideSub
       ? r.sublabel
       : '<em>No date scheduled</em>';
+    const kindLabel = r.kind === 'movie' ? 'Film' : r.kind === 'anime' ? 'Anime' : 'TV';
     return `
       <a class="cal-row${opts.airingToday ? ' cal-row-today' : ''}" href="${r.tmdbUrl}" target="_blank" rel="noopener noreferrer" title="View on TMDB">
         ${poster}
@@ -2093,6 +2107,7 @@ async function renderCalendarTracked(body, { force = false } = {}) {
           <div class="cal-title">${esc(r.title)}</div>
           <div class="cal-ep">${sub}</div>
         </div>
+        <span class="cal-kind cal-kind-${r.kind}">${kindLabel}</span>
         ${opts.airingToday ? '<span class="cal-row-pill">● Today</span>' : ''}
       </a>
     `;
@@ -2130,6 +2145,7 @@ async function renderCalendarDiscover(body, { force = false } = {}) {
 
   body.innerHTML = `
     <div class="cal-subheader">
+      <span class="cal-window">Browse upcoming releases</span>
       <div class="cal-discover-types pill-group">
         ${DISCOVER_TYPES.map(t =>
           `<button type="button" class="pill-btn ${t === discoverType ? 'active' : ''}" data-disc-type="${t}">${typeLabels[t]}</button>`
