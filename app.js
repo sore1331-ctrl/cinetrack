@@ -680,6 +680,9 @@ const confirmMsg      = document.getElementById('confirm-msg');
 const confirmCancel   = document.getElementById('confirm-cancel');
 const confirmOk       = document.getElementById('confirm-ok');
 const statsBar        = document.getElementById('stats-bar');
+const libraryKicker   = document.getElementById('library-kicker');
+const libraryTitle    = document.getElementById('library-title');
+const librarySummary  = document.getElementById('library-summary');
 const paginationEl    = document.getElementById('pagination');
 const selectModeBtn   = document.getElementById('select-mode-btn');
 const pageSizeSelect  = document.getElementById('page-size-select');
@@ -733,7 +736,7 @@ function switchView(view, type) {
   updateMobileNav();
 
   document.querySelector('.controls').classList.toggle('hidden', !isContent);
-  document.getElementById('more-filters')?.classList.toggle('hidden', !isContent);
+  syncMoreFiltersVisibility(isContent);
   if (!isContent) document.getElementById('more-filters-btn')?.classList.remove('active');
   statsBar.classList.toggle('hidden', !isContent);
   grid.classList.toggle('hidden', !isContent);
@@ -868,6 +871,7 @@ function updateClearFiltersBtn() {
     if (n > 0) { badge.textContent = String(n); badge.classList.remove('hidden'); }
     else       { badge.textContent = '';         badge.classList.add('hidden'); }
   }
+  syncMoreFiltersVisibility(activeView === 'content');
 }
 
 function clearAllFilters() {
@@ -907,6 +911,18 @@ if (moreFiltersBtn && moreFiltersPanel) {
     moreFiltersPanel.classList.toggle('hidden', !willOpen);
     moreFiltersBtn.classList.toggle('active', willOpen);
   });
+}
+
+function syncMoreFiltersVisibility(isContent = activeView === 'content') {
+  if (!moreFiltersPanel || !moreFiltersBtn) return;
+  if (!isContent) {
+    moreFiltersPanel.classList.add('hidden');
+    moreFiltersBtn.classList.remove('active');
+    return;
+  }
+  const shouldStayOpen = moreFiltersBtn.classList.contains('active') || countMoreFilters() > 0;
+  moreFiltersPanel.classList.toggle('hidden', !shouldStayOpen);
+  moreFiltersBtn.classList.toggle('active', shouldStayOpen && moreFiltersBtn.classList.contains('active'));
 }
 yearMinEl?.addEventListener('input', () => { yearMinFilter = yearMinEl.value.trim(); currentPage = 0; render(); });
 yearMaxEl?.addEventListener('input', () => { yearMaxFilter = yearMaxEl.value.trim(); currentPage = 0; render(); });
@@ -1662,13 +1678,34 @@ function toggleTimeSpentFormat() {
 }
 
 // ── Stats bar ───────────────────────────────────────────
-function updateStats() {
-  const allOfType     = movies.filter(m => m.mediaType === activeType);
-  const watchedCnt    = allOfType.filter(m => m.status === 'watched').length;
-  const inProgressCnt = allOfType.filter(m => m.status === 'in_progress').length;
-  const watchlistCnt  = allOfType.filter(m => m.status === 'watchlist').length;
+function updateStats(filteredList = null) {
+  const isDroppedView = activeType === 'dropped';
+  const allOfType     = isDroppedView
+    ? movies.filter(m => m.status === 'dropped')
+    : movies.filter(m => m.mediaType === activeType && m.status !== 'dropped');
+  const watchedCnt    = isDroppedView ? 0 : allOfType.filter(m => m.status === 'watched').length;
+  const inProgressCnt = isDroppedView ? 0 : allOfType.filter(m => m.status === 'in_progress').length;
+  const watchlistCnt  = isDroppedView ? 0 : allOfType.filter(m => m.status === 'watchlist').length;
+  const droppedCnt    = isDroppedView ? allOfType.length : 0;
+  const visibleCnt     = Array.isArray(filteredList) ? filteredList.length : filtered().length;
+  const totalCnt       = allOfType.length;
 
   const a = s => activeStatus === s ? ' stat-active' : '';
+  const typeMeta = {
+    movie: { title: 'Films', icon: '🎬', noun: 'films' },
+    tv:    { title: 'TV Shows', icon: '📺', noun: 'TV shows' },
+    anime: { title: 'Anime', icon: '🎌', noun: 'anime titles' },
+    dropped: { title: 'Dropped', icon: '📛', noun: 'dropped titles' },
+  }[activeType] || { title: 'Library', icon: '🎞', noun: 'titles' };
+
+  if (libraryKicker) libraryKicker.textContent = 'Library';
+  if (libraryTitle) libraryTitle.textContent = `${typeMeta.icon} ${typeMeta.title}`;
+  if (librarySummary) {
+    const filteredNote = hasActiveFilters() ? `${visibleCnt} shown from ` : '';
+    librarySummary.textContent = isDroppedView
+      ? `${filteredNote}${totalCnt} ${typeMeta.noun}`
+      : `${filteredNote}${totalCnt} ${typeMeta.noun} · ${watchedCnt} watched · ${inProgressCnt} in progress · ${watchlistCnt} on watchlist`;
+  }
 
   let countryHTML = '';
   if (countryFilter) {
@@ -1676,22 +1713,23 @@ function updateStats() {
     const cWatched    = byCountry.filter(m => m.status === 'watched').length;
     const cInProgress = byCountry.filter(m => m.status === 'in_progress').length;
     const cWatchlist  = byCountry.filter(m => m.status === 'watchlist').length;
-    countryHTML =
-      `<span class="country-stats">` +
-      `🌍 <strong>${esc(countryFilter)}</strong>` +
-      `<span class="stat-sep">·</span><span class="cs-watched">✓ ${cWatched}</span>` +
-      (cInProgress ? `<span class="stat-sep">·</span><span class="cs-progress">▶ ${cInProgress}</span>` : '') +
-      (cWatchlist  ? `<span class="stat-sep">·</span><span class="cs-watchlist">⏳ ${cWatchlist}</span>` : '') +
-      `</span>`;
+    countryHTML = isDroppedView
+      ? `<span class="country-stats">🌍 <strong>${esc(countryFilter)}</strong><span class="stat-sep">·</span><span class="cs-dropped">📛 ${byCountry.length}</span></span>`
+      : `<span class="country-stats">` +
+        `🌍 <strong>${esc(countryFilter)}</strong>` +
+        `<span class="stat-sep">·</span><span class="cs-watched">✓ ${cWatched}</span>` +
+        (cInProgress ? `<span class="stat-sep">·</span><span class="cs-progress">▶ ${cInProgress}</span>` : '') +
+        (cWatchlist  ? `<span class="stat-sep">·</span><span class="cs-watchlist">⏳ ${cWatchlist}</span>` : '') +
+        `</span>`;
   }
 
-  statsBar.innerHTML =
-    `<button class="stat-item stat-watched${a('watched')}" data-filter-status="watched">✓ <strong>${watchedCnt}</strong> watched</button>` +
-    `<span class="stat-sep">·</span>` +
-    `<button class="stat-item stat-in-progress${a('in_progress')}" data-filter-status="in_progress">▶ <strong>${inProgressCnt}</strong> in progress</button>` +
-    `<span class="stat-sep">·</span>` +
-    `<button class="stat-item stat-watchlist${a('watchlist')}" data-filter-status="watchlist">⏳ <strong>${watchlistCnt}</strong> on watchlist</button>` +
-    countryHTML;
+  statsBar.innerHTML = isDroppedView
+    ? `<button class="stat-item stat-all stat-active" data-filter-status="all"><span>📛 Dropped</span><strong>${droppedCnt}</strong></button>${countryHTML}`
+    : `<button class="stat-item stat-all${a('all')}" data-filter-status="all"><span>All</span><strong>${totalCnt}</strong></button>` +
+      `<button class="stat-item stat-watched${a('watched')}" data-filter-status="watched"><span>✓ Watched</span><strong>${watchedCnt}</strong></button>` +
+      `<button class="stat-item stat-in-progress${a('in_progress')}" data-filter-status="in_progress"><span>▶ In progress</span><strong>${inProgressCnt}</strong></button>` +
+      `<button class="stat-item stat-watchlist${a('watchlist')}" data-filter-status="watchlist"><span>⏳ Watchlist</span><strong>${watchlistCnt}</strong></button>` +
+      countryHTML;
 }
 
 // ── Stats panel ─────────────────────────────────────────
@@ -4085,7 +4123,7 @@ function render() {
     if (!visibleIds.has(id)) selectedIds.delete(id);
   }
   updateBulkBar();
-  updateStats();
+  updateStats(list);
   updateClearFiltersBtn();
 
   const totalPages = Math.max(1, Math.ceil(list.length / pageSize));
