@@ -1,5 +1,5 @@
 // ── Theme ───────────────────────────────────────────────
-const CINETRACK_BUILD = 'filter-panel-scope-20260510-1';
+const CINETRACK_BUILD = 'filtered-empty-state-20260510-1';
 console.info(`[CineTrack] Build ${CINETRACK_BUILD}`);
 
 const themeToggle = document.getElementById('theme-toggle');
@@ -664,6 +664,7 @@ function genId() {
 // ── DOM refs ────────────────────────────────────────────
 const grid            = document.getElementById('movie-grid');
 const emptyMsg        = document.getElementById('empty-msg');
+const onboardingEmptyHTML = emptyMsg?.innerHTML || '';
 const searchInput     = document.getElementById('search-input');
 const countryFilterEl = document.getElementById('country-filter');
 const addBtn          = document.getElementById('add-btn');
@@ -863,7 +864,7 @@ function updateClearFiltersBtn() {
   }
 }
 
-clearFiltersBtn.addEventListener('click', () => {
+function clearAllFilters() {
   searchQuery   = '';
   genreFilter   = '';
   countryFilter = '';
@@ -881,7 +882,9 @@ clearFiltersBtn.addEventListener('click', () => {
   const rMax = document.getElementById('rating-max'); if (rMax) rMax.value = '';
   currentPage = 0;
   render();
-});
+}
+
+clearFiltersBtn.addEventListener('click', clearAllFilters);
 
 // ── More filters (year / rating) ────────────────────────
 const moreFiltersBtn   = document.getElementById('more-filters-btn');
@@ -1746,6 +1749,25 @@ function jumpToContent(type, opts = {}) {
   currentPage = 0;
   render();
   window.scrollTo(0, 0);
+}
+
+function renderEmptyState(isFiltered) {
+  if (!emptyMsg) return;
+  emptyMsg.classList.toggle('empty-filtered', isFiltered);
+  if (!isFiltered) {
+    emptyMsg.innerHTML = onboardingEmptyHTML;
+    return;
+  }
+
+  emptyMsg.innerHTML = `
+    <div class="onboarding-card filtered-empty-card">
+      <div class="onboarding-icon">⌕</div>
+      <h2 class="onboarding-title">No matching titles</h2>
+      <p class="onboarding-subtitle">Nothing in this tab matches the current filters.</p>
+      <button type="button" class="filtered-empty-clear" data-empty-clear-filters>Clear filters</button>
+    </div>
+  `;
+  emptyMsg.querySelector('[data-empty-clear-filters]')?.addEventListener('click', clearAllFilters);
 }
 
 function renderRatingDist(buckets) {
@@ -3565,6 +3587,7 @@ function render() {
   grid.className = `movie-grid grid-${gridSize}` + (selectMode ? ' select-mode' : '');
 
   if (list.length === 0) {
+    renderEmptyState(hasActiveFilters());
     emptyMsg.classList.remove('hidden');
     renderPagination(0);
     return;

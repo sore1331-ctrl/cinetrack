@@ -1111,6 +1111,21 @@ a.card-title-link:hover {
   font-family: inherit;
   color: var(--text);
 }
+.filtered-empty-card {
+  max-width: 520px;
+  padding: 42px 36px;
+}
+.filtered-empty-clear {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  color: #fff;
+  cursor: pointer;
+  font-size: .9rem;
+  font-weight: 750;
+  padding: 10px 16px;
+}
+.filtered-empty-clear:hover { opacity: .88; }
 .hidden { display: none !important; }
 
 /* ── Modal ── */
