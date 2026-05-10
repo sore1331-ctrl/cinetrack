@@ -1,5 +1,5 @@
 // ── Theme ───────────────────────────────────────────────
-const CINETRACK_BUILD = 'profile-time-polish-20260510-1';
+const CINETRACK_BUILD = 'time-spent-consistency-20260510-1';
 console.info(`[CineTrack] Build ${CINETRACK_BUILD}`);
 
 const themeToggle = document.getElementById('theme-toggle');
@@ -1348,6 +1348,15 @@ function formatRuntime(mins) {
   return h > 0 ? (m > 0 ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
 }
 
+function actualWatchedMinutes(m) {
+  const isShow = m.mediaType === 'tv' || m.mediaType === 'anime';
+  if (isShow && (m.totalEpisodes || 0) > 0) {
+    const w = Math.min(m.watchedEpisodes || 0, m.totalEpisodes);
+    return Math.round((m.runtime || 0) * (w / m.totalEpisodes));
+  }
+  return m.status === 'watched' ? (m.runtime || 0) : 0;
+}
+
 let timeSpentFormat = localStorage.getItem('cinetrack_time_spent_format') === 'calendar' ? 'calendar' : 'runtime';
 
 function formatCalendarDuration(mins) {
@@ -1429,17 +1438,7 @@ function renderStats() {
   const watchlistN   = scoped.filter(m => m.status === 'watchlist').length;
   const watchedN     = watched.length;
 
-  // Time spent — prorate by progress for partially-watched series.
-  // For movies / shows without an episode total, fall back to full runtime when watched.
-  function actualMinutes(m) {
-    const isShow = m.mediaType === 'tv' || m.mediaType === 'anime';
-    if (isShow && (m.totalEpisodes || 0) > 0) {
-      const w = Math.min(m.watchedEpisodes || 0, m.totalEpisodes);
-      return Math.round((m.runtime || 0) * (w / m.totalEpisodes));
-    }
-    return m.status === 'watched' ? (m.runtime || 0) : 0;
-  }
-  const totalMin = scoped.reduce((s, m) => s + actualMinutes(m), 0);
+  const totalMin = scoped.reduce((s, m) => s + actualWatchedMinutes(m), 0);
 
   // Episode tally across TV/anime entries (within the active type filter)
   const showsWithEps = scoped.filter(m =>
@@ -2667,14 +2666,7 @@ function openCommunityProfile(profile, userMovies) {
   const inProgress = userMovies.filter(m => m.status === 'in_progress');
   const watchlist  = userMovies.filter(m => m.status === 'watchlist');
 
-  const totalMins = userMovies.reduce((s, m) => {
-    const isShow = m.mediaType === 'tv' || m.mediaType === 'anime';
-    if (isShow && (m.totalEpisodes || 0) > 0) {
-      const w = Math.min(m.watchedEpisodes || 0, m.totalEpisodes);
-      return s + Math.round((m.runtime || 0) * (w / m.totalEpisodes));
-    }
-    return s + (m.status === 'watched' ? (m.runtime || 0) : 0);
-  }, 0);
+  const totalMins = userMovies.reduce((s, m) => s + actualWatchedMinutes(m), 0);
 
   const ratings = watched.filter(m => m.rating > 0).map(m => m.rating);
   const avgRating = ratings.length
@@ -2750,7 +2742,7 @@ function openCommunityProfile(profile, userMovies) {
         <div class="stat-card-value">${watchlist.length}</div>
         <div class="stat-card-label">Watchlist</div>
       </div>
-      <div class="stat-card" title="Total runtime across watched titles">
+      <div class="stat-card" title="Total runtime, prorated by progress on each series">
         <div class="stat-card-value">${formatTimeSpent(totalMins) || '—'}</div>
         <div class="stat-card-label">Time Spent</div>
       </div>
@@ -3102,7 +3094,7 @@ function renderProfile() {
 
   const watched   = movies.filter(m => m.status === 'watched');
   const watchlist = movies.filter(m => m.status === 'watchlist');
-  const totalMins = watched.reduce((s, m) => s + (m.runtime || 0), 0);
+  const totalMins = movies.reduce((s, m) => s + actualWatchedMinutes(m), 0);
   const ratings   = watched.filter(m => m.rating > 0).map(m => m.rating);
   const avgRating = ratings.length
     ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1)
@@ -3171,7 +3163,7 @@ function renderProfile() {
         <div class="stat-card-value">${watchlist.length}</div>
         <div class="stat-card-label">Watchlist</div>
       </div>
-      <div class="stat-card" data-time-spent-toggle title="Total runtime across watched titles">
+      <div class="stat-card" data-time-spent-toggle title="Total runtime, prorated by progress on each series">
         <div class="stat-card-value">${formatTimeSpent(totalMins) || '—'}</div>
         <div class="stat-card-label">Time Spent</div>
       </div>
