@@ -1139,6 +1139,74 @@ async function fetchExternalDetails(id, type, rowData = null) {
   return fetchTMDBDetails(id, type);
 }
 
+function sourceForEntry(movie) {
+  if (movie?.externalSource && movie.externalSource !== 'manual') return movie.externalSource;
+  return movie?.tmdbId ? 'tmdb' : 'manual';
+}
+
+function metadataRefreshLabel(movie) {
+  const source = sourceForEntry(movie);
+  if (source === 'tvmaze') return 'Refresh from TVmaze';
+  if (source === 'anilist') return 'Refresh from AniList';
+  if (source === 'tmdb') return 'Refresh from TMDB';
+  return 'Refresh metadata';
+}
+
+async function fetchDetailsForEntry(movie) {
+  const source = sourceForEntry(movie);
+  if (source === 'tvmaze') return fetchExternalDetails(movie.externalId, 'tv', {
+    title: movie.title,
+    year: movie.year,
+    poster_path: movie.posterUrl,
+    summary: movie.notes,
+    raw: {
+      title: movie.title,
+      year: movie.year,
+      genres: (movie.genre || '').split(',').map(g => g.trim()).filter(Boolean),
+      network: movie.director,
+      country: movie.country,
+      runtime: movie.runtime,
+      summary: movie.notes,
+      image: movie.posterUrl,
+    },
+  });
+  if (source === 'anilist') return fetchExternalDetails(movie.externalId, 'anime');
+  if (source === 'tmdb') {
+    const fetchType = movie.mediaType === 'anime' ? 'tv' : (movie.mediaType || 'movie');
+    return fetchTMDBDetails(movie.tmdbId, fetchType);
+  }
+  throw new Error('No metadata source saved for this title.');
+}
+
+function applyMetadataRefresh(movie, details) {
+  if (!movie || !details) return;
+  if (details.title)    movie.title    = details.title;
+  if (details.year)     movie.year     = details.year;
+  if (details.genre)    movie.genre    = details.genre;
+  if (details.director) movie.director = details.director;
+  if (details.country)  movie.country  = details.country;
+  if (details.runtime)  movie.runtime  = details.runtime;
+  if (details.overview && !movie.notes) movie.notes = details.overview;
+  if (details.poster_path) movie.posterUrl = externalPosterUrl(details.poster_path);
+
+  if (movie.mediaType === 'tv' || movie.mediaType === 'anime') {
+    if (Array.isArray(details.seasons) && details.seasons.length) {
+      const prev = new Map((movie.seasons || []).map(s => [s.number, s.watched || 0]));
+      movie.seasons = details.seasons.map(s => ({
+        number:  s.number,
+        total:   s.total,
+        watched: Math.min(prev.get(s.number) || 0, s.total),
+        name:    s.name,
+      }));
+      normaliseSeasons(movie.seasons);
+      recomputeShowProgress(movie);
+    } else if (details.total_episodes) {
+      movie.totalEpisodes = details.total_episodes;
+      if ((movie.watchedEpisodes || 0) > movie.totalEpisodes) movie.watchedEpisodes = movie.totalEpisodes;
+    }
+  }
+}
+
 // ── Media type toggle (modal) ───────────────────────────
 document.querySelectorAll('.type-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -4080,7 +4148,11 @@ function openModal(movie = null) {
   );
   updateModalForType();
   resetTMDBUI();
-  modalTmdbRefreshBtn.classList.toggle('hidden', !(movie?.tmdbId));
+  modalTmdbRefreshBtn.classList.toggle('hidden', !(movie?.tmdbId || movie?.externalId));
+  modalTmdbRefreshBtn.textContent = movie ? `↻ ${metadataRefreshLabel(movie)}` : '↻ Refresh metadata';
+  modalTmdbRefreshBtn.title = movie
+    ? `Re-fetch metadata from ${sourceForEntry(movie) === 'tmdb' ? 'TMDB' : sourceForEntry(movie) === 'tvmaze' ? 'TVmaze' : sourceForEntry(movie) === 'anilist' ? 'AniList' : 'the saved source'} while preserving watch progress`
+    : 'Re-fetch metadata from this title source while preserving watch progress';
 
   document.getElementById('f-title').value    = movie?.title    || '';
   populateYearSelect(movie?.year || '');
@@ -4165,23 +4237,22 @@ function closeModal() {
   resetTMDBUI();
 }
 
-// ── Per-entry TMDB refresh (Edit modal) ─────────────────
+// ── Per-entry metadata refresh (Edit modal) ──────────────
 modalTmdbRefreshBtn.addEventListener('click', async () => {
   const movie = editingId ? movies.find(m => m.id === editingId) : null;
-  if (!movie?.tmdbId) return;
-  const fetchType = movie.mediaType === 'anime' ? 'tv' : (movie.mediaType || 'movie');
+  if (!movie) return;
   modalTmdbRefreshBtn.disabled = true;
   modalTmdbRefreshBtn.textContent = '↻ Refreshing…';
   try {
-    const details = await fetchTMDBDetails(movie.tmdbId, fetchType);
+    const details = await fetchDetailsForEntry(movie);
     applyTMDBSelection(details);
   } catch (err) {
     const tmdbErr = document.getElementById('tmdb-error');
-    tmdbErr.textContent = 'TMDB refresh failed: ' + err.message;
+    tmdbErr.textContent = 'Metadata refresh failed: ' + err.message;
     tmdbErr.classList.remove('hidden');
   } finally {
     modalTmdbRefreshBtn.disabled = false;
-    modalTmdbRefreshBtn.textContent = '↻ Refresh from TMDB';
+    modalTmdbRefreshBtn.textContent = `↻ ${metadataRefreshLabel(movie)}`;
   }
 });
 
@@ -4802,14 +4873,14 @@ syncNowBtn.addEventListener('click', async () => {
   syncNowBtn.textContent = '↻ Sync now';
 });
 
-// ── Refresh from TMDB ───────────────────────────────────
+// ── Refresh metadata ────────────────────────────────────
 const tmdbRefreshBtn = document.getElementById('tmdb-refresh-btn');
 let cancelTmdbRefresh = false;
 
 tmdbRefreshBtn.addEventListener('click', async () => {
   document.getElementById('user-dropdown').classList.add('hidden');
-  const targets = movies.filter(m => m.tmdbId);
-  if (!targets.length) { showToast('No TMDB-linked titles to refresh.'); return; }
+  const targets = movies.filter(m => m.tmdbId || m.externalId);
+  if (!targets.length) { showToast('No source-linked titles to refresh.'); return; }
 
   cancelTmdbRefresh = false;
   importProgress.classList.remove('hidden');
@@ -4820,34 +4891,8 @@ tmdbRefreshBtn.addEventListener('click', async () => {
     progressText.textContent = `Refreshing "${m.title}" (${i + 1} of ${targets.length})…`;
     progressBar.style.width = `${Math.round((i / targets.length) * 100)}%`;
     try {
-      const fetchType = m.mediaType === 'anime' ? 'tv' : (m.mediaType || 'movie');
-      const r = await fetch(`/api/movie?id=${m.tmdbId}&type=${fetchType}`);
-      if (!r.ok) { failed++; continue; }
-      const d = await r.json();
-      if (d.poster_path)             m.posterUrl = POSTER_BASE + d.poster_path;
-      if (d.year)                    m.year      = d.year;
-      if (d.genre)                   m.genre     = d.genre;
-      if (d.director)                m.director  = d.director;
-      if (d.country)                 m.country   = d.country;
-      if (d.runtime)                 m.runtime   = d.runtime;
-      if (m.mediaType === 'tv' || m.mediaType === 'anime') {
-        if (Array.isArray(d.seasons) && d.seasons.length) {
-          // Merge by season number, preserving the user's watched counts
-          // (clamped to the new total, in case TMDB shrunk a season).
-          const prev = new Map((m.seasons || []).map(s => [s.number, s.watched || 0]));
-          m.seasons = d.seasons.map(s => ({
-            number:  s.number,
-            total:   s.total,
-            watched: Math.min(prev.get(s.number) || 0, s.total),
-            name:    s.name,
-          }));
-          normaliseSeasons(m.seasons);
-          recomputeShowProgress(m);
-        } else if (d.total_episodes) {
-          m.totalEpisodes = d.total_episodes;
-          if ((m.watchedEpisodes || 0) > m.totalEpisodes) m.watchedEpisodes = m.totalEpisodes;
-        }
-      }
+      const d = await fetchDetailsForEntry(m);
+      applyMetadataRefresh(m, d);
       updated++;
     } catch { failed++; }
   }
@@ -4860,7 +4905,7 @@ tmdbRefreshBtn.addEventListener('click', async () => {
   showToast(parts.join(' · '));
 });
 
-// Reuse the import-progress cancel button for the TMDB refresh too
+// Reuse the import-progress cancel button for metadata refresh too
 progressCancel.addEventListener('click', () => { cancelTmdbRefresh = true; });
 
 // ── Sign out ────────────────────────────────────────────
