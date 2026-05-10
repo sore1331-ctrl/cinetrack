@@ -1,5 +1,5 @@
 // ── Theme ───────────────────────────────────────────────
-const CINETRACK_BUILD = 'time-spent-consistency-20260510-1';
+const CINETRACK_BUILD = 'sync-fallback-review-20260510-1';
 console.info(`[CineTrack] Build ${CINETRACK_BUILD}`);
 
 const themeToggle = document.getElementById('theme-toggle');
@@ -340,6 +340,7 @@ async function loadProfile() {
       localStorage.setItem('cinetrack_sharing', sharingEnabled);
     }
     updateUserMenu();
+    if (activeView === 'profile') renderProfile();
   } catch (e) {
     console.warn('[cinetrack] loadProfile failed:', e);
   }
@@ -484,18 +485,46 @@ async function saveUserDataViaApi(payload) {
   return result;
 }
 
+async function loadUserDataWithFallback() {
+  try {
+    return currentAccessToken ? await loadUserDataViaApi() : await loadUserDataDirect();
+  } catch (firstError) {
+    console.warn('[cinetrack] Primary cloud load failed, trying fallback:', firstError?.message || firstError);
+    if (currentAccessToken) {
+      currentAccessToken = '';
+      try {
+        return await loadUserDataDirect();
+      } catch (directError) {
+        console.warn('[cinetrack] Direct cloud load fallback failed, retrying API with fresh session:', directError?.message || directError);
+      }
+    }
+    return loadUserDataViaApi();
+  }
+}
+
+async function saveUserDataWithFallback(payload) {
+  try {
+    return currentAccessToken ? await saveUserDataViaApi(payload) : await saveUserDataDirect(payload);
+  } catch (firstError) {
+    console.warn('[cinetrack] Primary cloud save failed, trying fallback:', firstError?.message || firstError);
+    if (currentAccessToken) {
+      currentAccessToken = '';
+      try {
+        return await saveUserDataDirect(payload);
+      } catch (directError) {
+        console.warn('[cinetrack] Direct cloud save fallback failed, retrying API with fresh session:', directError?.message || directError);
+      }
+    }
+    return saveUserDataViaApi(payload);
+  }
+}
+
 async function loadUserData(options = {}) {
   const { silent = false, onlyIfNewer = false, force = false } = options;
   if (!sb || !currentUser) return { ok: false, error: 'Not signed in' };
   if (!silent) setSyncState('loading');
   try {
-    let row;
-    try {
-      row = currentAccessToken ? await loadUserDataViaApi() : await loadUserDataDirect();
-    } catch (firstError) {
-      console.warn('[cinetrack] Primary cloud load failed, trying fallback:', firstError?.message || firstError);
-      row = await loadUserDataViaApi();
-    }
+    const row = await loadUserDataWithFallback();
 
     if (onlyIfNewer) {
       if (!row?.updated_at || (lastCloudUpdatedAt && row.updated_at <= lastCloudUpdatedAt)) {
@@ -544,13 +573,7 @@ async function saveUserData() {
   const saveVersion = localChangeVersion;
   try {
     const payload = { userId: currentUser.id, movies, updated_at: new Date().toISOString() };
-    let result;
-    try {
-      result = currentAccessToken ? await saveUserDataViaApi(payload) : await saveUserDataDirect(payload);
-    } catch (firstError) {
-      console.warn('[cinetrack] Primary cloud save failed, trying fallback:', firstError?.message || firstError);
-      result = await saveUserDataViaApi(payload);
-    }
+    const result = await saveUserDataWithFallback(payload);
 
     lastCloudUpdatedAt = result.updated_at || payload.updated_at;
     lastCloudItemCount = result.item_count ?? movies.length;
