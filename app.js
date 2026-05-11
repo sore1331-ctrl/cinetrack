@@ -2971,6 +2971,19 @@ function recIdentity({ title, year, media_type }) {
   return `${normaliseDuplicateTitle(title)}:${normaliseDuplicateYear(year)}:${media_type || ''}`;
 }
 
+function recTitleIdentity({ title, media_type }) {
+  return `${normaliseDuplicateTitle(title)}:${media_type || ''}`;
+}
+
+function trackedRecommendationIds() {
+  const ids = new Set();
+  movies.forEach(m => {
+    if (m.tmdbId) ids.add(`tmdb:${m.tmdbId}`);
+    if (m.externalSource && m.externalId) ids.add(`${m.externalSource}:${m.externalId}`);
+  });
+  return ids;
+}
+
 async function resolveRecommendationSeed(movie) {
   if (movie.mediaType === 'anime' && movie.externalSource === 'anilist' && movie.externalId) {
     return { ...movie, _recAnilistId: movie.externalId };
@@ -3139,18 +3152,32 @@ async function loadRecommendations({ force = false } = {}) {
 
 function renderRecsCards(section, results, genreCounts, scope = 'all') {
   const trackedTmdbIds = new Set(movies.map(m => String(m.tmdbId)).filter(Boolean));
+  const trackedSourceIds = trackedRecommendationIds();
   const trackedKeys = new Set(movies.map(m => recIdentity({
     title: m.title,
     year: m.year,
     media_type: m.mediaType,
   })).filter(Boolean));
+  const trackedTitleKeys = new Set(movies
+    .map(m => recTitleIdentity({ title: m.title, media_type: m.mediaType }))
+    .filter(key => key.split(':')[0].length >= 8));
   const dismissed      = getDismissedRecs();
   const seen = new Set();
   const recs = [];
   for (const r of results) {
+    const source = r.source || 'tmdb';
+    const sourceKey = `${source}:${r.externalId || r.id}`;
     const key = recIdentity(r);
+    const titleKey = recTitleIdentity(r);
     if (scope !== 'all' && r.media_type !== scope) continue;
-    if (((r.source || 'tmdb') === 'tmdb' && trackedTmdbIds.has(String(r.id))) || trackedKeys.has(key) || dismissed.has(String(r.id)) || seen.has(key)) continue;
+    if (
+      (source === 'tmdb' && trackedTmdbIds.has(String(r.id))) ||
+      trackedSourceIds.has(sourceKey) ||
+      trackedKeys.has(key) ||
+      (titleKey.split(':')[0].length >= 8 && trackedTitleKeys.has(titleKey)) ||
+      dismissed.has(String(r.id)) ||
+      seen.has(key)
+    ) continue;
     seen.add(key);
     recs.push(r);
     if (recs.length >= 18) break;
@@ -3250,9 +3277,13 @@ function renderRecsCards(section, results, genreCounts, scope = 'all') {
     const recTitle  = btn.dataset.recTitle;
     const recYear   = btn.dataset.recYear;
     const recPoster = btn.dataset.recPoster;
+    const recSourceKey = `${recSource}:${recId}`;
+    const recTitleKey = recTitleIdentity({ title: recTitle, media_type: recType });
     if (movies.some(m =>
-      String(m.tmdbId) === recId ||
-      recIdentity({ title: m.title, year: m.year, media_type: m.mediaType }) === recIdentity({ title: recTitle, year: recYear, media_type: recType })
+      (recSource === 'tmdb' && String(m.tmdbId) === recId) ||
+      (m.externalSource && m.externalId && `${m.externalSource}:${m.externalId}` === recSourceKey) ||
+      recIdentity({ title: m.title, year: m.year, media_type: m.mediaType }) === recIdentity({ title: recTitle, year: recYear, media_type: recType }) ||
+      (recTitleKey.split(':')[0].length >= 8 && recTitleIdentity({ title: m.title, media_type: m.mediaType }) === recTitleKey)
     )) {
       btn.textContent = '✓ Added';
       btn.disabled = true;
