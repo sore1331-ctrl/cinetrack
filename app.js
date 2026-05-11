@@ -1638,9 +1638,13 @@ function updateCountryDropdown() {
     movies.filter(sourceFilter).map(m => m.country).filter(Boolean)
   )].sort();
 
-  const current = countryFilterEl.value;
+  const current = countryFilter || countryFilterEl.value;
+  if (current && !countries.includes(current)) {
+    countryFilter = '';
+    countryFilterEl.value = '';
+  }
   countryFilterEl.innerHTML = '<option value="">All Countries</option>' +
-    countries.map(c => `<option value="${esc(c)}"${c === current ? ' selected' : ''}>${esc(c)}</option>`).join('');
+    countries.map(c => `<option value="${esc(c)}"${c === countryFilter ? ' selected' : ''}>${esc(c)}</option>`).join('');
 
   updateGenreDropdown();
 }
@@ -1656,9 +1660,13 @@ function updateGenreDropdown() {
       .flatMap(m => (m.genre || '').split(',').map(g => g.trim()).filter(Boolean))
   )].sort();
 
-  const current = genreFilterEl.value;
+  const current = genreFilter || genreFilterEl.value;
+  if (current && !genres.includes(current)) {
+    genreFilter = '';
+    genreFilterEl.value = '';
+  }
   genreFilterEl.innerHTML = '<option value="">All Genres</option>' +
-    genres.map(g => `<option value="${esc(g)}"${g === current ? ' selected' : ''}>${esc(g)}</option>`).join('');
+    genres.map(g => `<option value="${esc(g)}"${g === genreFilter ? ' selected' : ''}>${esc(g)}</option>`).join('');
   syncAllCustomFilterSelects();
 }
 
