@@ -1440,6 +1440,8 @@ button.danger:hover { opacity: .85; }
 }
 
 .more-filters {
+  position: relative;
+  z-index: 40;
   display: grid;
   grid-template-columns:
     minmax(170px, 1.1fr)
@@ -1458,9 +1460,11 @@ button.danger:hover { opacity: .85; }
   border-radius: 14px;
   margin-top: -4px; margin-bottom: 12px;
   box-shadow: 0 14px 36px rgba(0, 0, 0, .14), inset 0 1px 0 var(--glass-highlight);
+  overflow: visible;
   -webkit-backdrop-filter: blur(calc(var(--glass-blur) * .6)) saturate(var(--glass-saturate));
           backdrop-filter: blur(calc(var(--glass-blur) * .6)) saturate(var(--glass-saturate));
 }
+.more-filters:has(.filter-select.open) { z-index: 180; }
 .more-filters.hidden { display: none !important; }
 .more-filter-field {
   display: flex; flex-direction: column; gap: 4px;
@@ -1510,9 +1514,11 @@ button.danger:hover { opacity: .85; }
 }
 .filter-select {
   position: relative;
+  z-index: 1;
   width: 100%;
   min-width: 0;
 }
+.filter-select.open { z-index: 220; }
 .filter-select-button {
   width: 100%;
   min-height: 40px;
@@ -1548,7 +1554,7 @@ button.danger:hover { opacity: .85; }
 }
 .filter-select-menu {
   position: absolute;
-  z-index: 140;
+  z-index: 230;
   left: 0;
   right: 0;
   top: calc(100% + 6px);
