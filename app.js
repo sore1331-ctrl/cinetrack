@@ -667,6 +667,7 @@ const emptyMsg        = document.getElementById('empty-msg');
 const onboardingEmptyHTML = emptyMsg?.innerHTML || '';
 const searchInput     = document.getElementById('search-input');
 const countryFilterEl = document.getElementById('country-filter');
+const genreFilterEl   = document.getElementById('genre-filter');
 const addBtn          = document.getElementById('add-btn');
 const modal           = document.getElementById('modal');
 const modalTitle      = document.getElementById('modal-title');
@@ -887,6 +888,7 @@ function clearAllFilters() {
   const yMax = document.getElementById('year-max'); if (yMax) yMax.value = '';
   const rMin = document.getElementById('rating-min'); if (rMin) rMin.value = '';
   const rMax = document.getElementById('rating-max'); if (rMax) rMax.value = '';
+  syncAllCustomFilterSelects();
   closeMoreFiltersPanel();
   currentPage = 0;
   render();
@@ -903,6 +905,8 @@ const yearMaxEl   = document.getElementById('year-max');
 const ratingMinEl = document.getElementById('rating-min');
 const ratingMaxEl = document.getElementById('rating-max');
 let filtersPanelOpen = false;
+const filterSelectIds = ['genre-filter', 'country-filter', 'sort-order', 'rating-min', 'rating-max'];
+const customFilterSelects = new Map();
 
 if (moreFiltersBtn && moreFiltersPanel) {
   moreFiltersBtn.addEventListener('click', () => {
@@ -927,6 +931,87 @@ function closeMoreFiltersPanel() {
   filtersPanelOpen = false;
   syncMoreFiltersVisibility();
 }
+
+function selectedOptionText(select) {
+  return select?.selectedOptions?.[0]?.textContent?.trim() || select?.options?.[0]?.textContent?.trim() || '';
+}
+
+function syncCustomFilterSelect(select) {
+  const custom = customFilterSelects.get(select?.id);
+  if (!custom) return;
+  custom.button.textContent = selectedOptionText(select);
+  custom.menu.innerHTML = Array.from(select.options).map(option => `
+    <button type="button"
+      class="filter-select-option${option.value === select.value ? ' selected' : ''}"
+      data-value="${esc(option.value)}">
+      ${esc(option.textContent)}
+    </button>
+  `).join('');
+}
+
+function syncAllCustomFilterSelects() {
+  filterSelectIds.forEach(id => syncCustomFilterSelect(document.getElementById(id)));
+}
+
+function closeCustomFilterSelects(except = null) {
+  customFilterSelects.forEach(custom => {
+    if (custom.root === except) return;
+    custom.root.classList.remove('open');
+    custom.button.setAttribute('aria-expanded', 'false');
+  });
+}
+
+function enhanceFilterSelect(select) {
+  if (!select || customFilterSelects.has(select.id)) return;
+  const root = document.createElement('div');
+  root.className = 'filter-select';
+  root.dataset.selectFor = select.id;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'filter-select-button';
+  button.setAttribute('aria-haspopup', 'listbox');
+  button.setAttribute('aria-expanded', 'false');
+  const menu = document.createElement('div');
+  menu.className = 'filter-select-menu';
+  menu.setAttribute('role', 'listbox');
+  root.append(button, menu);
+  select.classList.add('native-filter-select');
+  select.insertAdjacentElement('afterend', root);
+  customFilterSelects.set(select.id, { root, button, menu });
+
+  button.addEventListener('click', e => {
+    e.stopPropagation();
+    const willOpen = !root.classList.contains('open');
+    closeCustomFilterSelects(root);
+    root.classList.toggle('open', willOpen);
+    button.setAttribute('aria-expanded', String(willOpen));
+  });
+
+  menu.addEventListener('click', e => {
+    const option = e.target.closest('.filter-select-option');
+    if (!option) return;
+    select.value = option.dataset.value || '';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    syncCustomFilterSelect(select);
+    closeCustomFilterSelects();
+  });
+
+  new MutationObserver(() => syncCustomFilterSelect(select)).observe(select, { childList: true, subtree: true });
+  syncCustomFilterSelect(select);
+}
+
+function initCustomFilterSelects() {
+  filterSelectIds.forEach(id => enhanceFilterSelect(document.getElementById(id)));
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.filter-select')) closeCustomFilterSelects();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeCustomFilterSelects();
+});
+
 yearMinEl?.addEventListener('input', () => { yearMinFilter = yearMinEl.value.trim(); currentPage = 0; render(); });
 yearMaxEl?.addEventListener('input', () => { yearMaxFilter = yearMaxEl.value.trim(); currentPage = 0; render(); });
 ratingMinEl?.addEventListener('change', () => { ratingMinFilter = ratingMinEl.value; currentPage = 0; render(); });
@@ -950,6 +1035,7 @@ moreFiltersClear?.addEventListener('click', () => {
   if (ratingMinEl) ratingMinEl.value = '';
   if (ratingMaxEl) ratingMaxEl.value = '';
   localStorage.setItem('cinetrack_sort', sortOrder);
+  syncAllCustomFilterSelects();
   scheduleSavePrefs();
   closeMoreFiltersPanel();
   currentPage = 0;
@@ -1019,6 +1105,7 @@ randomPickModal?.addEventListener('click', e => {
 
 // ── Sort order init ─────────────────────────────────────
 document.getElementById('sort-order').value = sortOrder;
+initCustomFilterSelects();
 
 // ── Page size ───────────────────────────────────────────
 pageSizeSelect.value = String(pageSize);
@@ -1557,8 +1644,6 @@ function updateCountryDropdown() {
 }
 
 // ── Genre dropdown ───────────────────────────────────────
-const genreFilterEl = document.getElementById('genre-filter');
-
 function updateGenreDropdown() {
   const sourceFilter = activeType === 'dropped'
     ? (m => m.status === 'dropped')
@@ -1572,6 +1657,7 @@ function updateGenreDropdown() {
   const current = genreFilterEl.value;
   genreFilterEl.innerHTML = '<option value="">All Genres</option>' +
     genres.map(g => `<option value="${esc(g)}"${g === current ? ' selected' : ''}>${esc(g)}</option>`).join('');
+  syncAllCustomFilterSelects();
 }
 
 // ── Filtering ───────────────────────────────────────────
@@ -2021,6 +2107,7 @@ function jumpToContent(type, opts = {}) {
   activeStatus  = opts.status  || 'all';
   genreFilterEl.value   = genreFilter;
   countryFilterEl.value = countryFilter;
+  syncAllCustomFilterSelects();
   searchInput.value     = searchQuery;
   currentPage = 0;
   render();

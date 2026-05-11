@@ -1441,8 +1441,16 @@ button.danger:hover { opacity: .85; }
 
 .more-filters {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
-  gap: 10px;
+  grid-template-columns:
+    minmax(170px, 1.1fr)
+    minmax(190px, 1.25fr)
+    minmax(170px, 1.1fr)
+    minmax(130px, .85fr)
+    minmax(130px, .85fr)
+    minmax(120px, .75fr)
+    minmax(120px, .75fr)
+    auto;
+  gap: 10px 12px;
   align-items: end;
   padding: 12px 14px;
   background: color-mix(in srgb, var(--glass-bg) 78%, transparent);
@@ -1459,6 +1467,12 @@ button.danger:hover { opacity: .85; }
   font-size: .76rem; color: var(--muted);
   min-width: 0;
 }
+.more-filter-field > span {
+  display: flex;
+  align-items: center;
+  min-height: 16px;
+  line-height: 1;
+}
 .more-filter-field input,
 .more-filter-field select {
   background: var(--surface2);
@@ -1469,6 +1483,7 @@ button.danger:hover { opacity: .85; }
   font-size: .85rem;
   width: 100%;
   min-width: 0;
+  min-height: 40px;
 }
 .more-filter-field select option {
   background: #20202d;
@@ -1478,11 +1493,116 @@ button.danger:hover { opacity: .85; }
   background: transparent; border: 1px solid var(--border);
   color: var(--muted); cursor: pointer;
   border-radius: 8px; padding: 6px 12px; font-size: .82rem;
+  align-self: end;
   justify-self: end;
+  min-height: 40px;
   min-width: 82px;
   white-space: nowrap;
 }
 .more-filters-clear:hover { color: var(--text); border-color: var(--accent); }
+
+.native-filter-select {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+.filter-select {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+.filter-select-button {
+  width: 100%;
+  min-height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-control-bg);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.035);
+  cursor: pointer;
+  font: inherit;
+  font-size: .85rem;
+  padding: 0 34px 0 12px;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  position: relative;
+}
+.filter-select-button::after {
+  content: '⌄';
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-54%);
+  color: var(--muted);
+  font-size: .9rem;
+}
+.filter-select.open .filter-select-button,
+.filter-select-button:focus-visible {
+  border-color: var(--glass-ring);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 34%, transparent), inset 0 1px 0 rgba(255,255,255,.05);
+  outline: none;
+}
+.filter-select-menu {
+  position: absolute;
+  z-index: 140;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  display: none;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--glass-ring);
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.06), transparent 36%),
+    color-mix(in srgb, var(--glass-panel-strong) 92%, #101019 8%);
+  box-shadow: 0 18px 44px rgba(0,0,0,.34), inset 0 1px 0 var(--glass-highlight);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * .9)) saturate(var(--glass-saturate));
+          backdrop-filter: blur(calc(var(--glass-blur) * .9)) saturate(var(--glass-saturate));
+}
+.filter-select.open .filter-select-menu { display: grid; gap: 2px; }
+.filter-select-option {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: .84rem;
+  padding: 9px 10px;
+  text-align: left;
+}
+.filter-select-option:hover,
+.filter-select-option:focus-visible {
+  background: color-mix(in srgb, var(--accent) 14%, var(--glass-bg) 70%);
+  outline: none;
+}
+.filter-select-option.selected {
+  background: color-mix(in srgb, var(--accent) 24%, var(--glass-bg-strong) 74%);
+  color: #fff;
+  font-weight: 750;
+}
+
+@media (max-width: 1120px) {
+  .more-filters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .more-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .more-filters-clear {
+    width: 100%;
+    justify-self: stretch;
+  }
+}
 
 /* Random-pick modal */
 .random-pick-card { max-width: 420px; padding: 24px; text-align: center; position: relative; }
