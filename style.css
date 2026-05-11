@@ -1440,7 +1440,10 @@ button.danger:hover { opacity: .85; }
 }
 
 .more-filters {
-  display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 10px;
+  align-items: end;
   padding: 12px 14px;
   background: color-mix(in srgb, var(--glass-bg) 78%, transparent);
   border: 1px solid var(--glass-border);
@@ -1454,6 +1457,7 @@ button.danger:hover { opacity: .85; }
 .more-filter-field {
   display: flex; flex-direction: column; gap: 4px;
   font-size: .76rem; color: var(--muted);
+  min-width: 0;
 }
 .more-filter-field input,
 .more-filter-field select {
@@ -1463,13 +1467,20 @@ button.danger:hover { opacity: .85; }
   padding: 6px 10px;
   color: var(--text);
   font-size: .85rem;
-  min-width: 110px;
+  width: 100%;
+  min-width: 0;
+}
+.more-filter-field select option {
+  background: #20202d;
+  color: #f4f4f8;
 }
 .more-filters-clear {
   background: transparent; border: 1px solid var(--border);
   color: var(--muted); cursor: pointer;
   border-radius: 8px; padding: 6px 12px; font-size: .82rem;
-  margin-left: auto; white-space: nowrap;
+  justify-self: end;
+  min-width: 82px;
+  white-space: nowrap;
 }
 .more-filters-clear:hover { color: var(--text); border-color: var(--accent); }
 
@@ -2978,6 +2989,15 @@ a.top-rated-card:hover {
 
 /* Mode toggle (Tracked / Discover) */
 .cal-mode-toggle { display: flex; gap: 6px; flex-shrink: 0; }
+.calendar-header .cal-mode-toggle {
+  align-self: center;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  -webkit-backdrop-filter: none;
+          backdrop-filter: none;
+}
 .cal-discover-types { display: flex; gap: 6px; }
 .cal-subheader {
   display: flex;
