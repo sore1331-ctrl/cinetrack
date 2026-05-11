@@ -4247,9 +4247,10 @@ function render() {
     card.dataset.id = m.id;
     const isTV    = m.mediaType === 'tv';
     const isShow  = isTV || m.mediaType === 'anime';
+    const fallbackPosterHTML = `<div class="card-poster-emoji">${m.mediaType === 'anime' ? '🎌' : isTV ? '📺' : posterEmoji(m.title)}</div>`;
     const posterHTML = m.posterUrl
-      ? `<img class="card-poster-img" src="${m.posterUrl}" alt="${esc(m.title)}" loading="lazy" />`
-      : `<div class="card-poster-emoji">${m.mediaType === 'anime' ? '🎌' : isTV ? '📺' : posterEmoji(m.title)}</div>`;
+      ? `${fallbackPosterHTML}<img class="card-poster-img" src="${esc(m.posterUrl)}" alt="${esc(m.title)}" loading="lazy" onerror="this.remove()" />`
+      : fallbackPosterHTML;
     const runtimeStr = formatRuntime(m.runtime);
     // For shows with seasons[], the card focuses on the active season.
     // For legacy entries (or manual flat tracking), fall back to the
