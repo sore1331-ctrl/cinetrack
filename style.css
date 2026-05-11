@@ -3856,3 +3856,128 @@ header {
   margin-right: 10px;
   max-width: calc(100% - 20px);
 }
+
+/* ── Matching card treatment for secondary grids ────────── */
+.rec-card,
+.discover-card,
+.profile-recent-card,
+.top-rated-card,
+.fav-card {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.055), transparent 30%),
+    linear-gradient(180deg, var(--glass-panel-soft), color-mix(in srgb, var(--glass-panel-soft) 68%, transparent));
+  border: 1px solid color-mix(in srgb, var(--glass-border) 80%, transparent);
+  border-radius: 14px;
+  box-shadow: 0 14px 34px rgba(0,0,0,.18), inset 0 1px 0 var(--glass-highlight);
+}
+
+@media (hover: hover) {
+  .rec-card:hover,
+  .discover-card:hover,
+  .profile-recent-card:hover,
+  .top-rated-card:hover,
+  .fav-card:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in srgb, var(--glass-ring) 80%, transparent);
+    box-shadow: 0 20px 48px rgba(0,0,0,.28), inset 0 1px 0 var(--glass-highlight);
+  }
+}
+
+.rec-card,
+.discover-card {
+  padding: 8px 8px 14px;
+}
+
+.rec-poster,
+.discover-poster-wrap,
+.tr-poster,
+.profile-recent-poster,
+.profile-recent-emoji,
+.fav-poster,
+.fav-poster-emoji {
+  border-radius: 10px;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.055), transparent 34%),
+    color-mix(in srgb, var(--surface2) 58%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 8px 18px rgba(0,0,0,.18);
+}
+
+.rec-poster img,
+.discover-poster,
+.tr-poster img,
+.profile-recent-poster,
+.fav-poster {
+  border-radius: inherit;
+}
+
+.rec-info,
+.discover-meta {
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.rec-add-btn,
+.discover-add-btn {
+  margin-left: 4px;
+  margin-right: 4px;
+}
+
+.top-rated-card {
+  padding: 8px;
+}
+
+.profile-recent-card {
+  padding: 6px;
+}
+
+.profile-recent-title,
+.profile-recent-year {
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.fav-card {
+  padding: 6px;
+}
+
+.fav-meta {
+  padding-left: 4px;
+  padding-right: 4px;
+  padding-bottom: 4px;
+}
+
+.community-card {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.055), transparent 30%),
+    linear-gradient(180deg, var(--glass-panel-soft), color-mix(in srgb, var(--glass-panel-soft) 68%, transparent));
+  border: 1px solid color-mix(in srgb, var(--glass-border) 80%, transparent);
+  border-radius: 14px;
+  box-shadow: 0 14px 34px rgba(0,0,0,.18), inset 0 1px 0 var(--glass-highlight);
+}
+
+.community-poster,
+.curr-watching-poster,
+.curr-watching-emoji,
+.cal-poster,
+.cal-poster-emoji {
+  border-radius: 8px;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.05), transparent 34%),
+    color-mix(in srgb, var(--surface2) 58%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.055), 0 6px 14px rgba(0,0,0,.16);
+}
+
+.curr-watching-row {
+  border-radius: 14px;
+}
+
+.cal-row {
+  margin: 0 8px 8px;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 54%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--glass-bg) 38%, transparent);
+}
+
+.cal-group-head + .cal-row {
+  border-top: 1px solid color-mix(in srgb, var(--glass-border) 54%, transparent);
+}
