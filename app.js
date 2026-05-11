@@ -887,6 +887,7 @@ function clearAllFilters() {
   const yMax = document.getElementById('year-max'); if (yMax) yMax.value = '';
   const rMin = document.getElementById('rating-min'); if (rMin) rMin.value = '';
   const rMax = document.getElementById('rating-max'); if (rMax) rMax.value = '';
+  closeMoreFiltersPanel();
   currentPage = 0;
   render();
 }
@@ -901,25 +902,30 @@ const yearMinEl   = document.getElementById('year-min');
 const yearMaxEl   = document.getElementById('year-max');
 const ratingMinEl = document.getElementById('rating-min');
 const ratingMaxEl = document.getElementById('rating-max');
+let filtersPanelOpen = false;
 
 if (moreFiltersBtn && moreFiltersPanel) {
   moreFiltersBtn.addEventListener('click', () => {
-    const willOpen = moreFiltersPanel.classList.contains('hidden');
-    moreFiltersPanel.classList.toggle('hidden', !willOpen);
-    moreFiltersBtn.classList.toggle('active', willOpen);
+    filtersPanelOpen = moreFiltersPanel.classList.contains('hidden');
+    syncMoreFiltersVisibility();
   });
 }
 
 function syncMoreFiltersVisibility(isContent = activeView === 'content') {
   if (!moreFiltersPanel || !moreFiltersBtn) return;
   if (!isContent) {
+    filtersPanelOpen = false;
     moreFiltersPanel.classList.add('hidden');
     moreFiltersBtn.classList.remove('active');
     return;
   }
-  const shouldStayOpen = moreFiltersBtn.classList.contains('active') || countMoreFilters() > 0;
-  moreFiltersPanel.classList.toggle('hidden', !shouldStayOpen);
-  moreFiltersBtn.classList.toggle('active', shouldStayOpen && moreFiltersBtn.classList.contains('active'));
+  moreFiltersPanel.classList.toggle('hidden', !filtersPanelOpen);
+  moreFiltersBtn.classList.toggle('active', filtersPanelOpen);
+}
+
+function closeMoreFiltersPanel() {
+  filtersPanelOpen = false;
+  syncMoreFiltersVisibility();
 }
 yearMinEl?.addEventListener('input', () => { yearMinFilter = yearMinEl.value.trim(); currentPage = 0; render(); });
 yearMaxEl?.addEventListener('input', () => { yearMaxFilter = yearMaxEl.value.trim(); currentPage = 0; render(); });
@@ -945,8 +951,19 @@ moreFiltersClear?.addEventListener('click', () => {
   if (ratingMaxEl) ratingMaxEl.value = '';
   localStorage.setItem('cinetrack_sort', sortOrder);
   scheduleSavePrefs();
+  closeMoreFiltersPanel();
   currentPage = 0;
   render();
+});
+
+document.addEventListener('click', e => {
+  if (!filtersPanelOpen || activeView !== 'content') return;
+  if (e.target.closest('#more-filters') || e.target.closest('#more-filters-btn')) return;
+  closeMoreFiltersPanel();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && filtersPanelOpen) closeMoreFiltersPanel();
 });
 
 // ── Random picker ───────────────────────────────────────
@@ -5019,6 +5036,8 @@ document.querySelectorAll('.mobile-nav-btn').forEach(btn => {
     currentPage = 0;
     if (target === 'stats') switchView('stats');
     else if (target === 'profile') switchView('profile');
+    else if (target === 'calendar') switchView('calendar');
+    else if (target === 'community') switchView('community');
     else switchView('content', target);
   });
 });

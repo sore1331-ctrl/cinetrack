@@ -1741,17 +1741,22 @@ button.danger:hover { opacity: .85; }
     right: 10px;
     bottom: 10px;
     z-index: 80;
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    display: flex;
     gap: 4px;
     padding: 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 16px;
     box-shadow: var(--glass-shadow);
   }
+  .mobile-bottom-nav::-webkit-scrollbar { display: none; }
   .mobile-nav-btn {
-    min-width: 0;
+    flex: 0 0 58px;
+    min-width: 58px;
     min-height: 46px;
     border: 0;
     border-radius: 12px;
@@ -1778,7 +1783,7 @@ button.danger:hover { opacity: .85; }
   }
 
   /* Main content */
-  main { width: calc(100% - 24px); padding: 12px 0 84px; }
+  main { width: calc(100% - 24px); padding: 12px 0 92px; }
 
   /* Controls: search + add on top row, filters scroll below */
   .controls {
@@ -1824,6 +1829,9 @@ button.danger:hover { opacity: .85; }
     gap: 10px;
     align-items: stretch;
     padding: 10px;
+    max-height: min(62vh, 520px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .more-filters.hidden { display: none !important; }
   .more-filter-field { min-width: 0; }
