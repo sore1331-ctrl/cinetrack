@@ -1001,6 +1001,8 @@ function enhanceFilterSelect(select) {
 }
 
 function initCustomFilterSelects() {
+  const useNativeSelects = window.matchMedia?.('(hover: none), (pointer: coarse)')?.matches;
+  if (useNativeSelects) return;
   filterSelectIds.forEach(id => enhanceFilterSelect(document.getElementById(id)));
 }
 
