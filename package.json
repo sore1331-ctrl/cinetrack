@@ -1,0 +1,27 @@
+{
+  "name": "cinetrack",
+  "version": "1.0.0",
+  "description": "Personal movie, TV and anime tracker.",
+  "main": "app.js",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sore1331-ctrl/cinetrack.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/sore1331-ctrl/cinetrack/issues"
+  },
+  "homepage": "https://github.com/sore1331-ctrl/cinetrack#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "http-server": "^14.1.1"
+  }
+}
