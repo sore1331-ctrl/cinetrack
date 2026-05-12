@@ -2975,6 +2975,14 @@ function recTitleIdentity({ title, media_type }) {
   return `${normaliseDuplicateTitle(title)}:${media_type || ''}`;
 }
 
+function recommendationInfoUrl(rec) {
+  if (!rec?.id) return '';
+  const source = rec.source || 'tmdb';
+  if (source === 'anilist') return `https://anilist.co/anime/${encodeURIComponent(rec.externalId || rec.id)}`;
+  const tmdbType = rec.media_type === 'movie' ? 'movie' : 'tv';
+  return `https://www.themoviedb.org/${tmdbType}/${encodeURIComponent(rec.id)}`;
+}
+
 function trackedRecommendationIds() {
   const ids = new Set();
   movies.forEach(m => {
@@ -3209,16 +3217,23 @@ function renderRecsCards(section, results, genreCounts, scope = 'all') {
     </div>
     <p class="recs-sub">Based on ${esc(scopeLabel)} you've watched · favouring ${esc(genreLabel)}</p>
     <div class="recs-grid">
-      ${recs.map(r => `
+      ${recs.map(r => {
+        const infoUrl = recommendationInfoUrl(r);
+        const posterContent = r.poster_path
+          ? `<img src="${externalPosterUrl(r.poster_path)}" alt="${esc(r.title)}" loading="lazy" />`
+          : `<div class="rec-poster-placeholder">${r.media_type === 'anime' ? '🎌' : r.media_type === 'tv' ? '📺' : '🎬'}</div>`;
+        const poster = infoUrl
+          ? `<a class="rec-poster rec-source-link" href="${infoUrl}" target="_blank" rel="noopener noreferrer" title="View details">${posterContent}</a>`
+          : `<div class="rec-poster">${posterContent}</div>`;
+        const title = infoUrl
+          ? `<a class="rec-title rec-source-link" href="${infoUrl}" target="_blank" rel="noopener noreferrer" title="View details">${esc(r.title)}</a>`
+          : `<div class="rec-title">${esc(r.title)}</div>`;
+        return `
         <div class="rec-card" data-rec-card="${r.id}">
           <button class="rec-dismiss-btn" data-rec-dismiss="${r.id}" title="Not interested">✕</button>
-          <div class="rec-poster">
-            ${r.poster_path
-              ? `<img src="${externalPosterUrl(r.poster_path)}" alt="${esc(r.title)}" loading="lazy" />`
-              : `<div class="rec-poster-placeholder">${r.media_type === 'anime' ? '🎌' : r.media_type === 'tv' ? '📺' : '🎬'}</div>`}
-          </div>
+          ${poster}
           <div class="rec-info">
-            <div class="rec-title">${esc(r.title)}</div>
+            ${title}
             ${r.year ? `<div class="rec-year">${r.year}</div>` : ''}
             ${r.overview ? `<div class="rec-overview" title="Tap to expand">${esc(r.overview)}</div>` : ''}
           </div>
@@ -3226,7 +3241,7 @@ function renderRecsCards(section, results, genreCounts, scope = 'all') {
             data-rec-title="${esc(r.title)}" data-rec-year="${r.year || ''}"
             data-rec-poster="${r.poster_path || ''}" title="Add to Watchlist">＋ Watchlist</button>
         </div>
-      `).join('')}
+      `}).join('')}
     </div>
   `;
 
@@ -3266,10 +3281,7 @@ function renderRecsCards(section, results, genreCounts, scope = 'all') {
       return;
     }
 
-    const poster = e.target.closest('.rec-poster');
-    const btn = poster
-      ? poster.closest('.rec-card')?.querySelector('.rec-add-btn')
-      : e.target.closest('.rec-add-btn');
+    const btn = e.target.closest('.rec-add-btn');
     if (!btn) return;
     const recId     = btn.dataset.recId;
     const recSource = btn.dataset.recSource || 'tmdb';
