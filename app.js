@@ -227,6 +227,7 @@ let activeStatus    = 'all';
 let searchQuery     = '';
 let countryFilter   = '';
 let genreFilter     = '';
+let seriesStatusFilter = '';
 let yearMinFilter   = '';
 let yearMaxFilter   = '';
 let ratingMinFilter = '';
@@ -688,6 +689,7 @@ const onboardingEmptyHTML = emptyMsg?.innerHTML || '';
 const searchInput     = document.getElementById('search-input');
 const countryFilterEl = document.getElementById('country-filter');
 const genreFilterEl   = document.getElementById('genre-filter');
+const seriesStatusFilterEl = document.getElementById('series-status-filter');
 const addBtn          = document.getElementById('add-btn');
 const modal           = document.getElementById('modal');
 const modalTitle      = document.getElementById('modal-title');
@@ -741,6 +743,10 @@ function switchView(view, type) {
     activeStatus    = 'all';
     genreFilter     = '';
     genreFilterEl.value = '';
+    if (type === 'movie' || type === 'dropped') {
+      seriesStatusFilter = '';
+      if (seriesStatusFilterEl) seriesStatusFilterEl.value = '';
+    }
   }
 
   const isContent   = view === 'content';
@@ -854,7 +860,7 @@ const clearFiltersBtn = document.getElementById('clear-filters-btn');
 
 function hasActiveFilters() {
   return !!(searchQuery || genreFilter || countryFilter || activeStatus !== 'all'
-    || yearMinFilter || yearMaxFilter || ratingMinFilter || ratingMaxFilter);
+    || seriesStatusFilter || yearMinFilter || yearMaxFilter || ratingMinFilter || ratingMaxFilter);
 }
 
 // Count of filters that live behind the "⚙ Filters" popover. Excludes
@@ -863,6 +869,7 @@ function countMoreFilters() {
   let n = 0;
   if (genreFilter)   n++;
   if (countryFilter) n++;
+  if (seriesStatusFilter) n++;
   if (sortOrder && sortOrder !== 'added') n++;
   if (yearMinFilter)   n++;
   if (yearMaxFilter)   n++;
@@ -897,6 +904,7 @@ function clearAllFilters() {
   genreFilter   = '';
   countryFilter = '';
   activeStatus  = 'all';
+  seriesStatusFilter = '';
   yearMinFilter = '';
   yearMaxFilter = '';
   ratingMinFilter = '';
@@ -904,6 +912,7 @@ function clearAllFilters() {
   searchInput.value     = '';
   genreFilterEl.value   = '';
   countryFilterEl.value = '';
+  if (seriesStatusFilterEl) seriesStatusFilterEl.value = '';
   const yMin = document.getElementById('year-min'); if (yMin) yMin.value = '';
   const yMax = document.getElementById('year-max'); if (yMax) yMax.value = '';
   const rMin = document.getElementById('rating-min'); if (rMin) rMin.value = '';
@@ -925,7 +934,7 @@ const yearMaxEl   = document.getElementById('year-max');
 const ratingMinEl = document.getElementById('rating-min');
 const ratingMaxEl = document.getElementById('rating-max');
 let filtersPanelOpen = false;
-const filterSelectIds = ['genre-filter', 'country-filter', 'sort-order', 'rating-min', 'rating-max'];
+const filterSelectIds = ['genre-filter', 'country-filter', 'sort-order', 'series-status-filter', 'rating-min', 'rating-max'];
 const customFilterSelects = new Map();
 
 if (moreFiltersBtn && moreFiltersPanel) {
@@ -950,6 +959,18 @@ function syncMoreFiltersVisibility(isContent = activeView === 'content') {
 function closeMoreFiltersPanel() {
   filtersPanelOpen = false;
   syncMoreFiltersVisibility();
+}
+
+function syncSeriesStatusFilterVisibility() {
+  const field = document.getElementById('series-status-field');
+  if (!field || !seriesStatusFilterEl) return;
+  const applies = activeView === 'content' && (activeType === 'tv' || activeType === 'anime');
+  field.classList.toggle('hidden', !applies);
+  if (!applies && seriesStatusFilter) {
+    seriesStatusFilter = '';
+    seriesStatusFilterEl.value = '';
+    syncCustomFilterSelect(seriesStatusFilterEl);
+  }
 }
 
 function selectedOptionText(select) {
@@ -1038,6 +1059,7 @@ yearMinEl?.addEventListener('input', () => { yearMinFilter = yearMinEl.value.tri
 yearMaxEl?.addEventListener('input', () => { yearMaxFilter = yearMaxEl.value.trim(); currentPage = 0; render(); });
 ratingMinEl?.addEventListener('change', () => { ratingMinFilter = ratingMinEl.value; currentPage = 0; render(); });
 ratingMaxEl?.addEventListener('change', () => { ratingMaxFilter = ratingMaxEl.value; currentPage = 0; render(); });
+seriesStatusFilterEl?.addEventListener('change', () => { seriesStatusFilter = seriesStatusFilterEl.value; currentPage = 0; render(); });
 moreFiltersClear?.addEventListener('click', () => {
   // Reset every filter that lives inside this popover (genre, country,
   // sort, year-range, rating-range). Search and the status tabs sit
@@ -1045,11 +1067,13 @@ moreFiltersClear?.addEventListener('click', () => {
   // "✕ Clear filters" button to reset those too.
   genreFilter   = '';
   countryFilter = '';
+  seriesStatusFilter = '';
   sortOrder     = 'added';
   yearMinFilter = ''; yearMaxFilter = '';
   ratingMinFilter = ''; ratingMaxFilter = '';
   if (genreFilterEl)   genreFilterEl.value   = '';
   if (countryFilterEl) countryFilterEl.value = '';
+  if (seriesStatusFilterEl) seriesStatusFilterEl.value = '';
   const sortEl = document.getElementById('sort-order');
   if (sortEl) sortEl.value = 'added';
   if (yearMinEl)   yearMinEl.value   = '';
@@ -1218,6 +1242,7 @@ async function fetchExternalDetails(id, type, rowData = null) {
       id,
       externalId: id,
       source: 'tvmaze',
+      source_status: show.status || '',
       media_type: 'tv',
       title: show.title || rowData?.title || '',
       year: show.year || rowData?.year || '',
@@ -1242,6 +1267,7 @@ async function fetchExternalDetails(id, type, rowData = null) {
       id,
       externalId: id,
       source: 'anilist',
+      source_status: media.status || '',
       media_type: 'anime',
       title: media.title || rowData?.title || '',
       year: media.year || media.seasonYear || rowData?.year || '',
@@ -1321,6 +1347,7 @@ function applyMetadataRefresh(movie, details) {
   if (details.director) movie.director = details.director;
   if (details.country)  movie.country  = details.country;
   if (details.runtime)  movie.runtime  = details.runtime;
+  if (details.source_status != null) movie.sourceStatus = details.source_status || '';
   if (details.overview && !movie.notes) movie.notes = details.overview;
   if (details.poster_path) movie.posterUrl = externalPosterUrl(details.poster_path);
 
@@ -1691,6 +1718,14 @@ function updateGenreDropdown() {
 }
 
 // ── Filtering ───────────────────────────────────────────
+function seriesStatusBucket(m) {
+  const raw = String(m.sourceStatus || m.source_status || '').trim().toLowerCase();
+  if (!raw) return 'unknown';
+  if (['ended', 'canceled', 'cancelled', 'finished'].includes(raw)) return 'ended';
+  if (['returning series', 'in production', 'planned', 'pilot', 'releasing', 'not_yet_released', 'not yet released'].includes(raw)) return 'ongoing';
+  return 'unknown';
+}
+
 function filtered() {
   const list = movies.filter(m => {
     if (activeType === 'dropped') {
@@ -1701,6 +1736,10 @@ function filtered() {
       if (activeStatus !== 'all' && m.status !== activeStatus) return false;
     }
     if (countryFilter && m.country !== countryFilter) return false;
+    if (seriesStatusFilter) {
+      const isSeries = m.mediaType === 'tv' || m.mediaType === 'anime';
+      if (!isSeries || seriesStatusBucket(m) !== seriesStatusFilter) return false;
+    }
     if (genreFilter) {
       const genres = (m.genre || '').split(',').map(g => g.trim());
       if (!genres.includes(genreFilter)) return false;
@@ -4283,6 +4322,7 @@ function render() {
   }
   updateBulkBar();
   updateStats();
+  syncSeriesStatusFilterVisibility();
   updateClearFiltersBtn();
 
   const totalPages = Math.max(1, Math.ceil(list.length / pageSize));
@@ -4745,6 +4785,7 @@ form.addEventListener('submit', e => {
       : (tmdbSelection ? null : existing?.tmdbId || null),
     externalSource: selectedSource || existing?.externalSource || (existing?.tmdbId ? 'tmdb' : 'manual'),
     externalId: selectedExternalId || existing?.externalId || (existing?.tmdbId ? String(existing.tmdbId) : null),
+    sourceStatus: tmdbSelection?.source_status || existing?.sourceStatus || '',
   };
 
   if (editingId) {

@@ -57,6 +57,7 @@ export default async function handler(req, res) {
       overview:    data.overview || '',
       poster_path: data.poster_path || null,
       country,
+      source_status: data.status || '',
       media_type:  mediaType,
       runtime,
       total_episodes: mediaType === 'tv' ? (data.number_of_episodes || 0) : 0,
