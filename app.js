@@ -2181,7 +2181,6 @@ function renderRatingDist(buckets) {
 // ── Calendar (upcoming episodes + movie release dates) ──
 // Cache key bumped (v2) when the entry shape changed to {type, ...}.
 const UPCOMING_CACHE_KEY    = 'cinetrack_upcoming_cache_v2';
-const TVMAZE_CAL_CACHE_KEY  = 'cinetrack_tvmaze_calendar_cache_v1';
 const UPCOMING_TTL_MS       = 6 * 60 * 60 * 1000;  // 6 hours
 const UPCOMING_HORIZON_DAYS = 14;   // for TV episodes
 const MOVIE_HORIZON_DAYS    = 60;   // for theatrical releases
@@ -2216,23 +2215,6 @@ function writeUpcomingCache(cache) {
   localStorage.setItem(UPCOMING_CACHE_KEY, JSON.stringify(cache));
 }
 
-function readTvmazeCalendarCache() {
-  try { return JSON.parse(localStorage.getItem(TVMAZE_CAL_CACHE_KEY) || '{}'); }
-  catch { return {}; }
-}
-
-function writeTvmazeCalendarCache(cache) {
-  try { localStorage.setItem(TVMAZE_CAL_CACHE_KEY, JSON.stringify(cache)); } catch {}
-}
-
-function readTvmazeCalendarOverlayForEntry(m) {
-  if (!m?.tmdbId || m.mediaType !== 'tv') return null;
-  const cache = readTvmazeCalendarCache();
-  const key = `tmdb:${m.tmdbId}:${normaliseDuplicateTitle(m.title)}:${normaliseDuplicateYear(m.year)}`;
-  const entry = cache[key];
-  return entry?.data || null;
-}
-
 // Caller passes ids as 'type:id' (e.g. 'tv:1399' or 'movie:823464').
 // Bare numeric ids are tolerated and treated as TV.
 async function fetchUpcoming(ids, { force = false } = {}) {
@@ -2261,7 +2243,7 @@ function calendarKeyForEntry(m) {
   if (!m) return '';
   const isShow = m.mediaType === 'tv' || m.mediaType === 'anime';
   if (m.tmdbId) return `${isShow ? 'tv' : 'movie'}:${m.tmdbId}`;
-  if ((m.externalSource === 'tvmaze' || m.externalSource === 'anilist') && m.externalId) {
+  if (m.externalSource === 'anilist' && m.externalId) {
     return `${m.externalSource}:${m.externalId}`;
   }
   return '';
@@ -2274,29 +2256,6 @@ async function fetchExternalUpcomingForEntries(entries) {
 
   const tasks = entries.map(async m => {
     const key = calendarKeyForEntry(m);
-    if (m.externalSource === 'tvmaze') {
-      const r = await fetch(`/api/external?provider=tvmaze&action=episodes&id=${encodeURIComponent(m.externalId)}`);
-      if (!r.ok) return null;
-      const data = await r.json();
-      const next = (data.episodes || [])
-        .filter(ep => ep.airdate && ep.airdate >= todayStr && ep.airdate <= tvHorizonStr)
-        .sort((a, b) => a.airdate.localeCompare(b.airdate))[0];
-      return {
-        type: 'tv',
-        sourceKey: key,
-        title: m.title,
-        poster_url: m.posterUrl || '',
-        externalUrl: `https://www.tvmaze.com/shows/${m.externalId}`,
-        nextEpisode: next ? {
-          season: next.season,
-          episode: next.episode,
-          name: next.title || '',
-          airDate: next.airdate,
-          overview: next.summary || '',
-        } : null,
-      };
-    }
-
     if (m.externalSource === 'anilist') {
       const r = await fetch(`/api/external?provider=anilist&action=details&id=${encodeURIComponent(m.externalId)}`);
       if (!r.ok) return null;
@@ -2325,64 +2284,6 @@ async function fetchExternalUpcomingForEntries(entries) {
   });
 
   return (await Promise.all(tasks)).filter(Boolean);
-}
-
-async function fetchTvmazeCalendarOverlay(entries, { force = false } = {}) {
-  const todayStr = todayDateString();
-  const tvHorizon = new Date(); tvHorizon.setHours(0,0,0,0); tvHorizon.setDate(tvHorizon.getDate() + UPCOMING_HORIZON_DAYS);
-  const tvHorizonStr = `${tvHorizon.getFullYear()}-${String(tvHorizon.getMonth()+1).padStart(2,'0')}-${String(tvHorizon.getDate()).padStart(2,'0')}`;
-  const cache = readTvmazeCalendarCache();
-  const now = Date.now();
-
-  const tasks = entries.map(async m => {
-    const key = `tmdb:${m.tmdbId}:${normaliseDuplicateTitle(m.title)}:${normaliseDuplicateYear(m.year)}`;
-    const cached = cache[key];
-    if (!force && cached && (now - cached.fetchedAt) < UPCOMING_TTL_MS) return cached.data || null;
-
-    try {
-      const search = await fetch(`/api/external?provider=tvmaze&action=search&q=${encodeURIComponent(m.title || '')}`);
-      if (!search.ok) throw new Error('search failed');
-      const searchData = await search.json();
-      const targetTitle = normaliseDuplicateTitle(m.title);
-      const targetYear = normaliseDuplicateYear(m.year);
-      const match = (searchData.results || []).find(show => {
-        if (normaliseDuplicateTitle(show.title) !== targetTitle) return false;
-        const showYear = normaliseDuplicateYear(show.year || show.premiered);
-        return !targetYear || !showYear || targetYear === showYear;
-      });
-      if (!match?.id) throw new Error('no match');
-
-      const eps = await fetch(`/api/external?provider=tvmaze&action=episodes&id=${encodeURIComponent(match.id)}`);
-      if (!eps.ok) throw new Error('episodes failed');
-      const epsData = await eps.json();
-      const next = (epsData.episodes || [])
-        .filter(ep => ep.airdate && ep.airdate >= todayStr && ep.airdate <= tvHorizonStr)
-        .sort((a, b) => a.airdate.localeCompare(b.airdate))[0];
-      const data = next ? {
-        sourceKey: `tv:${m.tmdbId}`,
-        tmdbId: m.tmdbId,
-        type: 'tv',
-        title: m.title,
-        nextEpisode: {
-          season: next.season,
-          episode: next.episode,
-          name: next.title || '',
-          airDate: next.airdate,
-          overview: next.summary || '',
-          source: 'tvmaze',
-        },
-      } : null;
-      cache[key] = { fetchedAt: now, data };
-      return data;
-    } catch {
-      cache[key] = { fetchedAt: now, data: null };
-      return null;
-    }
-  });
-
-  const results = (await Promise.all(tasks)).filter(Boolean);
-  writeTvmazeCalendarCache(cache);
-  return results;
 }
 
 // ── Episode-air-today notifications ─────────────────────
@@ -2428,10 +2329,6 @@ function getAiringTodaySignal(m, todayStr = todayDateString()) {
   const isMovie = m.mediaType === 'movie';
 
   if (isShow && (m.status === 'in_progress' || m.status === 'watchlist')) {
-    const overlayEpisode = readTvmazeCalendarOverlayForEntry(m)?.nextEpisode;
-    if (hasUnwatchedAiringEpisodeToday(m, overlayEpisode, todayStr)) {
-      return { type: 'episode', episode: overlayEpisode };
-    }
     const tmdbEpisode = cache.byId[`tv:${m.tmdbId}`]?.nextEpisode;
     if (hasUnwatchedAiringEpisodeToday(m, tmdbEpisode, todayStr)) {
       return { type: 'episode', episode: tmdbEpisode };
@@ -2558,32 +2455,14 @@ async function refreshTrackedCalendarSources({ force = false } = {}) {
   const tmdbIds = ids.filter(id => id.startsWith('tv:') || id.startsWith('movie:'));
   const externalEntries = tracked.filter(m => {
     const key = calendarKeyForEntry(m);
-    return key.startsWith('tvmaze:') || key.startsWith('anilist:');
+    return key.startsWith('anilist:');
   });
-  const tmdbTvEntries = tracked.filter(m => m.tmdbId && m.mediaType === 'tv' && (m.status === 'in_progress' || m.status === 'watchlist'));
-  const tvHorizon = new Date(); tvHorizon.setHours(0,0,0,0); tvHorizon.setDate(tvHorizon.getDate() + UPCOMING_HORIZON_DAYS);
-  const tvHorizonStr = `${tvHorizon.getFullYear()}-${String(tvHorizon.getMonth()+1).padStart(2,'0')}-${String(tvHorizon.getDate()).padStart(2,'0')}`;
 
-  const [tmdbUpcoming, externalUpcoming, tvmazeOverlay] = await Promise.all([
+  const [tmdbUpcoming, externalUpcoming] = await Promise.all([
     fetchUpcoming(tmdbIds, { force }),
     fetchExternalUpcomingForEntries(externalEntries),
-    fetchTvmazeCalendarOverlay(tmdbTvEntries, { force }),
   ]);
-  const overlayByKey = new Map(tvmazeOverlay.map(item => [item.sourceKey, item]));
-  const tmdbUpcomingKeys = new Set(tmdbUpcoming.map(item => `${item.type}:${item.tmdbId}`));
-  const mergedTmdbUpcoming = tmdbUpcoming.map(item => {
-    const key = `${item.type}:${item.tmdbId}`;
-    const overlay = overlayByKey.get(key);
-    if (!overlay?.nextEpisode) return item;
-    const tmdbDate = item?.nextEpisode?.airDate || '';
-    const tvmazeDate = overlay.nextEpisode.airDate || '';
-    if (!tmdbDate || (tvmazeDate && tvmazeDate <= tvHorizonStr)) {
-      return { ...item, nextEpisode: overlay.nextEpisode };
-    }
-    return item;
-  });
-  const overlayOnly = tvmazeOverlay.filter(item => !tmdbUpcomingKeys.has(item.sourceKey));
-  return { tracked, upcoming: [...mergedTmdbUpcoming, ...overlayOnly, ...externalUpcoming] };
+  return { tracked, upcoming: [...tmdbUpcoming, ...externalUpcoming] };
 }
 
 async function maybeRefreshCalendarOncePerAccountToday() {
