@@ -117,8 +117,31 @@ const SYNC_PREF_KEYS = [
   'cinetrack_discover_type',
   'cinetrack_time_spent_format',
 ];
+const CALENDAR_DAILY_REFRESH_PREF = 'cinetrack_calendar_last_daily_refresh';
 let prefSaveTimer = null;
 let prefMigrationWarned = false;
+
+async function readProfilePreferences() {
+  if (!sb || !currentUser || offlineMode) return {};
+  const { data, error } = await sb.from('profiles')
+    .select('preferences')
+    .eq('user_id', currentUser.id)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.preferences && typeof data.preferences === 'object' ? data.preferences : {};
+}
+
+async function mergeProfilePreferences(patch) {
+  if (!sb || !currentUser || offlineMode) return false;
+  const existing = await readProfilePreferences();
+  const { error } = await sb.from('profiles').upsert({
+    user_id: currentUser.id,
+    preferences: { ...existing, ...patch },
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'user_id' });
+  if (error) throw error;
+  return true;
+}
 
 function scheduleSavePrefs() {
   clearTimeout(prefSaveTimer);
@@ -133,11 +156,7 @@ async function savePreferences() {
     if (v != null) prefs[k] = v;
   }
   try {
-    const { error } = await sb.from('profiles').upsert({
-      user_id: currentUser.id,
-      preferences: prefs,
-    });
-    if (error) throw error;
+    await mergeProfilePreferences(prefs);
   } catch (e) {
     const msg = (e?.message || '').toLowerCase();
     const looksLikeMissingColumn = msg.includes('preferences') ||
@@ -156,11 +175,10 @@ async function savePreferences() {
 async function loadPreferences() {
   if (!sb || !currentUser || offlineMode) return;
   try {
-    const { data, error } = await sb.from('profiles')
-      .select('preferences')
-      .eq('user_id', currentUser.id)
-      .maybeSingle();
-    if (error) {
+    let prefs;
+    try {
+      prefs = await readProfilePreferences();
+    } catch (error) {
       const msg = (error?.message || '').toLowerCase();
       if (msg.includes('preferences') || msg.includes('column') || error?.code === '42703') {
         // Column missing — first-time setup. Silent here; will warn on save.
@@ -168,11 +186,13 @@ async function loadPreferences() {
       }
       throw error;
     }
-    const prefs = data?.preferences;
     if (!prefs || typeof prefs !== 'object') return;
 
     for (const k of SYNC_PREF_KEYS) {
       if (prefs[k] != null) localStorage.setItem(k, String(prefs[k]));
+    }
+    if (prefs[CALENDAR_DAILY_REFRESH_PREF] != null) {
+      localStorage.setItem(CALENDAR_DAILY_REFRESH_PREF, String(prefs[CALENDAR_DAILY_REFRESH_PREF]));
     }
     timeSpentFormat = localStorage.getItem('cinetrack_time_spent_format') === 'calendar' ? 'calendar' : 'runtime';
     applyAllAppearance();
@@ -2490,6 +2510,77 @@ async function warmUpcomingCacheForBadge() {
   if (activeView === 'content') render();
 }
 
+function trackedCalendarEntries() {
+  return movies.filter(m => calendarKeyForEntry(m) && (
+    ((m.mediaType === 'tv' || m.mediaType === 'anime') && (m.status === 'in_progress' || m.status === 'watchlist')) ||
+    (m.mediaType === 'movie' && m.status === 'watchlist')
+  ));
+}
+
+async function refreshTrackedCalendarSources({ force = false } = {}) {
+  const tracked = trackedCalendarEntries();
+  const ids = tracked.map(calendarKeyForEntry).filter(Boolean);
+  if (!ids.length) return { tracked, upcoming: [] };
+
+  const tmdbIds = ids.filter(id => id.startsWith('tv:') || id.startsWith('movie:'));
+  const externalEntries = tracked.filter(m => {
+    const key = calendarKeyForEntry(m);
+    return key.startsWith('tvmaze:') || key.startsWith('anilist:');
+  });
+  const tmdbTvEntries = tracked.filter(m => m.tmdbId && m.mediaType === 'tv' && (m.status === 'in_progress' || m.status === 'watchlist'));
+  const tvHorizon = new Date(); tvHorizon.setHours(0,0,0,0); tvHorizon.setDate(tvHorizon.getDate() + UPCOMING_HORIZON_DAYS);
+  const tvHorizonStr = `${tvHorizon.getFullYear()}-${String(tvHorizon.getMonth()+1).padStart(2,'0')}-${String(tvHorizon.getDate()).padStart(2,'0')}`;
+
+  const [tmdbUpcoming, externalUpcoming, tvmazeOverlay] = await Promise.all([
+    fetchUpcoming(tmdbIds, { force }),
+    fetchExternalUpcomingForEntries(externalEntries),
+    fetchTvmazeCalendarOverlay(tmdbTvEntries, { force }),
+  ]);
+  const overlayByKey = new Map(tvmazeOverlay.map(item => [item.sourceKey, item]));
+  const tmdbUpcomingKeys = new Set(tmdbUpcoming.map(item => `${item.type}:${item.tmdbId}`));
+  const mergedTmdbUpcoming = tmdbUpcoming.map(item => {
+    const key = `${item.type}:${item.tmdbId}`;
+    const overlay = overlayByKey.get(key);
+    if (!overlay?.nextEpisode) return item;
+    const tmdbDate = item?.nextEpisode?.airDate || '';
+    const tvmazeDate = overlay.nextEpisode.airDate || '';
+    if (!tmdbDate || (tvmazeDate && tvmazeDate <= tvHorizonStr)) {
+      return { ...item, nextEpisode: overlay.nextEpisode };
+    }
+    return item;
+  });
+  const overlayOnly = tvmazeOverlay.filter(item => !tmdbUpcomingKeys.has(item.sourceKey));
+  return { tracked, upcoming: [...mergedTmdbUpcoming, ...overlayOnly, ...externalUpcoming] };
+}
+
+async function maybeRefreshCalendarOncePerAccountToday() {
+  if (!sb || !currentUser || offlineMode) return;
+  const today = todayDateString();
+  const localLast = localStorage.getItem(CALENDAR_DAILY_REFRESH_PREF);
+  if (localLast === today) return;
+
+  let prefs = {};
+  try {
+    prefs = await readProfilePreferences();
+  } catch (e) {
+    console.warn('[cinetrack] Daily calendar refresh marker unavailable:', e?.message || e);
+  }
+  if (prefs?.[CALENDAR_DAILY_REFRESH_PREF] === today) {
+    localStorage.setItem(CALENDAR_DAILY_REFRESH_PREF, today);
+    return;
+  }
+
+  try {
+    await refreshTrackedCalendarSources({ force: true });
+    await mergeProfilePreferences({ [CALENDAR_DAILY_REFRESH_PREF]: today });
+    localStorage.setItem(CALENDAR_DAILY_REFRESH_PREF, today);
+    updateCalendarAiringBadge();
+    if (activeView === 'calendar') renderCalendar();
+  } catch (e) {
+    console.warn('[cinetrack] Daily calendar refresh failed:', e?.message || e);
+  }
+}
+
 async function setEpisodeNotifPref(value) {
   if (value === 'on') {
     if (typeof Notification === 'undefined') {
@@ -2565,10 +2656,7 @@ async function renderCalendarTracked(body, { force = false } = {}) {
   // What we track: in-progress + watchlist TV/anime (next episode air date)
   // and watchlist movies (theatrical release). Each entry is keyed as
   // `${type}:${tmdbId}`.
-  const tracked = movies.filter(m => calendarKeyForEntry(m) && (
-    ((m.mediaType === 'tv' || m.mediaType === 'anime') && (m.status === 'in_progress' || m.status === 'watchlist')) ||
-    (m.mediaType === 'movie' && m.status === 'watchlist')
-  ));
+  const tracked = trackedCalendarEntries();
 
   const ids = tracked.map(calendarKeyForEntry).filter(Boolean);
 
@@ -2597,32 +2685,7 @@ async function renderCalendarTracked(body, { force = false } = {}) {
 
   let upcoming;
   try {
-    const tmdbIds = ids.filter(id => id.startsWith('tv:') || id.startsWith('movie:'));
-    const externalEntries = tracked.filter(m => {
-      const key = calendarKeyForEntry(m);
-      return key.startsWith('tvmaze:') || key.startsWith('anilist:');
-    });
-    const tmdbTvEntries = tracked.filter(m => m.tmdbId && m.mediaType === 'tv' && (m.status === 'in_progress' || m.status === 'watchlist'));
-    const [tmdbUpcoming, externalUpcoming, tvmazeOverlay] = await Promise.all([
-      fetchUpcoming(tmdbIds, { force }),
-      fetchExternalUpcomingForEntries(externalEntries),
-      fetchTvmazeCalendarOverlay(tmdbTvEntries, { force }),
-    ]);
-    const overlayByKey = new Map(tvmazeOverlay.map(item => [item.sourceKey, item]));
-    const tmdbUpcomingKeys = new Set(tmdbUpcoming.map(item => `${item.type}:${item.tmdbId}`));
-    const mergedTmdbUpcoming = tmdbUpcoming.map(item => {
-      const key = `${item.type}:${item.tmdbId}`;
-      const overlay = overlayByKey.get(key);
-      if (!overlay?.nextEpisode) return item;
-      const tmdbDate = item?.nextEpisode?.airDate || '';
-      const tvmazeDate = overlay.nextEpisode.airDate || '';
-      if (!tmdbDate || (tvmazeDate && tvmazeDate <= tvHorizonStr)) {
-        return { ...item, nextEpisode: overlay.nextEpisode };
-      }
-      return item;
-    });
-    const overlayOnly = tvmazeOverlay.filter(item => !tmdbUpcomingKeys.has(item.sourceKey));
-    upcoming = [...mergedTmdbUpcoming, ...overlayOnly, ...externalUpcoming];
+    ({ upcoming } = await refreshTrackedCalendarSources({ force }));
   } catch (e) {
     body.querySelector('.calendar-list').innerHTML =
       `<p class="recs-empty">Couldn't load upcoming dates: ${esc(e.message)}</p>`;
@@ -5404,6 +5467,7 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
       setSyncState('error', loaded?.error || 'Cloud load failed');
     } else {
       startCloudPolling();
+      maybeRefreshCalendarOncePerAccountToday();
     }
   }
 
