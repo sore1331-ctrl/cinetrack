@@ -636,6 +636,26 @@ function recomputeShowProgress(m) {
   m.watchedEpisodes = m.seasons.reduce((s, x) => s + Math.min(x.watched || 0, x.total || 0), 0);
 }
 
+function applyWatchedCountAcrossSeasons(m, watchedCount) {
+  if (!Array.isArray(m?.seasons) || !m.seasons.length) return false;
+  const target = Math.max(0, Number(watchedCount) || 0);
+  const sorted = [...m.seasons].sort((a, b) => (a.number || 0) - (b.number || 0));
+  let remaining = target;
+  for (const season of sorted) {
+    const total = Math.max(0, Number(season.total) || 0);
+    season.watched = Math.min(total, remaining);
+    remaining -= season.watched;
+  }
+  recomputeShowProgress(m);
+  if (remaining > 0) {
+    m.watchedEpisodes = target;
+    m.progressOverflow = remaining;
+  } else {
+    delete m.progressOverflow;
+  }
+  return true;
+}
+
 // First season with watched < total. Returns null if all caught up.
 function activeSeason(m) {
   if (!Array.isArray(m.seasons) || !m.seasons.length) return null;
@@ -1354,6 +1374,8 @@ async function fetchDetailsForEntry(movie) {
 
 function applyMetadataRefresh(movie, details) {
   if (!movie || !details) return;
+  const wasShow = movie.mediaType === 'tv' || movie.mediaType === 'anime';
+  const previousWatched = wasShow ? Math.max(0, movie.watchedEpisodes || 0) : 0;
   if (details.title)    movie.title    = details.title;
   if (details.year)     movie.year     = details.year;
   if (details.genre)    movie.genre    = details.genre;
@@ -1366,18 +1388,19 @@ function applyMetadataRefresh(movie, details) {
 
   if (movie.mediaType === 'tv' || movie.mediaType === 'anime') {
     if (Array.isArray(details.seasons) && details.seasons.length) {
-      const prev = new Map((movie.seasons || []).map(s => [s.number, s.watched || 0]));
       movie.seasons = details.seasons.map(s => ({
         number:  s.number,
         total:   s.total,
-        watched: Math.min(prev.get(s.number) || 0, s.total),
+        watched: 0,
         name:    s.name,
       }));
-      normaliseSeasons(movie.seasons);
-      recomputeShowProgress(movie);
+      applyWatchedCountAcrossSeasons(movie, previousWatched);
     } else if (details.total_episodes) {
       movie.totalEpisodes = details.total_episodes;
-      if ((movie.watchedEpisodes || 0) > movie.totalEpisodes) movie.watchedEpisodes = movie.totalEpisodes;
+      movie.watchedEpisodes = Math.max(previousWatched, movie.watchedEpisodes || 0);
+    }
+    if (movie.status === 'watched' && (movie.totalEpisodes || 0) > 0 && movie.watchedEpisodes < movie.totalEpisodes) {
+      movie.status = 'in_progress';
     }
   }
 }
