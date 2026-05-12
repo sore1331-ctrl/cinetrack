@@ -1449,14 +1449,12 @@ button.danger:hover { opacity: .85; }
     minmax(170px, 1.1fr)
     minmax(190px, 1.25fr)
     minmax(170px, 1.1fr)
-    minmax(130px, .85fr)
-    minmax(130px, .85fr)
-    minmax(120px, .75fr)
-    minmax(120px, .75fr)
+    minmax(140px, .9fr)
+    minmax(140px, .9fr)
     auto;
-  gap: 10px 12px;
+  gap: 10px 10px;
   align-items: end;
-  padding: 12px 14px;
+  padding: 12px;
   background: color-mix(in srgb, var(--glass-bg) 78%, transparent);
   border: 1px solid var(--glass-border);
   border-radius: 14px;
@@ -1503,7 +1501,7 @@ button.danger:hover { opacity: .85; }
   align-self: end;
   justify-self: end;
   min-height: 40px;
-  min-width: 82px;
+  min-width: 78px;
   white-space: nowrap;
 }
 .more-filters-clear:hover { color: var(--text); border-color: var(--accent); }
