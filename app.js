@@ -2731,6 +2731,15 @@ async function renderCalendarTracked(body, { force = false } = {}) {
   // Normalize each upcoming entry into a unified row descriptor.
   const dated   = [];
   const undated = [];   // TV between seasons / no scheduled date
+  const calendarRowKeys = new Set();
+
+  function addCalendarRow(row) {
+    const key = `${row.kind}:${row.tmdbId || row.title}:${row.date || 'undated'}`;
+    if (calendarRowKeys.has(key)) return;
+    calendarRowKeys.add(key);
+    if (row.date) dated.push(row);
+    else undated.push(row);
+  }
 
   for (const u of upcoming) {
     const key   = u.sourceKey || `${u.type}:${u.tmdbId}`;
@@ -2739,7 +2748,7 @@ async function renderCalendarTracked(body, { force = false } = {}) {
     if (u.type === 'movie') {
       const rd = u.releaseDate;
       if (rd && rd >= todayStr && rd <= movieHorizonStr) {
-        dated.push({
+        addCalendarRow({
           date: rd,
           kind: 'movie',
           tmdbId: u.tmdbId,
@@ -2755,7 +2764,7 @@ async function renderCalendarTracked(body, { force = false } = {}) {
     // TV / anime
     const ne = u.nextEpisode;
     if (ne && ne.airDate && ne.airDate <= tvHorizonStr) {
-      dated.push({
+      addCalendarRow({
         date: ne.airDate,
         kind: local?.mediaType === 'anime' ? 'anime' : 'tv',
         tmdbId: u.tmdbId || u.externalId || '',
@@ -2765,12 +2774,42 @@ async function renderCalendarTracked(body, { force = false } = {}) {
         tmdbUrl:  u.externalUrl || `https://www.themoviedb.org/tv/${u.tmdbId}`,
       });
     } else if (!ne || !ne.airDate) {
-      undated.push({
+      addCalendarRow({
         kind: local?.mediaType === 'anime' ? 'anime' : 'tv',
         tmdbId: u.tmdbId || u.externalId || '',
         title:  local?.title || u.title,
         poster: local?.posterUrl || u.poster_url || (u.poster_path ? POSTER_BASE + u.poster_path : ''),
         tmdbUrl: u.externalUrl || `https://www.themoviedb.org/tv/${u.tmdbId}`,
+      });
+    }
+  }
+
+  // Keep the Calendar consistent with library card highlights. If a card is
+  // pinned/highlighted because a new episode is available today, Calendar
+  // should always show that same title under Today.
+  for (const local of tracked) {
+    const signal = getAiringTodaySignal(local, todayStr);
+    if (!signal) continue;
+    if (signal.type === 'episode') {
+      const ne = signal.episode;
+      addCalendarRow({
+        date: todayStr,
+        kind: local.mediaType === 'anime' ? 'anime' : 'tv',
+        tmdbId: local.tmdbId || local.externalId || '',
+        title: local.title,
+        poster: local.posterUrl || '',
+        sublabel: `S${ne.season}E${ne.episode}${ne.name ? ` · ${esc(ne.name)}` : ''}`,
+        tmdbUrl: entryInfoUrl(local),
+      });
+    } else if (signal.type === 'movie') {
+      addCalendarRow({
+        date: todayStr,
+        kind: 'movie',
+        tmdbId: local.tmdbId || '',
+        title: local.title,
+        poster: local.posterUrl || '',
+        sublabel: '🎬 Theatrical release',
+        tmdbUrl: entryInfoUrl(local),
       });
     }
   }
