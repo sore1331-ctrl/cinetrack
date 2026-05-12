@@ -2393,25 +2393,64 @@ function todayDateString() {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
+function episodeOrdinalForProgress(m, episode) {
+  if (!episode) return null;
+  const seasonNo = Number(episode.season) || 1;
+  const epNo = Number(episode.episode) || 0;
+  if (!epNo) return null;
+
+  if (Array.isArray(m?.seasons) && m.seasons.length) {
+    const sorted = [...m.seasons].sort((a, b) => (a.number || 0) - (b.number || 0));
+    let before = 0;
+    for (const season of sorted) {
+      const number = Number(season.number) || 0;
+      if (number < seasonNo) before += Number(season.total) || 0;
+      if (number === seasonNo) return before + epNo;
+    }
+    return null;
+  }
+
+  return seasonNo <= 1 ? epNo : null;
+}
+
+function hasUnwatchedAiringEpisodeToday(m, episode, todayStr = todayDateString()) {
+  if (!episode || episode.airDate !== todayStr) return false;
+  const ordinal = episodeOrdinalForProgress(m, episode);
+  if (ordinal == null) return true;
+  return (m.watchedEpisodes || 0) < ordinal;
+}
+
+function getAiringTodaySignal(m, todayStr = todayDateString()) {
+  if (!m?.tmdbId) return null;
+  const cache = readUpcomingCache();
+  if (!cache?.byId) return null;
+  const isShow  = m.mediaType === 'tv' || m.mediaType === 'anime';
+  const isMovie = m.mediaType === 'movie';
+
+  if (isShow && (m.status === 'in_progress' || m.status === 'watchlist')) {
+    const overlayEpisode = readTvmazeCalendarOverlayForEntry(m)?.nextEpisode;
+    if (hasUnwatchedAiringEpisodeToday(m, overlayEpisode, todayStr)) {
+      return { type: 'episode', episode: overlayEpisode };
+    }
+    const tmdbEpisode = cache.byId[`tv:${m.tmdbId}`]?.nextEpisode;
+    if (hasUnwatchedAiringEpisodeToday(m, tmdbEpisode, todayStr)) {
+      return { type: 'episode', episode: tmdbEpisode };
+    }
+  }
+
+  if (isMovie && m.status === 'watchlist') {
+    const releaseDate = cache.byId[`movie:${m.tmdbId}`]?.releaseDate;
+    if (releaseDate === todayStr) return { type: 'movie', releaseDate };
+  }
+
+  return null;
+}
+
 // True when the given local entry has something happening today according
 // to the upcoming cache (next episode airing, or theatrical release).
 // Returns false if the cache is missing — we fail closed.
 function isAiringToday(m) {
-  if (!m?.tmdbId) return false;
-  const cache = readUpcomingCache();
-  if (!cache?.byId) return false;
-  const todayStr = todayDateString();
-  const isShow  = m.mediaType === 'tv' || m.mediaType === 'anime';
-  const isMovie = m.mediaType === 'movie';
-  if (isShow && (m.status === 'in_progress' || m.status === 'watchlist')) {
-    const tvmazeOverlay = readTvmazeCalendarOverlayForEntry(m);
-    if (tvmazeOverlay?.nextEpisode?.airDate === todayStr) return true;
-    return cache.byId[`tv:${m.tmdbId}`]?.nextEpisode?.airDate === todayStr;
-  }
-  if (isMovie && m.status === 'watchlist') {
-    return cache.byId[`movie:${m.tmdbId}`]?.releaseDate === todayStr;
-  }
-  return false;
+  return Boolean(getAiringTodaySignal(m));
 }
 
 // Updates the small "airing today" indicator on the Calendar nav tab.
@@ -2428,15 +2467,7 @@ function updateCalendarAiringBadge() {
       if (!m.tmdbId) continue;
       const isShow  = m.mediaType === 'tv' || m.mediaType === 'anime';
       const isMovie = m.mediaType === 'movie';
-      if (isShow && (m.status === 'in_progress' || m.status === 'watchlist')) {
-        const overlay = readTvmazeCalendarOverlayForEntry(m);
-        if (overlay?.nextEpisode?.airDate === todayStr) { count += 1; continue; }
-        const item = cache.byId[`tv:${m.tmdbId}`];
-        if (item?.nextEpisode?.airDate === todayStr) count += 1;
-      } else if (isMovie && m.status === 'watchlist') {
-        const item = cache.byId[`movie:${m.tmdbId}`];
-        if (item?.releaseDate === todayStr) count += 1;
-      }
+      if ((isShow || isMovie) && getAiringTodaySignal(m, todayStr)) count += 1;
     }
   }
   tab.classList.toggle('has-airing', count > 0);
@@ -2469,6 +2500,8 @@ async function checkEpisodeNotifications() {
     if (item?.type !== 'tv') continue;
     const ne = item?.nextEpisode;
     if (!ne || ne.airDate !== todayStr) continue;
+    const local = tracked.find(m => String(m.tmdbId) === String(item.tmdbId));
+    if (local && !hasUnwatchedAiringEpisodeToday(local, ne, todayStr)) continue;
     const key = `${item.tmdbId}:s${ne.season}e${ne.episode}:${ne.airDate}`;
     if (notified.has(key)) continue;
     try {
