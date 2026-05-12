@@ -1495,6 +1495,7 @@ button.danger:hover { opacity: .85; }
   background: #20202d;
   color: #f4f4f8;
 }
+.more-filter-field:has(#rating-max) { display: none; }
 .more-filters-clear {
   background: transparent; border: 1px solid var(--border);
   color: var(--muted); cursor: pointer;

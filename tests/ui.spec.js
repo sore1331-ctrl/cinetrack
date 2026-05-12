@@ -15,9 +15,9 @@ test.describe('desktop regressions', () => {
     await openApp(page);
 
     await page.locator('#more-filters-btn').click();
-    await page.locator('[data-select-for="rating-min"] .filter-select-button').click();
+    await page.locator('[data-select-for="rating-filter"] .filter-select-button').click();
 
-    const menu = page.locator('[data-select-for="rating-min"] .filter-select-menu');
+    const menu = page.locator('[data-select-for="rating-filter"] .filter-select-menu');
     await expect(menu).toBeVisible();
 
     const topElementClass = await menu.evaluate(el => {
@@ -52,8 +52,8 @@ test.describe('mobile regressions', () => {
     await page.locator('#more-filters-btn').click();
 
     await expect(page.locator('#more-filters')).toBeVisible();
-    await expect(page.locator('#rating-min')).toBeVisible();
-    await expect(page.locator('[data-select-for="rating-min"]')).toHaveCount(0);
+    await expect(page.locator('#rating-filter')).toBeVisible();
+    await expect(page.locator('[data-select-for="rating-filter"]')).toHaveCount(0);
   });
 
   test('mobile filter panel closes from outside tap', async ({ page }) => {

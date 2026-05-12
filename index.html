@@ -138,28 +138,24 @@
           <option value="title">Title (A–Z)</option>
           <option value="year">Year (Newest)</option>
           <option value="rating">My Rating</option>
-        </select>
-      </label>
-      <label class="more-filter-field" id="series-status-field">
-        <span>Series</span>
-        <select id="series-status-filter">
-          <option value="">All Series</option>
-          <option value="ongoing">Ongoing</option>
-          <option value="ended">Ended</option>
-          <option value="unknown">Unknown</option>
+          <option value="series_ongoing">Ongoing</option>
+          <option value="series_ended">Ended</option>
         </select>
       </label>
       <label class="more-filter-field">
-        <span>Year from</span>
-        <input type="number" id="year-min" placeholder="e.g. 1990" inputmode="numeric" />
-      </label>
-      <label class="more-filter-field">
-        <span>Year to</span>
-        <input type="number" id="year-max" placeholder="e.g. 2025" inputmode="numeric" />
+        <span>Year</span>
+        <select id="year-filter">
+          <option value="">Any Year</option>
+          <option value="2020s">2020s</option>
+          <option value="2010s">2010s</option>
+          <option value="2000s">2000s</option>
+          <option value="1990s">1990s</option>
+          <option value="older">Before 1990</option>
+        </select>
       </label>
       <label class="more-filter-field">
         <span>Rating ≥</span>
-        <select id="rating-min">
+        <select id="rating-filter">
           <option value="">Any</option>
           <option value="1">★ 1+</option>
           <option value="2">★ 2+</option>
@@ -175,7 +171,7 @@
       </label>
       <label class="more-filter-field">
         <span>Rating ≤</span>
-        <select id="rating-max">
+        <select id="rating-max" disabled>
           <option value="">Any</option>
           <option value="1">★ 1</option>
           <option value="2">★ 2</option>

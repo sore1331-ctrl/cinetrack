@@ -690,6 +690,7 @@ const searchInput     = document.getElementById('search-input');
 const countryFilterEl = document.getElementById('country-filter');
 const genreFilterEl   = document.getElementById('genre-filter');
 const seriesStatusFilterEl = document.getElementById('series-status-filter');
+document.getElementById('rating-filter')?.closest('label')?.querySelector('span')?.replaceChildren('Rating');
 const addBtn          = document.getElementById('add-btn');
 const modal           = document.getElementById('modal');
 const modalTitle      = document.getElementById('modal-title');
@@ -860,7 +861,8 @@ const clearFiltersBtn = document.getElementById('clear-filters-btn');
 
 function hasActiveFilters() {
   return !!(searchQuery || genreFilter || countryFilter || activeStatus !== 'all'
-    || seriesStatusFilter || yearMinFilter || yearMaxFilter || ratingMinFilter || ratingMaxFilter);
+    || seriesStatusFilter || sortOrder === 'series_ongoing' || sortOrder === 'series_ended'
+    || yearMinFilter || yearMaxFilter || ratingMinFilter || ratingMaxFilter);
 }
 
 // Count of filters that live behind the "⚙ Filters" popover. Excludes
@@ -869,7 +871,6 @@ function countMoreFilters() {
   let n = 0;
   if (genreFilter)   n++;
   if (countryFilter) n++;
-  if (seriesStatusFilter) n++;
   if (sortOrder && sortOrder !== 'added') n++;
   if (yearMinFilter)   n++;
   if (yearMaxFilter)   n++;
@@ -905,6 +906,7 @@ function clearAllFilters() {
   countryFilter = '';
   activeStatus  = 'all';
   seriesStatusFilter = '';
+  sortOrder = 'added';
   yearMinFilter = '';
   yearMaxFilter = '';
   ratingMinFilter = '';
@@ -913,10 +915,10 @@ function clearAllFilters() {
   genreFilterEl.value   = '';
   countryFilterEl.value = '';
   if (seriesStatusFilterEl) seriesStatusFilterEl.value = '';
-  const yMin = document.getElementById('year-min'); if (yMin) yMin.value = '';
-  const yMax = document.getElementById('year-max'); if (yMax) yMax.value = '';
-  const rMin = document.getElementById('rating-min'); if (rMin) rMin.value = '';
-  const rMax = document.getElementById('rating-max'); if (rMax) rMax.value = '';
+  const sortEl = document.getElementById('sort-order'); if (sortEl) sortEl.value = 'added';
+  if (yearFilterEl) yearFilterEl.value = '';
+  if (ratingFilterEl) ratingFilterEl.value = '';
+  localStorage.setItem('cinetrack_sort', sortOrder);
   syncAllCustomFilterSelects();
   closeMoreFiltersPanel();
   currentPage = 0;
@@ -929,12 +931,10 @@ clearFiltersBtn.addEventListener('click', clearAllFilters);
 const moreFiltersBtn   = document.getElementById('more-filters-btn');
 const moreFiltersPanel = document.getElementById('more-filters');
 const moreFiltersClear = document.getElementById('more-filters-clear');
-const yearMinEl   = document.getElementById('year-min');
-const yearMaxEl   = document.getElementById('year-max');
-const ratingMinEl = document.getElementById('rating-min');
-const ratingMaxEl = document.getElementById('rating-max');
+const yearFilterEl  = document.getElementById('year-filter');
+const ratingFilterEl = document.getElementById('rating-filter');
 let filtersPanelOpen = false;
-const filterSelectIds = ['genre-filter', 'country-filter', 'sort-order', 'series-status-filter', 'rating-min', 'rating-max'];
+const filterSelectIds = ['genre-filter', 'country-filter', 'sort-order', 'year-filter', 'rating-filter'];
 const customFilterSelects = new Map();
 
 if (moreFiltersBtn && moreFiltersPanel) {
@@ -971,6 +971,23 @@ function syncSeriesStatusFilterVisibility() {
     seriesStatusFilterEl.value = '';
     syncCustomFilterSelect(seriesStatusFilterEl);
   }
+}
+
+function applyYearFilterPreset(value) {
+  yearMinFilter = '';
+  yearMaxFilter = '';
+  if (value === '2020s') { yearMinFilter = '2020'; yearMaxFilter = '2029'; }
+  else if (value === '2010s') { yearMinFilter = '2010'; yearMaxFilter = '2019'; }
+  else if (value === '2000s') { yearMinFilter = '2000'; yearMaxFilter = '2009'; }
+  else if (value === '1990s') { yearMinFilter = '1990'; yearMaxFilter = '1999'; }
+  else if (value === 'older') { yearMaxFilter = '1989'; }
+}
+
+function applyRatingFilterPreset(value) {
+  ratingMinFilter = '';
+  ratingMaxFilter = '';
+  if (value === 'unrated') ratingMinFilter = 'unrated';
+  else if (value) ratingMinFilter = value;
 }
 
 function selectedOptionText(select) {
@@ -1055,10 +1072,8 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeCustomFilterSelects();
 });
 
-yearMinEl?.addEventListener('input', () => { yearMinFilter = yearMinEl.value.trim(); currentPage = 0; render(); });
-yearMaxEl?.addEventListener('input', () => { yearMaxFilter = yearMaxEl.value.trim(); currentPage = 0; render(); });
-ratingMinEl?.addEventListener('change', () => { ratingMinFilter = ratingMinEl.value; currentPage = 0; render(); });
-ratingMaxEl?.addEventListener('change', () => { ratingMaxFilter = ratingMaxEl.value; currentPage = 0; render(); });
+yearFilterEl?.addEventListener('change', () => { applyYearFilterPreset(yearFilterEl.value); currentPage = 0; render(); });
+ratingFilterEl?.addEventListener('change', () => { applyRatingFilterPreset(ratingFilterEl.value); currentPage = 0; render(); });
 seriesStatusFilterEl?.addEventListener('change', () => { seriesStatusFilter = seriesStatusFilterEl.value; currentPage = 0; render(); });
 moreFiltersClear?.addEventListener('click', () => {
   // Reset every filter that lives inside this popover (genre, country,
@@ -1076,10 +1091,8 @@ moreFiltersClear?.addEventListener('click', () => {
   if (seriesStatusFilterEl) seriesStatusFilterEl.value = '';
   const sortEl = document.getElementById('sort-order');
   if (sortEl) sortEl.value = 'added';
-  if (yearMinEl)   yearMinEl.value   = '';
-  if (yearMaxEl)   yearMaxEl.value   = '';
-  if (ratingMinEl) ratingMinEl.value = '';
-  if (ratingMaxEl) ratingMaxEl.value = '';
+  if (yearFilterEl) yearFilterEl.value = '';
+  if (ratingFilterEl) ratingFilterEl.value = '';
   localStorage.setItem('cinetrack_sort', sortOrder);
   syncAllCustomFilterSelects();
   scheduleSavePrefs();
@@ -1740,6 +1753,11 @@ function filtered() {
       const isSeries = m.mediaType === 'tv' || m.mediaType === 'anime';
       if (!isSeries || seriesStatusBucket(m) !== seriesStatusFilter) return false;
     }
+    if (sortOrder === 'series_ongoing' || sortOrder === 'series_ended') {
+      const isSeries = m.mediaType === 'tv' || m.mediaType === 'anime';
+      const target = sortOrder === 'series_ongoing' ? 'ongoing' : 'ended';
+      if (!isSeries || seriesStatusBucket(m) !== target) return false;
+    }
     if (genreFilter) {
       const genres = (m.genre || '').split(',').map(g => g.trim());
       if (!genres.includes(genreFilter)) return false;
@@ -1749,7 +1767,9 @@ function filtered() {
       if (yearMinFilter && (!y || y < parseInt(yearMinFilter))) return false;
       if (yearMaxFilter && (!y || y > parseInt(yearMaxFilter))) return false;
     }
-    if (ratingMinFilter && (m.rating || 0) < parseInt(ratingMinFilter)) return false;
+  if (ratingMinFilter === 'unrated') {
+    if (m.rating) return false;
+  } else if (ratingMinFilter && (m.rating || 0) < parseInt(ratingMinFilter)) return false;
     if (ratingMaxFilter && (m.rating || 0) > parseInt(ratingMaxFilter)) return false;
     const q = searchQuery.toLowerCase();
     if (q) {
