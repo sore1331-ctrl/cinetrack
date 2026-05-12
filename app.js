@@ -2599,18 +2599,17 @@ async function renderCalendarTracked(body, { force = false } = {}) {
   try {
     ({ upcoming } = await refreshTrackedCalendarSources({ force }));
   } catch (e) {
-    body.querySelector('.calendar-list').innerHTML =
-      `<p class="recs-empty">Couldn't load upcoming dates: ${esc(e.message)}</p>`;
-    return;
+    return showCalendarError(e);
   }
 
-  // Index local entries so we can read user posters / titles back
-  const localByKey = new Map(tracked.map(m => [calendarKeyForEntry(m), m]));
+  try {
+    // Index local entries so we can read user posters / titles back
+    const localByKey = new Map(tracked.map(m => [calendarKeyForEntry(m), m]));
 
-  // Normalize each upcoming entry into a unified row descriptor.
-  const dated   = [];
-  const undated = [];   // TV between seasons / no scheduled date
-  const calendarRowKeys = new Set();
+    // Normalize each upcoming entry into a unified row descriptor.
+    const dated   = [];
+    const undated = [];   // TV between seasons / no scheduled date
+    const calendarRowKeys = new Set();
 
   function addCalendarRow(row) {
     const key = `${row.kind}:${row.tmdbId || row.title}:${row.date || 'undated'}`;
@@ -2678,7 +2677,7 @@ async function renderCalendarTracked(body, { force = false } = {}) {
         title: local.title,
         poster: local.posterUrl || '',
         sublabel: `S${ne.season}E${ne.episode}${ne.name ? ` · ${esc(ne.name)}` : ''}`,
-        tmdbUrl: entryInfoUrl(local),
+        tmdbUrl: infoUrlForEntry(local),
       });
     } else if (signal.type === 'movie') {
       addCalendarRow({
@@ -2688,7 +2687,7 @@ async function renderCalendarTracked(body, { force = false } = {}) {
         title: local.title,
         poster: local.posterUrl || '',
         sublabel: '🎬 Theatrical release',
-        tmdbUrl: entryInfoUrl(local),
+        tmdbUrl: infoUrlForEntry(local),
       });
     }
   }
@@ -2733,7 +2732,10 @@ async function renderCalendarTracked(body, { force = false } = {}) {
   body.querySelector('.calendar-list').innerHTML = groupHTML + hiatusHTML;
 
   // Refresh the nav-tab dot using the freshly-fetched cache
-  updateCalendarAiringBadge();
+    updateCalendarAiringBadge();
+  } catch (e) {
+    showCalendarError(e);
+  }
 
   function calRow(r, opts = {}) {
     const fallback = r.kind === 'movie' ? '🎬' : r.kind === 'anime' ? '🎌' : '📺';
@@ -2755,6 +2757,12 @@ async function renderCalendarTracked(body, { force = false } = {}) {
         ${opts.airingToday ? '<span class="cal-row-pill">● Today</span>' : ''}
       </a>
     `;
+  }
+
+  function showCalendarError(e) {
+    const list = body.querySelector('.calendar-list');
+    if (!list) return;
+    list.innerHTML = `<p class="recs-empty">Couldn't load upcoming dates: ${esc(e?.message || e || 'Unknown error')}</p>`;
   }
 }
 
