@@ -3,7 +3,24 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark light" />
   <title>CineTrack</title>
+  <!-- Pre-CSS dark paint so the page doesn't flash white before
+       style.css loads. The light-theme override below kicks in
+       synchronously when the saved theme is 'light'. -->
+  <style>
+    html, body { background: #0f0f13; color: #e8e8f0; margin: 0; }
+    html.light, html.light body { background: #f4f4f8; color: #1a1a2e; }
+  </style>
+  <script>
+    // Apply the saved theme as early as possible so the inline style
+    // above paints the right colour. Runs before style.css is parsed.
+    try {
+      if (localStorage.getItem('cinetrack_theme') === 'light') {
+        document.documentElement.classList.add('light');
+      }
+    } catch {}
+  </script>
   <link rel="stylesheet" href="style.css?v=selection-filter-state-20260510-1" />
 </head>
 <body>
