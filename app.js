@@ -252,9 +252,38 @@ async function saveProfile(updates) {
 }
 
 // ── User data load / save ───────────────────────────────
+// localStorage flag tracking whether the local movies array has changes
+// that haven't yet landed in Supabase. Set on every save(); cleared only
+// when saveUserData() succeeds. Read by loadUserData() so cloud data
+// never silently clobbers unsaved local edits.
+const PENDING_SAVE_KEY = 'cinetrack_pending_save';
+function markPendingSave() {
+  try { localStorage.setItem(PENDING_SAVE_KEY, String(Date.now())); } catch {}
+}
+function clearPendingSave() {
+  try { localStorage.removeItem(PENDING_SAVE_KEY); } catch {}
+}
+function hasPendingSave() {
+  return !!localStorage.getItem(PENDING_SAVE_KEY);
+}
+
 async function loadUserData() {
   if (!sb || !currentUser) return;
   setSyncState('loading');
+
+  // If there are unsynced local edits, don't pull cloud over the top.
+  // Push local up instead — that's almost always what the user wants
+  // (they made changes here and shut the tab before sync completed).
+  if (hasPendingSave() && Array.isArray(movies) && movies.length > 0) {
+    console.warn('[cinetrack] Detected unsynced local changes — pushing to cloud instead of pulling.');
+    try { await saveUserData(); } catch { /* state already set inside */ }
+    updateCountryDropdown();
+    refreshCurrentView();
+    checkEpisodeNotifications();
+    warmUpcomingCacheForBadge();
+    return;
+  }
+
   try {
     // order + limit(1) instead of maybeSingle() so duplicate rows (if any exist
     // due to a table without a unique user_id constraint) don't cause an error
@@ -299,6 +328,7 @@ async function saveUserData() {
       const { error: ie } = await sb.from('user_data').insert(payload);
       if (ie) throw ie;
     }
+    clearPendingSave();
     setSyncState('saved');
   } catch (e) {
     console.error('Failed to save data to cloud:', e);
@@ -367,10 +397,24 @@ function save() {
   syncEpisodeProgress();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
   if (offlineMode || !currentUser) return;
+  // Synchronously record that there's a pending change so a closed tab
+  // mid-debounce doesn't get clobbered on next load.
+  markPendingSave();
   setSyncState('saving');
   clearTimeout(cloudSyncTimer);
   cloudSyncTimer = setTimeout(saveUserData, 300);
 }
+
+// Best-effort flush on tab close — fires the queued save immediately
+// if it's still waiting in the debounce window.
+window.addEventListener('beforeunload', () => {
+  if (cloudSyncTimer) {
+    clearTimeout(cloudSyncTimer);
+    cloudSyncTimer = null;
+    // Fire and forget — browser may or may not let this complete.
+    try { saveUserData(); } catch {}
+  }
+});
 
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
