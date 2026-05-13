@@ -1925,15 +1925,41 @@ button.danger:hover { opacity: .85; }
     align-items: center;
     justify-content: center;
     gap: 2px;
-    font-size: 1.05rem;
+    font-size: 1rem;
+    font-weight: 720;
+    letter-spacing: 0;
+  }
+  .mobile-nav-icon {
+    width: 20px;
+    height: 20px;
+    display: inline-grid;
+    place-items: center;
+    color: currentColor;
+  }
+  .mobile-nav-icon svg {
+    width: 19px;
+    height: 19px;
+    display: block;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .mobile-nav-icon .anime-glyph {
+    font-family: "Yu Gothic", "Meiryo", "Segoe UI", sans-serif;
+    font-size: .95rem;
+    font-weight: 850;
+    line-height: 1;
   }
   .mobile-nav-btn small {
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-size: .62rem;
-    font-weight: 700;
+    font-size: .61rem;
+    font-weight: 760;
     line-height: 1;
+    letter-spacing: 0;
   }
   .mobile-nav-btn.active {
     background: var(--surface2);

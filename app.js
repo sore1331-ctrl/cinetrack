@@ -810,6 +810,17 @@ document.querySelectorAll('.type-tab').forEach(tab => {
   }
 });
 
+document.querySelectorAll('.mobile-nav-btn').forEach(btn => {
+  const icon = btn.querySelector('span');
+  const key = btn.dataset.mobileView;
+  const html = NAV_ICONS[key];
+  if (icon && html) {
+    icon.classList.add('mobile-nav-icon');
+    icon.innerHTML = html;
+    icon.setAttribute('aria-hidden', 'true');
+  }
+});
+
 function isLibraryMutationLocked() {
   return Boolean(currentUser && !offlineMode && initialLibrarySyncPending);
 }
