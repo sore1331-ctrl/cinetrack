@@ -254,6 +254,8 @@ let lastCloudItemCount = null;
 let localChangeVersion = 0;
 let lastSavedLocalVersion = 0;
 let applyingRemoteData = false;
+let initialLibrarySyncPending = false;
+let mutationLockToastAt = 0;
 
 // Supabase
 let sb              = null;
@@ -787,6 +789,68 @@ const tmdbSearching   = document.getElementById('tmdb-searching');
 const tmdbError       = document.getElementById('tmdb-error');
 const tmdbSearchLabel = document.getElementById('tmdb-search-label');
 const modalTmdbRefreshBtn = document.getElementById('modal-tmdb-refresh-btn');
+
+function isLibraryMutationLocked() {
+  return Boolean(currentUser && !offlineMode && initialLibrarySyncPending);
+}
+
+function showMutationLockToast() {
+  const now = Date.now();
+  if (now - mutationLockToastAt < 2000) return;
+  mutationLockToastAt = now;
+  showToast('Finishing cloud sync first - editing will unlock in a moment.');
+}
+
+function updateMutationLockUI() {
+  const locked = isLibraryMutationLocked();
+  document.body.classList.toggle('library-sync-readonly', locked);
+  [
+    addBtn,
+    selectModeBtn,
+    document.getElementById('bulk-mark-watched'),
+    document.getElementById('bulk-mark-in-progress'),
+    document.getElementById('bulk-mark-watchlist'),
+    document.getElementById('bulk-delete'),
+    document.getElementById('tmdb-refresh-btn'),
+    document.getElementById('profile-import-btn'),
+  ].filter(Boolean).forEach(btn => { btn.disabled = locked; });
+}
+
+const LOCKED_MUTATION_SELECTOR = [
+  '#add-btn',
+  '#select-mode-btn',
+  '#bulk-mark-watched',
+  '#bulk-mark-in-progress',
+  '#bulk-mark-watchlist',
+  '#bulk-delete',
+  '#tmdb-refresh-btn',
+  '#profile-import-btn',
+  '#modal-tmdb-refresh-btn',
+  '[data-edit]',
+  '[data-toggle]',
+  '[data-delete]',
+  '[data-ep-inc]',
+  '[data-check]',
+  '.card-poster',
+  '.rec-add-btn',
+].join(',');
+
+document.addEventListener('click', e => {
+  if (!isLibraryMutationLocked()) return;
+  if (!e.target.closest(LOCKED_MUTATION_SELECTOR)) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  showMutationLockToast();
+}, true);
+
+document.addEventListener('change', e => {
+  if (!isLibraryMutationLocked()) return;
+  if (!e.target.closest('[data-check], #csv-input')) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  if (e.target.type === 'checkbox') e.target.checked = !e.target.checked;
+  showMutationLockToast();
+}, true);
 
 // ── View switching ──────────────────────────────────────
 function refreshCurrentView() {
@@ -4423,6 +4487,7 @@ function render() {
   if (currentPage < 0) currentPage = 0;
 
   const pageList = list.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+  const mutationDisabled = isLibraryMutationLocked() ? ' disabled aria-disabled="true"' : '';
 
   grid.innerHTML = '';
   grid.className = `movie-grid grid-${gridSize}` + (selectMode ? ' select-mode' : '');
@@ -4477,7 +4542,7 @@ function render() {
          </div>`
       : '';
     const epIncBtn = (isShow && epTotal > 0 && epWatched < epTotal)
-      ? `<button class="btn-sm btn-ep-inc" data-ep-inc="${m.id}" title="Mark next episode watched">
+      ? `<button class="btn-sm btn-ep-inc" data-ep-inc="${m.id}" title="Mark next episode watched"${mutationDisabled}>
            <span class="lbl-md lbl-lg">+1 ep</span><span class="lbl-sm">+1</span>
          </button>`
       : '';
@@ -4499,7 +4564,7 @@ function render() {
         ${posterHTML}
         ${hoverInfoHTML}
         <label class="card-checkbox" title="Select">
-          <input type="checkbox" data-check="${m.id}" ${checked ? 'checked' : ''} />
+          <input type="checkbox" data-check="${m.id}" ${checked ? 'checked' : ''}${mutationDisabled} />
           <span class="card-checkbox-box"></span>
         </label>
       </div>
@@ -4521,17 +4586,17 @@ function render() {
       ${epHTML}
       ${m.notes ? `<div class="card-notes">${esc(m.notes)}</div>` : ''}
       <div class="card-actions">
-        <button class="btn-sm" data-edit="${m.id}" title="Edit ${titleLabel}" aria-label="Edit ${titleLabel}">
+        <button class="btn-sm" data-edit="${m.id}" title="Edit ${titleLabel}" aria-label="Edit ${titleLabel}"${mutationDisabled}>
           <span class="lbl-md lbl-lg">Edit</span><span class="lbl-sm">✎</span>
         </button>
         ${epIncBtn}
         ${(m.status !== 'watched' && !epIncBtn) ? `
-        <button class="btn-sm" data-toggle="${m.id}" title="${toggleActionLabel} ${titleLabel}" aria-label="${toggleActionLabel} ${titleLabel}">
+        <button class="btn-sm" data-toggle="${m.id}" title="${toggleActionLabel} ${titleLabel}" aria-label="${toggleActionLabel} ${titleLabel}"${mutationDisabled}>
           <span class="lbl-lg">${m.status === 'in_progress' ? '✓ Watched' : '▶ In Progress'}</span>
           <span class="lbl-md">${m.status === 'in_progress' ? 'Watched' : 'In Prog'}</span>
           <span class="lbl-sm">${m.status === 'in_progress' ? '✓' : '▶'}</span>
         </button>` : ''}
-        <button class="btn-sm danger" data-delete="${m.id}">✕</button>
+        <button class="btn-sm danger" data-delete="${m.id}"${mutationDisabled}>✕</button>
       </div>
     `;
     const deleteBtn = card.querySelector('[data-delete]');
@@ -4788,6 +4853,10 @@ function toggleRatingLabel() {
 // ── Form submit ─────────────────────────────────────────
 form.addEventListener('submit', e => {
   e.preventDefault();
+  if (isLibraryMutationLocked()) {
+    showMutationLockToast();
+    return;
+  }
   const title = document.getElementById('f-title').value.trim();
   if (!title) return;
 
@@ -5454,6 +5523,8 @@ signoutBtn.addEventListener('click', async () => {
   currentUsername = null;
   sharingEnabled  = false;
   movies          = [];
+  initialLibrarySyncPending = false;
+  updateMutationLockUI();
   lastCloudUpdatedAt = null;
   lastCloudItemCount = null;
   localChangeVersion = 0;
@@ -5558,6 +5629,8 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
     // runs in the background; PR #66's post-await guard preserves any
     // edits made during the load. The header sync pill communicates the
     // background state.
+    initialLibrarySyncPending = true;
+    updateMutationLockUI();
     hideAuthOverlay();
     updateCountryDropdown();
     render();
@@ -5577,32 +5650,38 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
     const previousCount = Array.isArray(movies) ? movies.length : 0;
     (async () => {
       let loaded;
-      if (hasUnsyncedLocalChanges()) {
-        setSyncState('saving', 'Saving local changes before cloud load');
-        const saved = await saveUserData();
-        if (!saved?.ok) {
-          loaded = { ok: false, error: saved?.error || 'Cloud save failed' };
+      try {
+        if (hasUnsyncedLocalChanges()) {
+          setSyncState('saving', 'Saving local changes before cloud load');
+          const saved = await saveUserData();
+          if (!saved?.ok) {
+            loaded = { ok: false, error: saved?.error || 'Cloud save failed' };
+          } else {
+            loaded = await loadUserData({ onlyIfNewer: true });
+          }
         } else {
-          loaded = await loadUserData({ onlyIfNewer: true });
+          loaded = await loadUserData();
         }
-      } else {
-        loaded = await loadUserData();
-      }
-      if (!loaded?.ok) {
-        // pendingLocal isn't a real failure — guard just chose to keep
-        // local. Don't redden the sync pill in that case.
-        if (!loaded?.pendingLocal) setSyncState('error', loaded?.error || 'Cloud load failed');
-        return;
-      }
-      startCloudPolling();
-      maybeRefreshCalendarOncePerAccountToday();
+        if (!loaded?.ok) {
+          // pendingLocal isn't a real failure — guard just chose to keep
+          // local. Don't redden the sync pill in that case.
+          if (!loaded?.pendingLocal) setSyncState('error', loaded?.error || 'Cloud load failed');
+          return;
+        }
+        startCloudPolling();
+        maybeRefreshCalendarOncePerAccountToday();
 
-      const newCount = Array.isArray(movies) ? movies.length : 0;
-      const delta = newCount - previousCount;
-      if (delta >= 2) {
-        showToast(`Synced — ${delta} new title${delta === 1 ? '' : 's'} from another device`);
-      } else if (delta <= -2) {
-        showToast(`Synced — ${-delta} title${delta === -1 ? '' : 's'} removed since this device last synced`);
+        const newCount = Array.isArray(movies) ? movies.length : 0;
+        const delta = newCount - previousCount;
+        if (delta >= 2) {
+          showToast(`Synced — ${delta} new title${delta === 1 ? '' : 's'} from another device`);
+        } else if (delta <= -2) {
+          showToast(`Synced — ${-delta} title${delta === -1 ? '' : 's'} removed since this device last synced`);
+        }
+      } finally {
+        initialLibrarySyncPending = false;
+        updateMutationLockUI();
+        refreshCurrentView();
       }
     })();
   }
@@ -5615,7 +5694,9 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
       userDataFetched = false;
       currentUser = null;
       currentAccessToken = '';
+      initialLibrarySyncPending = false;
       stopCloudPolling();
+      updateMutationLockUI();
       updateUserMenu();
     }
   });
