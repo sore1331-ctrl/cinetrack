@@ -216,6 +216,7 @@ function applyAllAppearance() {
 
 // ── State ──────────────────────────────────────────────
 const STORAGE_KEY = 'cinetrack_movies';
+const PENDING_SYNC_KEY = 'cinetrack_pending_sync';
 const POSTER_BASE = 'https://image.tmdb.org/t/p/w200';
 const SESSION_TIMEOUT_MS = 20000;
 const CLOUD_TIMEOUT_MS = 30000;
@@ -397,7 +398,31 @@ async function saveProfile(updates) {
 
 // ── User data load / save ───────────────────────────────
 function hasUnsyncedLocalChanges() {
-  return Boolean(cloudSyncTimer) || localChangeVersion > lastSavedLocalVersion;
+  return Boolean(cloudSyncTimer) || localChangeVersion > lastSavedLocalVersion || Boolean(readPendingSyncMarker());
+}
+
+function readPendingSyncMarker() {
+  try {
+    const marker = JSON.parse(localStorage.getItem(PENDING_SYNC_KEY) || 'null');
+    return marker && typeof marker === 'object' ? marker : null;
+  } catch {
+    return null;
+  }
+}
+
+function markPendingSync(reason = 'local-change') {
+  if (applyingRemoteData) return;
+  try {
+    localStorage.setItem(PENDING_SYNC_KEY, JSON.stringify({
+      reason,
+      updatedAt: new Date().toISOString(),
+      itemCount: Array.isArray(movies) ? movies.length : 0,
+    }));
+  } catch {}
+}
+
+function clearPendingSyncMarker() {
+  try { localStorage.removeItem(PENDING_SYNC_KEY); } catch {}
 }
 
 async function getSupabaseAccessToken() {
@@ -545,6 +570,9 @@ async function loadUserData(options = {}) {
   if (!sb || !currentUser) return { ok: false, error: 'Not signed in' };
   if (!silent) setSyncState('loading');
   try {
+    if (!force && hasUnsyncedLocalChanges()) {
+      return { ok: false, pendingLocal: true, error: 'Skipped cloud load because this device has pending local changes.' };
+    }
     const row = await loadUserDataWithFallback();
 
     if (onlyIfNewer) {
@@ -567,6 +595,7 @@ async function loadUserData(options = {}) {
       lastCloudItemCount = row.item_count ?? row.movies.length;
       updateSyncDetails();
       lastSavedLocalVersion = localChangeVersion;
+      clearPendingSyncMarker();
     }
     if (!silent) setSyncState('saved');
     updateCountryDropdown();
@@ -591,6 +620,7 @@ async function loadUserData(options = {}) {
 
 async function saveUserData() {
   if (!sb || !currentUser) return { ok: false, error: 'Not signed in' };
+  if (!readPendingSyncMarker() && !hasUnsyncedLocalChanges()) return { ok: true, skipped: true };
   const saveVersion = localChangeVersion;
   try {
     const payload = { userId: currentUser.id, movies, updated_at: new Date().toISOString() };
@@ -599,6 +629,7 @@ async function saveUserData() {
     lastCloudUpdatedAt = result.updated_at || payload.updated_at;
     lastCloudItemCount = result.item_count ?? movies.length;
     lastSavedLocalVersion = Math.max(lastSavedLocalVersion, saveVersion);
+    clearPendingSyncMarker();
     setSyncState('saved');
     return { ok: true };
   } catch (e) {
@@ -688,7 +719,10 @@ syncEpisodeProgress();
 function save() {
   syncEpisodeProgress();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
-  if (!applyingRemoteData) localChangeVersion++;
+  if (!applyingRemoteData) {
+    localChangeVersion++;
+    markPendingSync();
+  }
   if (offlineMode || !currentUser) return;
   setSyncState('saving');
   clearTimeout(cloudSyncTimer);
@@ -5398,6 +5432,7 @@ signoutBtn.addEventListener('click', async () => {
   localChangeVersion = 0;
   lastSavedLocalVersion = 0;
   localStorage.removeItem(STORAGE_KEY);
+  clearPendingSyncMarker();
   localStorage.removeItem('cinetrack_sharing');
   document.getElementById('user-dropdown').classList.add('hidden');
   updateUserMenu();
@@ -5491,9 +5526,7 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
     currentAccessToken = accessToken || currentAccessToken;
     offlineMode = false;
     updateUserMenu();
-    hideAuthOverlay();
     updateCountryDropdown();
-    render();
 
     withTimeout(loadProfile(), 'Profile load', 15000).catch(e => {
       console.warn('[cinetrack] Profile load skipped:', e?.message || e);
@@ -5505,13 +5538,27 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
       console.warn('[cinetrack] Preference load skipped:', e?.message || e);
     }
 
-    const loaded = await loadUserData();
+    let loaded;
+    if (hasUnsyncedLocalChanges()) {
+      setSyncState('saving', 'Saving local changes before cloud load');
+      const saved = await saveUserData();
+      if (!saved?.ok) {
+        loaded = { ok: false, error: saved?.error || 'Cloud save failed' };
+      } else {
+        loaded = await loadUserData({ onlyIfNewer: true });
+      }
+    } else {
+      loaded = await loadUserData();
+    }
     if (!loaded?.ok) {
       setSyncState('error', loaded?.error || 'Cloud load failed');
     } else {
       startCloudPolling();
       maybeRefreshCalendarOncePerAccountToday();
     }
+    hideAuthOverlay();
+    updateCountryDropdown();
+    render();
   }
 
   sb.auth.onAuthStateChange(async (event, session) => {
