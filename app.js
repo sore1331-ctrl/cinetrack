@@ -5553,42 +5553,58 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
     currentAccessToken = accessToken || currentAccessToken;
     offlineMode = false;
     updateUserMenu();
-    // No pre-load updateCountryDropdown() / render() — they'd flash stale
-    // local-cache data before loadUserData() replaces movies with the
-    // cloud row. The post-load block at the bottom handles both the
-    // success-but-no-newer case and the load-failed-keep-local case.
 
-    withTimeout(loadProfile(), 'Profile load', 15000).catch(e => {
-      console.warn('[cinetrack] Profile load skipped:', e?.message || e);
-    });
-
-    try {
-      await withTimeout(loadPreferences(), 'Preference load', 15000);
-    } catch (e) {
-      console.warn('[cinetrack] Preference load skipped:', e?.message || e);
-    }
-
-    let loaded;
-    if (hasUnsyncedLocalChanges()) {
-      setSyncState('saving', 'Saving local changes before cloud load');
-      const saved = await saveUserData();
-      if (!saved?.ok) {
-        loaded = { ok: false, error: saved?.error || 'Cloud save failed' };
-      } else {
-        loaded = await loadUserData({ onlyIfNewer: true });
-      }
-    } else {
-      loaded = await loadUserData();
-    }
-    if (!loaded?.ok) {
-      setSyncState('error', loaded?.error || 'Cloud load failed');
-    } else {
-      startCloudPolling();
-      maybeRefreshCalendarOncePerAccountToday();
-    }
+    // Snappy paint: show local-cached data immediately. The cloud sync
+    // runs in the background; PR #66's post-await guard preserves any
+    // edits made during the load. The header sync pill communicates the
+    // background state.
     hideAuthOverlay();
     updateCountryDropdown();
     render();
+    setSyncState('loading');
+
+    // Profile + preferences fire-and-forget — neither blocks UI.
+    withTimeout(loadProfile(), 'Profile load', 15000).catch(e => {
+      console.warn('[cinetrack] Profile load skipped:', e?.message || e);
+    });
+    withTimeout(loadPreferences(), 'Preference load', 15000).catch(e => {
+      console.warn('[cinetrack] Preference load skipped:', e?.message || e);
+    });
+
+    // User data: still runs in the background, but we capture the local
+    // count up front so we can tell the user when cloud diverges
+    // significantly (added/removed titles from another device).
+    const previousCount = Array.isArray(movies) ? movies.length : 0;
+    (async () => {
+      let loaded;
+      if (hasUnsyncedLocalChanges()) {
+        setSyncState('saving', 'Saving local changes before cloud load');
+        const saved = await saveUserData();
+        if (!saved?.ok) {
+          loaded = { ok: false, error: saved?.error || 'Cloud save failed' };
+        } else {
+          loaded = await loadUserData({ onlyIfNewer: true });
+        }
+      } else {
+        loaded = await loadUserData();
+      }
+      if (!loaded?.ok) {
+        // pendingLocal isn't a real failure — guard just chose to keep
+        // local. Don't redden the sync pill in that case.
+        if (!loaded?.pendingLocal) setSyncState('error', loaded?.error || 'Cloud load failed');
+        return;
+      }
+      startCloudPolling();
+      maybeRefreshCalendarOncePerAccountToday();
+
+      const newCount = Array.isArray(movies) ? movies.length : 0;
+      const delta = newCount - previousCount;
+      if (delta >= 2) {
+        showToast(`Synced — ${delta} new title${delta === 1 ? '' : 's'} from another device`);
+      } else if (delta <= -2) {
+        showToast(`Synced — ${-delta} title${delta === -1 ? '' : 's'} removed since this device last synced`);
+      }
+    })();
   }
 
   sb.auth.onAuthStateChange(async (event, session) => {
