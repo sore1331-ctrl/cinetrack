@@ -580,9 +580,18 @@ async function loadUserData(options = {}) {
         if (!silent) setSyncState('saved');
         return { ok: true, changed: false };
       }
-      if (!force && hasUnsyncedLocalChanges()) {
-        return { ok: false, error: 'Skipped cloud refresh because this device has unsaved local changes.' };
-      }
+    }
+
+    // Always re-check after the await — even with force:true. If the user
+    // edited a card during the network round-trip, we don't want to blow
+    // away their change. `force` is meant to bypass the pre-await guard
+    // (e.g. user explicitly clicked Reload despite known pending changes
+    // they already chose to discard), not to ignore brand-new edits that
+    // appeared mid-load. Polling already does this check; the force path
+    // didn't.
+    if (hasUnsyncedLocalChanges()) {
+      if (!silent) setSyncState('saved');
+      return { ok: false, pendingLocal: true, error: 'Skipped cloud load because new local changes appeared during the load.' };
     }
 
     if (row?.exists && Array.isArray(row.movies)) {
@@ -1407,9 +1416,10 @@ async function fetchDetailsForEntry(movie) {
 }
 
 function applyMetadataRefresh(movie, details) {
-  if (!movie || !details) return;
+  if (!movie || !details) return { demoted: false };
   const wasShow = movie.mediaType === 'tv' || movie.mediaType === 'anime';
   const previousWatched = wasShow ? Math.max(0, movie.watchedEpisodes || 0) : 0;
+  const previousStatus  = movie.status;
   if (details.title)    movie.title    = details.title;
   if (details.year)     movie.year     = details.year;
   if (details.genre)    movie.genre    = details.genre;
@@ -1437,6 +1447,7 @@ function applyMetadataRefresh(movie, details) {
       movie.status = 'in_progress';
     }
   }
+  return { demoted: previousStatus === 'watched' && movie.status === 'in_progress' };
 }
 
 // ── Media type toggle (modal) ───────────────────────────
@@ -5395,7 +5406,8 @@ tmdbRefreshBtn.addEventListener('click', async () => {
 
   cancelTmdbRefresh = false;
   importProgress.classList.remove('hidden');
-  let updated = 0, failed = 0;
+  let updated = 0, failed = 0, demoted = 0;
+  const demotedTitles = [];
   for (let i = 0; i < targets.length; i++) {
     if (cancelTmdbRefresh) break;
     const m = targets[i];
@@ -5403,7 +5415,11 @@ tmdbRefreshBtn.addEventListener('click', async () => {
     progressBar.style.width = `${Math.round((i / targets.length) * 100)}%`;
     try {
       const d = await fetchDetailsForEntry(m);
-      applyMetadataRefresh(m, d);
+      const result = applyMetadataRefresh(m, d);
+      if (result?.demoted) {
+        demoted++;
+        if (demotedTitles.length < 3) demotedTitles.push(m.title);
+      }
       updated++;
     } catch { failed++; }
   }
@@ -5411,6 +5427,12 @@ tmdbRefreshBtn.addEventListener('click', async () => {
   importProgress.classList.add('hidden');
   save(); updateCountryDropdown(); render();
   const parts = [`Refreshed ${updated} title${updated !== 1 ? 's' : ''}`];
+  if (demoted) {
+    const sample = demotedTitles.join(', ');
+    const more   = demoted - demotedTitles.length;
+    const list   = more > 0 ? `${sample} +${more} more` : sample;
+    parts.push(`⏳ ${demoted} back to In Progress (${list})`);
+  }
   if (failed)            parts.push(`${failed} failed`);
   if (cancelTmdbRefresh) parts.push('cancelled');
   showToast(parts.join(' · '));
@@ -5526,7 +5548,10 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
     currentAccessToken = accessToken || currentAccessToken;
     offlineMode = false;
     updateUserMenu();
-    updateCountryDropdown();
+    // No pre-load updateCountryDropdown() / render() — they'd flash stale
+    // local-cache data before loadUserData() replaces movies with the
+    // cloud row. The post-load block at the bottom handles both the
+    // success-but-no-newer case and the load-failed-keep-local case.
 
     withTimeout(loadProfile(), 'Profile load', 15000).catch(e => {
       console.warn('[cinetrack] Profile load skipped:', e?.message || e);
