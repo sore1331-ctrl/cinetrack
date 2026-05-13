@@ -108,6 +108,22 @@ body {
 }
 
 /* ── Glass intensity presets (data-glass="medium"|"subtle") ── */
+:root[data-glass="ultra"] {
+  --glass-bg:        rgba(20, 22, 34, .26);
+  --glass-bg-strong: rgba(20, 22, 34, .42);
+  --glass-border:    rgba(255, 255, 255, .22);
+  --glass-highlight: rgba(255, 255, 255, .18);
+  --glass-blur:      32px;
+  --glass-saturate:  220%;
+  --glass-shadow:    0 18px 58px rgba(0, 0, 0, .52);
+}
+:root.light[data-glass="ultra"] {
+  --glass-bg:        rgba(255, 255, 255, .32);
+  --glass-bg-strong: rgba(255, 255, 255, .54);
+  --glass-border:    rgba(255, 255, 255, .78);
+  --glass-highlight: rgba(255, 255, 255, .9);
+  --glass-shadow:    0 18px 58px rgba(0, 0, 0, .17);
+}
 :root[data-glass="medium"] {
   --glass-bg:        rgba(26, 26, 36, .62);
   --glass-bg-strong: rgba(26, 26, 36, .78);
@@ -4241,4 +4257,178 @@ main {
 
 #search-input {
   background: color-mix(in srgb, var(--glass-bg) 44%, var(--surface) 34%);
+}
+
+/* Nav glass redesign */
+:root {
+  --nav-glow-alpha: .14;
+  --nav-edge-alpha: .08;
+  --nav-pill-alpha: .10;
+  --nav-pill-shadow: 0 14px 32px rgba(0,0,0,.18);
+}
+:root[data-glass="subtle"] {
+  --nav-glow-alpha: .06;
+  --nav-edge-alpha: .035;
+  --nav-pill-alpha: .06;
+  --nav-pill-shadow: 0 10px 22px rgba(0,0,0,.12);
+}
+:root[data-glass="medium"] {
+  --nav-glow-alpha: .11;
+  --nav-edge-alpha: .06;
+  --nav-pill-alpha: .09;
+  --nav-pill-shadow: 0 12px 28px rgba(0,0,0,.16);
+}
+:root[data-glass="ultra"] {
+  --nav-glow-alpha: .28;
+  --nav-edge-alpha: .18;
+  --nav-pill-alpha: .16;
+  --nav-pill-shadow:
+    0 18px 42px rgba(0,0,0,.28),
+    0 0 34px color-mix(in srgb, var(--tab-accent, var(--accent)) 22%, transparent);
+}
+
+.type-tab[data-type="movie"]     { --tab-accent: #b879ff; }
+.type-tab[data-type="tv"]        { --tab-accent: #3b9eff; }
+.type-tab[data-type="anime"]     { --tab-accent: #a855f7; }
+.type-tab[data-type="dropped"]   { --tab-accent: #e2405a; }
+.type-tab[data-type="calendar"]  { --tab-accent: #00e6b8; }
+.type-tab[data-type="stats"]     { --tab-accent: #9b6dff; }
+.type-tab[data-type="community"] { --tab-accent: #b879ff; }
+
+@media (min-width: 1024px) {
+  header {
+    min-height: 72px;
+    padding-inline: 18px;
+    gap: 14px;
+  }
+
+  .type-tabs-bar {
+    flex: 1 1 auto;
+    max-width: min(1180px, calc(100vw - 320px));
+  }
+
+  .type-tabs-inner {
+    min-height: 58px;
+    padding: 8px 18px;
+    gap: 14px;
+    align-items: center;
+    justify-content: space-between;
+    border-radius: 22px;
+    border: 1px solid color-mix(in srgb, var(--glass-border) 74%, transparent);
+    background:
+      radial-gradient(90% 140% at 0% 50%, color-mix(in srgb, #3b82f6 calc(var(--nav-glow-alpha) * 100%), transparent) 0%, transparent 44%),
+      radial-gradient(90% 140% at 100% 50%, color-mix(in srgb, #e240a0 calc(var(--nav-glow-alpha) * 100%), transparent) 0%, transparent 44%),
+      linear-gradient(180deg,
+        color-mix(in srgb, var(--glass-bg-strong) 76%, transparent),
+        color-mix(in srgb, var(--glass-bg) 62%, transparent));
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--glass-highlight) 82%, transparent),
+      inset 0 -1px 0 rgba(255,255,255,.025),
+      0 18px 48px rgba(0,0,0,.16);
+    -webkit-backdrop-filter: blur(calc(var(--glass-blur) * .9)) saturate(var(--glass-saturate));
+            backdrop-filter: blur(calc(var(--glass-blur) * .9)) saturate(var(--glass-saturate));
+  }
+
+  :root[data-glass="ultra"] .type-tabs-inner {
+    border-color: color-mix(in srgb, var(--glass-border) 86%, transparent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--glass-highlight) 95%, transparent),
+      inset 18px 0 28px color-mix(in srgb, #5e8cff calc(var(--nav-edge-alpha) * 100%), transparent),
+      inset -18px 0 30px color-mix(in srgb, #ff4eb8 calc(var(--nav-edge-alpha) * 100%), transparent),
+      0 22px 58px rgba(0,0,0,.24);
+  }
+
+  .type-tab {
+    min-height: 42px;
+    margin: 0;
+    padding: 9px 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    border: 0;
+    border-radius: 16px;
+    color: color-mix(in srgb, var(--tab-accent) 68%, var(--text) 32%);
+    font-size: .93rem;
+    font-weight: 660;
+    opacity: .92;
+    text-shadow: 0 0 14px color-mix(in srgb, var(--tab-accent) 20%, transparent);
+    transition: color .16s, opacity .16s, transform .16s;
+  }
+
+  .type-tab .tab-icon {
+    width: 28px;
+    height: 28px;
+    display: inline-grid;
+    place-items: center;
+    border-radius: 10px;
+    font-size: 1rem;
+    line-height: 1;
+    background: color-mix(in srgb, var(--tab-accent) 9%, transparent);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--glass-highlight) 60%, transparent);
+    transition: background .16s, box-shadow .16s, transform .16s;
+  }
+
+  .type-tab.active .tab-icon {
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--tab-accent) 28%, transparent), transparent 72%),
+      color-mix(in srgb, var(--glass-bg-strong) 64%, transparent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--glass-highlight) 80%, transparent),
+      0 0 18px color-mix(in srgb, var(--tab-accent) 30%, transparent);
+    transform: translateY(-1px);
+  }
+
+  .type-tab::before {
+    inset: 0;
+    border-radius: inherit;
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--tab-accent) 12%, transparent), transparent 58%),
+      color-mix(in srgb, var(--glass-bg) 36%, transparent);
+    border: 1px solid color-mix(in srgb, var(--tab-accent) 28%, var(--glass-border));
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--glass-highlight) 72%, transparent);
+  }
+
+  .type-tab:hover {
+    color: var(--text);
+    opacity: 1;
+    transform: translateY(-1px);
+  }
+
+  .type-tab:hover::before {
+    opacity: .82;
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--tab-accent) 18%, transparent), transparent 60%),
+      color-mix(in srgb, var(--glass-bg) 46%, transparent);
+  }
+
+  .type-tab.active,
+  .type-tab[data-type="tv"].active,
+  .type-tab[data-type="anime"].active,
+  .type-tab[data-type="calendar"].active {
+    color: color-mix(in srgb, var(--tab-accent) 84%, white 16%);
+    border-bottom-color: transparent;
+    opacity: 1;
+  }
+
+  .type-tab.active::before {
+    opacity: 1;
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--tab-accent) 22%, transparent), transparent 62%),
+      color-mix(in srgb, var(--glass-bg) 58%, transparent);
+    border-color: color-mix(in srgb, var(--tab-accent) 58%, var(--glass-border));
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--glass-highlight) 85%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--tab-accent) 12%, transparent),
+      var(--nav-pill-shadow);
+  }
+
+  .type-tab.has-airing::after {
+    top: 6px;
+    right: 8px;
+    background: #ff3f6d;
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--glass-bg-strong) 70%, var(--bg) 30%),
+      0 0 14px rgba(255,63,109,.8);
+  }
 }

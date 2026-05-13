@@ -42,7 +42,8 @@ function applyBgPreset(name) {
 applyBgPreset(localStorage.getItem('cinetrack_bg') || 'default');
 
 // ── Appearance: glass / accent / orbs / density / motion ─
-const GLASS_PRESETS   = ['vivid', 'medium', 'subtle'];
+const GLASS_PRESETS   = ['subtle', 'medium', 'vivid', 'ultra'];
+const GLASS_LABELS    = { subtle: 'Subtle', medium: 'Balanced', vivid: 'Strong', ultra: 'Ultra' };
 const ACCENT_PRESETS  = ['default', 'blue', 'green', 'purple', 'amber', 'cyan'];
 const ORBS_OPTIONS    = ['static', 'animated'];
 const DENSITY_OPTIONS = ['comfortable', 'compact'];
@@ -84,7 +85,7 @@ function applyThemePreset(name) {
   return true;
 }
 
-applyGlass(localStorage.getItem('cinetrack_glass')   || 'vivid');
+applyGlass(localStorage.getItem('cinetrack_glass')   || 'medium');
 applyAccent(localStorage.getItem('cinetrack_accent') || 'default');
 applyOrbs(localStorage.getItem('cinetrack_orbs')     || 'static');
 applyDensity(localStorage.getItem('cinetrack_density') || 'comfortable');
@@ -205,7 +206,7 @@ async function loadPreferences() {
 function applyAllAppearance() {
   applyTheme(localStorage.getItem('cinetrack_theme') || 'dark');
   applyBgPreset(localStorage.getItem('cinetrack_bg')   || 'default');
-  applyGlass(localStorage.getItem('cinetrack_glass')   || 'vivid');
+  applyGlass(localStorage.getItem('cinetrack_glass')   || 'medium');
   applyAccent(localStorage.getItem('cinetrack_accent') || 'default');
   applyOrbs(localStorage.getItem('cinetrack_orbs')     || 'static');
   applyDensity(localStorage.getItem('cinetrack_density') || 'comfortable');
@@ -4219,8 +4220,8 @@ function renderProfile() {
               <div class="appearance-label">Glass intensity</div>
               <div class="pill-group" data-pref="glass">
                 ${GLASS_PRESETS.map(name => {
-                  const current = localStorage.getItem('cinetrack_glass') || 'vivid';
-                  return `<button type="button" class="pill-btn ${name === current ? 'active' : ''}" data-value="${name}">${name[0].toUpperCase() + name.slice(1)}</button>`;
+                  const current = localStorage.getItem('cinetrack_glass') || 'medium';
+                  return `<button type="button" class="pill-btn ${name === current ? 'active' : ''}" data-value="${name}">${GLASS_LABELS[name] || name}</button>`;
                 }).join('')}
               </div>
             </div>
