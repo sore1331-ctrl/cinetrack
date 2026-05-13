@@ -569,6 +569,11 @@ async function loadUserData(options = {}) {
   const { silent = false, onlyIfNewer = false, force = false } = options;
   if (!sb || !currentUser) return { ok: false, error: 'Not signed in' };
   if (!silent) setSyncState('loading');
+  // Snapshot the change counter so we can detect edits that happen
+  // during the network round-trip without false-positiving on dirty
+  // state the user explicitly chose to discard (force: true).
+  const initialChangeVersion = localChangeVersion;
+  const initialTimerSet      = Boolean(cloudSyncTimer);
   try {
     if (!force && hasUnsyncedLocalChanges()) {
       return { ok: false, pendingLocal: true, error: 'Skipped cloud load because this device has pending local changes.' };
@@ -582,14 +587,14 @@ async function loadUserData(options = {}) {
       }
     }
 
-    // Always re-check after the await — even with force:true. If the user
-    // edited a card during the network round-trip, we don't want to blow
-    // away their change. `force` is meant to bypass the pre-await guard
-    // (e.g. user explicitly clicked Reload despite known pending changes
-    // they already chose to discard), not to ignore brand-new edits that
-    // appeared mid-load. Polling already does this check; the force path
-    // didn't.
-    if (hasUnsyncedLocalChanges()) {
+    // Re-check after the await — but only block on changes that actually
+    // appeared DURING the await. We compare against the snapshot taken
+    // at entry so force: true (Reload from cloud) still works as intended:
+    // the user explicitly chose to discard their existing pending edits,
+    // and only brand-new edits made during the load should preserve.
+    const newEditsMidFlight = localChangeVersion > initialChangeVersion
+                            || (Boolean(cloudSyncTimer) && !initialTimerSet);
+    if (newEditsMidFlight) {
       if (!silent) setSyncState('saved');
       return { ok: false, pendingLocal: true, error: 'Skipped cloud load because new local changes appeared during the load.' };
     }
