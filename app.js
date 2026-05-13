@@ -791,6 +791,25 @@ const tmdbError       = document.getElementById('tmdb-error');
 const tmdbSearchLabel = document.getElementById('tmdb-search-label');
 const modalTmdbRefreshBtn = document.getElementById('modal-tmdb-refresh-btn');
 
+const NAV_ICONS = {
+  movie: '<svg viewBox="0 0 24 24"><path d="M4 8h16v11H4z"/><path d="M4 8l2-4h16l-2 4"/><path d="M8 4 6 8M13 4l-2 4M18 4l-2 4"/><path d="m10 12 4 2.5-4 2.5z"/></svg>',
+  tv: '<svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="11" rx="1.5"/><path d="M9 20h6M12 17v3M9 3l3 3 3-3"/></svg>',
+  anime: '<span class="anime-glyph">&#12450;</span>',
+  dropped: '<svg viewBox="0 0 24 24"><path d="M8 3h8l5 5v8l-5 5H8l-5-5V8z"/><path d="m8 8 8 8M16 8l-8 8"/></svg>',
+  calendar: '<svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="1.5"/><path d="M8 3v4M16 3v4M4 9h16"/><path d="M8 13h.01M12 13h.01M16 13h.01M8 17h.01M12 17h.01M16 17h.01"/></svg>',
+  stats: '<svg viewBox="0 0 24 24"><path d="M5 20V11M11 20V5M17 20v-8M23 20V8"/></svg>',
+  community: '<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><circle cx="17" cy="9" r="3"/><path d="M3 20v-1.5C3 15.5 5.5 14 9 14s6 1.5 6 4.5V20"/><path d="M14 15c3.6.2 6 1.7 6 4.5V20"/></svg>',
+};
+
+document.querySelectorAll('.type-tab').forEach(tab => {
+  const icon = tab.querySelector('.tab-icon');
+  const html = NAV_ICONS[tab.dataset.type];
+  if (icon && html) {
+    icon.innerHTML = html;
+    icon.setAttribute('aria-hidden', 'true');
+  }
+});
+
 function isLibraryMutationLocked() {
   return Boolean(currentUser && !offlineMode && initialLibrarySyncPending);
 }
