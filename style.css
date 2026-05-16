@@ -223,7 +223,7 @@ header {
           backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   border-bottom: 1px solid var(--glass-border);
   padding: 0 24px;
-  min-height: 56px;
+  min-height: 70px;
   display: flex;
   align-items: center;
   gap: 0 8px;
@@ -245,20 +245,17 @@ header {
 .brand-wordmark {
   display: inline-flex;
   align-items: center;
-  gap: 13px;
-  color: #fff;
-  font-weight: 850;
-  letter-spacing: 0;
-  line-height: 1;
+  line-height: 0;
   text-decoration: none;
   white-space: nowrap;
 }
 
-.brand-mark {
-  width: 44px;
-  height: 44px;
+.brand-logo-img {
+  display: block;
+  width: auto;
+  height: 58px;
   flex: 0 0 auto;
-  filter: drop-shadow(0 8px 16px rgba(95, 71, 255, .28));
+  object-fit: contain;
 }
 
 .header-brand {
@@ -267,8 +264,6 @@ header {
   border: 0;
   padding: 0;
   font: inherit;
-  font-size: 1.85rem;
-  font-weight: 850;
   cursor: pointer;
   position: relative;
   z-index: 2;
@@ -281,12 +276,10 @@ header {
 
 .brand-wordmark-auth {
   justify-content: center;
-  font-size: 2.15rem;
 }
 
-.brand-wordmark-auth .brand-mark {
-  width: 50px;
-  height: 50px;
+.brand-wordmark-auth .brand-logo-img {
+  height: 62px;
 }
 
 .theme-toggle {
@@ -1925,8 +1918,7 @@ button.danger:hover { opacity: .85; }
 @media (max-width: 480px) {
   /* Header — top row stays compact, tab bar wraps below it */
   header { padding: 0 14px; min-height: 48px; }
-  .header-brand { font-size: 1.45rem; gap: 9px; }
-  .header-brand .brand-mark { width: 36px; height: 36px; }
+  .header-brand .brand-logo-img { height: 44px; }
   .theme-toggle { width: 32px; height: 32px; font-size: .85rem; }
   .header-profile-btn { width: 32px; height: 32px; font-size: .85rem; }
   .user-avatar-btn { width: 32px; height: 32px; }
