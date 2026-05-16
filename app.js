@@ -4128,7 +4128,8 @@ function renderProfile() {
   panel.innerHTML = `
     <div class="profile-hero">
       <div class="profile-hero-orbit">
-        <img class="profile-control-img" src="assets/account-control.png?v=actual-controls-20260516" alt="Account" />
+        <img class="profile-control-img theme-img-dark" src="assets/account-control.png?v=actual-controls-20260516" alt="Account" />
+        <img class="profile-control-img theme-img-light" src="assets/account-control-light.png?v=theme-aware-20260516" alt="Account" />
       </div>
       <div class="profile-hero-info">
         <span class="profile-kicker">Profile</span>
