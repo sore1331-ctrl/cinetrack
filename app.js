@@ -4128,7 +4128,7 @@ function renderProfile() {
   panel.innerHTML = `
     <div class="profile-hero">
       <div class="profile-hero-orbit">
-        <div class="profile-avatar-lg">${esc(initial)}</div>
+        <img class="profile-control-img" src="assets/account-control.png?v=actual-controls-20260516" alt="Account" />
       </div>
       <div class="profile-hero-info">
         <span class="profile-kicker">Profile</span>
@@ -4140,9 +4140,15 @@ function renderProfile() {
         ${sharingEnabled ? '<div class="profile-sharing-badge">🌐 Sharing enabled</div>' : ''}
       </div>
       <div class="profile-mode-actions" aria-label="Profile quick actions">
-        <button type="button" class="profile-mode-circle profile-mode-account" title="Account">${esc(initial)}</button>
-        <button type="button" class="profile-mode-circle profile-mode-user" title="Profile" aria-label="Profile"></button>
-        <button type="button" class="profile-mode-circle profile-mode-theme" title="Theme" aria-label="Theme"></button>
+        <button type="button" class="profile-mode-circle profile-mode-account" title="Account">
+          <img class="profile-control-img" src="assets/account-control.png?v=actual-controls-20260516" alt="" aria-hidden="true" />
+        </button>
+        <button type="button" class="profile-mode-circle profile-mode-user" title="Profile" aria-label="Profile">
+          <img class="profile-control-img" src="assets/profile-control.png?v=actual-controls-20260516" alt="" aria-hidden="true" />
+        </button>
+        <button type="button" class="profile-mode-circle profile-mode-theme" title="Theme" aria-label="Theme">
+          <img class="profile-control-img" src="assets/theme-control.png?v=actual-controls-20260516" alt="" aria-hidden="true" />
+        </button>
       </div>
     </div>
 

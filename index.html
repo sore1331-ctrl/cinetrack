@@ -79,7 +79,8 @@
     <div class="header-actions">
       <div id="user-menu" class="user-menu hidden">
         <button class="user-avatar-btn" id="user-avatar-btn">
-          <span id="user-avatar">?</span>
+          <img class="header-control-img" src="assets/account-control.png?v=actual-controls-20260516" alt="" aria-hidden="true" />
+          <span id="user-avatar" class="sr-only">?</span>
         </button>
         <div class="user-dropdown hidden" id="user-dropdown">
           <div class="user-name-row">
@@ -105,8 +106,12 @@
           <button id="signout-btn" class="signout-btn">Sign out</button>
         </div>
       </div>
-      <button id="header-profile-btn" class="header-profile-btn" title="Profile">👤</button>
-      <button id="theme-toggle" class="theme-toggle" title="Toggle light/dark mode">🌙</button>
+      <button id="header-profile-btn" class="header-profile-btn" title="Profile">
+        <img class="header-control-img" src="assets/profile-control.png?v=actual-controls-20260516" alt="" aria-hidden="true" />
+      </button>
+      <button id="theme-toggle" class="theme-toggle" title="Toggle light/dark mode">
+        <img class="header-control-img" src="assets/theme-control.png?v=actual-controls-20260516" alt="" aria-hidden="true" />
+      </button>
     </div>
   </header>
 

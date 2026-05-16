@@ -259,6 +259,18 @@ header {
   object-fit: contain;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .header-brand {
   appearance: none;
   background: transparent;
@@ -4993,5 +5005,97 @@ main {
   .profile-avatar-lg,
   .profile-mode-account {
     font-size: 2.7rem;
+  }
+}
+
+/* Use the actual supplied PNG controls instead of CSS-drawn approximations. */
+.header-actions {
+  gap: 10px;
+}
+
+.theme-toggle,
+.header-profile-btn,
+.user-avatar-btn {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.theme-toggle:hover,
+.header-profile-btn:hover,
+.user-avatar-btn:hover,
+.header-profile-btn.active {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  transform: translateY(-1px);
+}
+
+.header-profile-btn::before,
+.header-profile-btn::after,
+.theme-toggle::before,
+.theme-toggle::after,
+.profile-mode-user::before,
+.profile-mode-user::after,
+.profile-mode-theme::before,
+.profile-mode-theme::after {
+  display: none;
+}
+
+.header-control-img,
+.profile-control-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+
+.profile-hero-orbit,
+.profile-mode-circle {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.profile-hero-orbit {
+  width: 150px;
+  height: 150px;
+  min-width: 150px;
+}
+
+.profile-mode-circle {
+  width: 132px;
+  height: 132px;
+  min-width: 132px;
+}
+
+@media (max-width: 900px) {
+  .profile-hero-orbit,
+  .profile-mode-circle {
+    width: 108px;
+    height: 108px;
+    min-width: 108px;
+  }
+}
+
+@media (max-width: 480px) {
+  .theme-toggle,
+  .header-profile-btn,
+  .user-avatar-btn {
+    width: 38px;
+    height: 38px;
+  }
+  .profile-hero-orbit,
+  .profile-mode-circle {
+    width: 92px;
+    height: 92px;
+    min-width: 92px;
   }
 }
