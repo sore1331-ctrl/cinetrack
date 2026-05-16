@@ -4139,17 +4139,6 @@ function renderProfile() {
         ${currentUser ? `<div class="profile-email-sm">${esc(currentUser.email)}</div>` : ''}
         ${sharingEnabled ? '<div class="profile-sharing-badge">🌐 Sharing enabled</div>' : ''}
       </div>
-      <div class="profile-mode-actions" aria-label="Profile quick actions">
-        <button type="button" class="profile-mode-circle profile-mode-account" title="Account">
-          <img class="profile-control-img" src="assets/account-control.png?v=actual-controls-20260516" alt="" aria-hidden="true" />
-        </button>
-        <button type="button" class="profile-mode-circle profile-mode-user" title="Profile" aria-label="Profile">
-          <img class="profile-control-img" src="assets/profile-control.png?v=actual-controls-20260516" alt="" aria-hidden="true" />
-        </button>
-        <button type="button" class="profile-mode-circle profile-mode-theme" title="Theme" aria-label="Theme">
-          <img class="profile-control-img" src="assets/theme-control.png?v=actual-controls-20260516" alt="" aria-hidden="true" />
-        </button>
-      </div>
     </div>
 
     <div class="stats-overview profile-summary-cards">
