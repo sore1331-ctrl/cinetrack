@@ -9,6 +9,10 @@ function applyTheme(theme) {
   themeToggle.dataset.theme = theme;
   themeToggle.setAttribute('aria-label', theme === 'light' ? 'Switch to night mode' : 'Switch to day mode');
   themeToggle.title = theme === 'light' ? 'Switch to night mode' : 'Switch to day mode';
+  document.querySelectorAll('.theme-aware-img').forEach(img => {
+    const nextSrc = theme === 'light' ? img.dataset.lightSrc : img.dataset.darkSrc;
+    if (nextSrc && img.getAttribute('src') !== nextSrc) img.setAttribute('src', nextSrc);
+  });
 }
 
 const savedTheme = localStorage.getItem('cinetrack_theme') || 'dark';
@@ -4128,8 +4132,7 @@ function renderProfile() {
   panel.innerHTML = `
     <div class="profile-hero">
       <div class="profile-hero-orbit">
-        <img class="profile-control-img theme-img-dark" src="assets/account-control.png?v=actual-controls-20260516" alt="Account" />
-        <img class="profile-control-img theme-img-light" src="assets/account-control-light.png?v=theme-aware-20260516" alt="Account" />
+        <img class="profile-control-img theme-aware-img" src="assets/account-control.png?v=actual-controls-20260516" data-dark-src="assets/account-control.png?v=actual-controls-20260516" data-light-src="assets/account-control-light.png?v=theme-aware-20260516" alt="Account" />
       </div>
       <div class="profile-hero-info">
         <span class="profile-kicker">Profile</span>

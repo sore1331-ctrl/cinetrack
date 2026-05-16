@@ -259,18 +259,6 @@ header {
   object-fit: contain;
 }
 
-.theme-img-light {
-  display: none;
-}
-
-:root.light .theme-img-dark {
-  display: none;
-}
-
-:root.light .theme-img-light {
-  display: block;
-}
-
 .sr-only {
   position: absolute;
   width: 1px;
@@ -5023,16 +5011,4 @@ main {
     height: 92px;
     min-width: 92px;
   }
-}
-
-.theme-img-light {
-  display: none !important;
-}
-
-:root.light .theme-img-dark {
-  display: none !important;
-}
-
-:root.light .theme-img-light {
-  display: block !important;
 }
