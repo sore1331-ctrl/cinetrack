@@ -6,7 +6,9 @@ const themeToggle = document.getElementById('theme-toggle');
 
 function applyTheme(theme) {
   document.documentElement.classList.toggle('light', theme === 'light');
-  themeToggle.textContent = theme === 'light' ? '🌙' : '☀️';
+  themeToggle.dataset.theme = theme;
+  themeToggle.setAttribute('aria-label', theme === 'light' ? 'Switch to night mode' : 'Switch to day mode');
+  themeToggle.title = theme === 'light' ? 'Switch to night mode' : 'Switch to day mode';
 }
 
 const savedTheme = localStorage.getItem('cinetrack_theme') || 'dark';
@@ -4125,14 +4127,22 @@ function renderProfile() {
 
   panel.innerHTML = `
     <div class="profile-hero">
-      <div class="profile-avatar-lg">${esc(initial)}</div>
+      <div class="profile-hero-orbit">
+        <div class="profile-avatar-lg">${esc(initial)}</div>
+      </div>
       <div class="profile-hero-info">
+        <span class="profile-kicker">Profile</span>
         <div class="profile-display-name">
           ${esc(displayName)}
           <span id="sync-indicator" class="sync-indicator" data-state="${currentSyncState}" title="${currentSyncTitle}"></span>
         </div>
         ${currentUser ? `<div class="profile-email-sm">${esc(currentUser.email)}</div>` : ''}
         ${sharingEnabled ? '<div class="profile-sharing-badge">🌐 Sharing enabled</div>' : ''}
+      </div>
+      <div class="profile-mode-actions" aria-label="Profile quick actions">
+        <button type="button" class="profile-mode-circle profile-mode-account" title="Account">${esc(initial)}</button>
+        <button type="button" class="profile-mode-circle profile-mode-user" title="Profile" aria-label="Profile"></button>
+        <button type="button" class="profile-mode-circle profile-mode-theme" title="Theme" aria-label="Theme"></button>
       </div>
     </div>
 
