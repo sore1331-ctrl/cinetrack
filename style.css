@@ -4304,9 +4304,7 @@ main {
 }
 :root[data-glass="ultra"] {
   --nav-pill-alpha: .16;
-  --nav-pill-shadow:
-    0 18px 42px rgba(0,0,0,.28),
-    0 0 34px color-mix(in srgb, var(--tab-accent, var(--accent)) 22%, transparent);
+  --nav-pill-shadow: 0 12px 26px rgba(0,0,0,.16);
 }
 
 .type-tab[data-type="movie"]     { --tab-accent: #b879ff; }
@@ -4440,10 +4438,8 @@ main {
   .type-tab::before {
     inset: 0;
     border-radius: inherit;
-    background:
-      linear-gradient(135deg, color-mix(in srgb, var(--tab-accent) 12%, transparent), transparent 58%),
-      color-mix(in srgb, var(--glass-bg) 36%, transparent);
-    border: 1px solid color-mix(in srgb, var(--tab-accent) 28%, var(--glass-border));
+    background: color-mix(in srgb, var(--glass-bg) 36%, transparent);
+    border: 1px solid color-mix(in srgb, var(--glass-border) 78%, transparent);
     box-shadow: inset 0 1px 0 color-mix(in srgb, var(--glass-highlight) 72%, transparent);
   }
 
@@ -4455,9 +4451,7 @@ main {
 
   .type-tab:hover::before {
     opacity: .82;
-    background:
-      linear-gradient(135deg, color-mix(in srgb, var(--tab-accent) 18%, transparent), transparent 60%),
-      color-mix(in srgb, var(--glass-bg) 46%, transparent);
+    background: color-mix(in srgb, var(--glass-bg) 46%, transparent);
   }
 
   .type-tab.active,
@@ -4471,13 +4465,10 @@ main {
 
   .type-tab.active::before {
     opacity: 1;
-    background:
-      linear-gradient(135deg, color-mix(in srgb, var(--tab-accent) 22%, transparent), transparent 62%),
-      color-mix(in srgb, var(--glass-bg) 58%, transparent);
-    border-color: color-mix(in srgb, var(--tab-accent) 58%, var(--glass-border));
+    background: color-mix(in srgb, var(--glass-bg) 58%, transparent);
+    border-color: color-mix(in srgb, var(--glass-border) 92%, transparent);
     box-shadow:
       inset 0 1px 0 color-mix(in srgb, var(--glass-highlight) 85%, transparent),
-      0 0 0 1px color-mix(in srgb, var(--tab-accent) 12%, transparent),
       var(--nav-pill-shadow);
   }
 
