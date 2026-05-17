@@ -89,6 +89,27 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+body > * {
+  position: relative;
+  z-index: 1;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: -24vmax;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    radial-gradient(28vmax at 18% 22%, color-mix(in srgb, var(--orb-a) 78%, transparent) 0%, transparent 62%),
+    radial-gradient(30vmax at 82% 76%, color-mix(in srgb, var(--orb-b) 74%, transparent) 0%, transparent 64%),
+    radial-gradient(22vmax at 68% 18%, color-mix(in srgb, var(--orb-c) 70%, transparent) 0%, transparent 62%);
+  filter: blur(18px) saturate(135%);
+  transform: translate3d(0, 0, 0) scale(1);
+  transition: opacity .25s ease;
+}
+
 /* Subtle blurred colour fields so glass surfaces have something to refract.
    Implemented as radial-gradients on body — works reliably on mobile
    where heavy filter:blur() pseudo-elements get skipped or downgraded.
@@ -155,11 +176,34 @@ body {
 
 /* ── Animated orbs (data-orbs="animated") ── */
 @keyframes orb-drift {
-  0%, 100% { background-position: 0% 0%,    100% 100%, 100% 30%; }
-  50%      { background-position: 8% 6%,    92% 94%,   94% 28%; }
+  0% { background-position: 0% 0%, 100% 100%, 100% 30%; }
+  50% { background-position: 10% 7%, 88% 92%, 92% 22%; }
+  100% { background-position: 0% 0%, 100% 100%, 100% 30%; }
 }
-:root[data-orbs="animated"] body { animation: orb-drift 32s ease-in-out infinite; }
-:root[data-motion="reduced"][data-orbs="animated"] body { animation: none; }
+@keyframes orb-float {
+  0% { transform: translate3d(-4vmax, -2vmax, 0) scale(1.04) rotate(0deg); }
+  33% { transform: translate3d(5vmax, -5vmax, 0) scale(1.12) rotate(8deg); }
+  66% { transform: translate3d(3vmax, 5vmax, 0) scale(1.08) rotate(-6deg); }
+  100% { transform: translate3d(-4vmax, -2vmax, 0) scale(1.04) rotate(0deg); }
+}
+:root[data-orbs="animated"] body {
+  animation: orb-drift 18s ease-in-out infinite;
+}
+:root[data-orbs="animated"] body::before {
+  opacity: .38;
+  animation: orb-float 14s ease-in-out infinite;
+}
+:root.light[data-orbs="animated"] body::before {
+  opacity: .46;
+  filter: blur(20px) saturate(125%);
+}
+:root[data-motion="reduced"][data-orbs="animated"] body,
+:root[data-motion="reduced"][data-orbs="animated"] body::before {
+  animation: none;
+}
+:root[data-motion="reduced"][data-orbs="animated"] body::before {
+  opacity: 0;
+}
 
 /* ── Density (data-density="compact") ── */
 :root[data-density="compact"] .movie-grid { gap: 10px; }
@@ -3208,6 +3252,12 @@ a.top-rated-card:hover {
 .appearance-row { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
 .appearance-row:last-child { margin-bottom: 0; }
 .appearance-label { font-size: .82rem; font-weight: 600; color: var(--muted); }
+.appearance-note {
+  color: var(--muted);
+  font-size: .72rem;
+  line-height: 1.35;
+  margin-top: -2px;
+}
 .pill-group { display: flex; gap: 6px; flex-wrap: wrap; }
 .pill-btn {
   background: var(--surface2); border: 1px solid var(--border);
@@ -4010,8 +4060,8 @@ label textarea:focus,
 /* ── Mobile performance & touch optimisations ──
    - Lower blur radius on heavy backdrop-filter surfaces below 700px;
      phone GPUs handle 12px far more cheaply than 24px.
-   - Disable the three body orbs below 480px — invisible at phone bg
-     scales and pure GPU cost.
+   - Keep the animated glow layer lightweight on phones by relying on
+     transform animation instead of animating filters or layout.
    - Bump text inputs and number inputs to 16px on ≤480px so iOS
      Safari doesn't auto-zoom on focus.
    - Provide a tactile :active state for touch devices since the

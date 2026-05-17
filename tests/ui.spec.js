@@ -72,6 +72,39 @@ test.describe('desktop regressions', () => {
     expect(layout.actionGap).toBeGreaterThanOrEqual(8);
   });
 
+  test('animated orbs are visible and respect reduced motion', async ({ page }) => {
+    await openApp(page);
+
+    await page.evaluate(() => {
+      document.documentElement.setAttribute('data-orbs', 'animated');
+      document.documentElement.removeAttribute('data-motion');
+    });
+    await page.waitForTimeout(300);
+
+    const animated = await page.evaluate(() => ({
+      bodyAnimation: getComputedStyle(document.body).animationName,
+      orbAnimation: getComputedStyle(document.body, '::before').animationName,
+      orbOpacity: Number(getComputedStyle(document.body, '::before').opacity),
+    }));
+
+    expect(animated.bodyAnimation).toBe('orb-drift');
+    expect(animated.orbAnimation).toBe('orb-float');
+    expect(animated.orbOpacity).toBeGreaterThan(0.25);
+
+    await page.evaluate(() => document.documentElement.setAttribute('data-motion', 'reduced'));
+    await page.waitForTimeout(300);
+
+    const reduced = await page.evaluate(() => ({
+      bodyAnimation: getComputedStyle(document.body).animationName,
+      orbAnimation: getComputedStyle(document.body, '::before').animationName,
+      orbOpacity: Number(getComputedStyle(document.body, '::before').opacity),
+    }));
+
+    expect(reduced.bodyAnimation).toBe('none');
+    expect(reduced.orbAnimation).toBe('none');
+    expect(reduced.orbOpacity).toBeLessThan(0.01);
+  });
+
   test('custom filter dropdown renders above movie cards', async ({ page }) => {
     await openApp(page);
 

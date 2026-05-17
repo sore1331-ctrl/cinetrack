@@ -4314,6 +4314,7 @@ function renderProfile() {
             <div class="appearance-group-title">Motion & alerts</div>
             <div class="appearance-row">
               <div class="appearance-label">Animated orbs</div>
+              <p class="appearance-note">Adds moving colour glows behind the glass panels. Reduce motion / no blur turns this off.</p>
               <div class="pill-group" data-pref="orbs">
                 ${ORBS_OPTIONS.map(name => {
                   const current = localStorage.getItem('cinetrack_orbs') || 'static';
