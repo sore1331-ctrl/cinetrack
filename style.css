@@ -3710,8 +3710,7 @@ label textarea:focus,
 .setup-sql-block,
 .modal-providers,
 .season-editor,
-.streaming-debug-panel,
-.pill-group {
+.streaming-debug-panel {
   background: color-mix(in srgb, var(--glass-bg) 64%, transparent);
   border-color: var(--glass-border);
   box-shadow: inset 0 1px 0 var(--glass-highlight);
