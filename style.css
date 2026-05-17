@@ -4911,3 +4911,260 @@ main {
     min-width: 92px;
   }
 }
+
+/* Responsive polish pass: keep the redesigned surfaces without adding extra UI. */
+:root.light {
+  --shadow: 0 10px 26px rgba(23, 25, 35, .08);
+  --glass-shadow: 0 14px 34px rgba(23, 25, 35, .09);
+  --glass-bg: rgba(255, 255, 255, .72);
+  --glass-bg-strong: rgba(255, 255, 255, .88);
+}
+
+:root.light .controls,
+:root.light .more-filters,
+:root.light .stats-page-head,
+:root.light .profile-hero,
+:root.light .stat-card,
+:root.light .stats-hero-summary > div,
+:root.light .chart-section,
+:root.light .profile-panel > .profile-section,
+:root.light .profile-type-card,
+:root.light .modal-card,
+:root.light .onboarding-card {
+  box-shadow: 0 16px 42px rgba(23, 25, 35, .08), inset 0 1px 0 rgba(255,255,255,.9);
+}
+
+:root.light .status-tabs,
+:root.light .stats-type-tabs,
+:root.light .status-btn.active,
+:root.light .stats-type-tab.active,
+:root.light .type-tab.active::before {
+  background-color: rgba(255,255,255,.82);
+  box-shadow: 0 10px 22px rgba(23, 25, 35, .07), inset 0 1px 0 rgba(255,255,255,.88);
+}
+
+:root.light .status-btn.active,
+:root.light .stats-type-tab.active {
+  color: var(--accent);
+}
+
+@media (min-width: 1024px) and (max-width: 1599px) {
+  header {
+    min-height: 72px;
+    padding-inline: 14px;
+  }
+
+  .type-tabs-bar {
+    position: static;
+    left: auto;
+    top: auto;
+    width: auto;
+    min-width: 0;
+    flex: 1 1 auto;
+    transform: none;
+    overflow: hidden;
+  }
+
+  .type-tabs-inner {
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 8px 4px;
+  }
+
+  .type-tab {
+    padding: 8px 10px;
+    gap: 6px;
+    font-size: .82rem;
+  }
+
+  .type-tab .tab-icon {
+    width: 25px;
+    height: 25px;
+  }
+
+  .header-actions {
+    gap: 6px;
+  }
+
+  .theme-toggle,
+  .header-profile-btn,
+  .user-avatar-btn {
+    width: 38px;
+    height: 38px;
+  }
+}
+
+.modal-form-section {
+  border-top: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+  margin-top: 2px;
+  padding-top: 14px;
+}
+
+.modal-form-section:first-child {
+  border-top: 0;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.modal-form-section-search .tmdb-search-wrap {
+  border-bottom: 0;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.card-notes {
+  max-height: 2.2em;
+  opacity: .76;
+}
+
+.card-meta {
+  gap: 5px;
+}
+
+.stats-panel,
+.profile-panel {
+  max-width: min(1180px, calc(100vw - 48px));
+}
+
+.stats-page-head {
+  align-items: center;
+}
+
+.stats-hero-summary,
+.stats-overview {
+  gap: 16px;
+}
+
+.chart-section h3,
+.profile-panel > .profile-section h3 {
+  letter-spacing: 0;
+}
+
+.top-rated-grid {
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+}
+
+@media (max-width: 700px) {
+  .stats-panel,
+  .profile-panel {
+    max-width: 100%;
+  }
+
+  .stats-page-head {
+    padding: 18px;
+  }
+
+  .stats-hero-summary,
+  .stats-overview {
+    gap: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .mobile-bottom-nav {
+    left: 8px;
+    right: 8px;
+    gap: 3px;
+    padding: 6px;
+    overflow-x: hidden;
+  }
+
+  .mobile-nav-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 44px;
+    padding: 4px 1px;
+  }
+
+  .mobile-nav-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .mobile-nav-icon svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .mobile-nav-btn small {
+    font-size: clamp(.49rem, 2.1vw, .58rem);
+  }
+
+  .empty-msg {
+    margin-top: 20px;
+    padding: 0;
+  }
+
+  .onboarding-card {
+    padding: 22px 18px;
+    border-radius: 14px;
+    text-align: left;
+  }
+
+  .onboarding-icon {
+    font-size: 2rem;
+    margin-bottom: 8px;
+    text-align: center;
+  }
+
+  .onboarding-title {
+    font-size: 1.24rem;
+    text-align: center;
+  }
+
+  .onboarding-subtitle {
+    font-size: .9rem;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+
+  .onboarding-steps {
+    gap: 10px;
+  }
+
+  .onboarding-step {
+    gap: 10px;
+  }
+
+  .step-num {
+    width: 24px;
+    height: 24px;
+    font-size: .75rem;
+  }
+
+  .onboarding-step div {
+    font-size: .84rem;
+  }
+
+  .modal-card {
+    padding: 16px 14px;
+  }
+
+  .modal-title-row {
+    margin-bottom: 10px;
+  }
+
+  .type-toggle {
+    margin-bottom: 12px;
+  }
+
+  #movie-form {
+    gap: 10px;
+  }
+
+  .modal-form-section {
+    padding-top: 12px;
+  }
+
+  .tmdb-selected {
+    align-items: flex-start;
+  }
+
+  .card-notes {
+    max-height: 1.4em;
+  }
+
+  .card-actions {
+    padding-top: 6px;
+  }
+}

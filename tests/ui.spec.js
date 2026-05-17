@@ -54,6 +54,24 @@ test.describe('desktop regressions', () => {
     await expect(page.locator('#theme-toggle img')).toHaveAttribute('src', /theme-control\.png/);
   });
 
+  test('header keeps navigation clear of the logo at narrow desktop widths', async ({ page }) => {
+    await page.setViewportSize({ width: 1076, height: 360 });
+    await openApp(page);
+
+    const layout = await page.evaluate(() => {
+      const brand = document.querySelector('.header-brand')?.getBoundingClientRect();
+      const firstTab = document.querySelector('.type-tab')?.getBoundingClientRect();
+      const actions = document.querySelector('.header-actions')?.getBoundingClientRect();
+      return {
+        logoGap: brand && firstTab ? firstTab.left - brand.right : 0,
+        actionGap: firstTab && actions ? actions.left - firstTab.right : 0,
+      };
+    });
+
+    expect(layout.logoGap).toBeGreaterThanOrEqual(8);
+    expect(layout.actionGap).toBeGreaterThanOrEqual(8);
+  });
+
   test('custom filter dropdown renders above movie cards', async ({ page }) => {
     await openApp(page);
 
@@ -127,5 +145,12 @@ test.describe('mobile regressions', () => {
     await expect(page.locator('.mobile-bottom-nav')).toBeVisible();
     await expect(page.locator('.mobile-nav-btn[data-mobile-view="profile"]')).toHaveCount(0);
     await expect(page.locator('#header-profile-btn')).toBeVisible();
+  });
+
+  test('mobile bottom nav fits without horizontal scrolling', async ({ page }) => {
+    await openApp(page);
+
+    const navFits = await page.locator('.mobile-bottom-nav').evaluate(nav => nav.scrollWidth <= nav.clientWidth + 1);
+    expect(navFits).toBeTruthy();
   });
 });
