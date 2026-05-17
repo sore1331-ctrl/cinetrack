@@ -2213,36 +2213,6 @@ button.danger:hover { opacity: .85; }
   gap: 12px;
 }
 
-.theme-toggle,
-.header-profile-btn,
-.user-avatar-btn {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  color: var(--text);
-  background:
-    radial-gradient(circle at 50% 48%, rgba(255,255,255,.045), transparent 58%),
-    color-mix(in srgb, var(--cinema-panel) 86%, transparent);
-  border: 1.5px solid var(--cinema-ring);
-  box-shadow:
-    0 14px 28px rgba(0,0,0,.22),
-    inset 0 1px 0 rgba(255,255,255,.08);
-  position: relative;
-  font-size: 0;
-  overflow: hidden;
-}
-
-.theme-toggle:hover,
-.header-profile-btn:hover,
-.user-avatar-btn:hover,
-.header-profile-btn.active {
-  border-color: var(--cinema-ring-strong);
-  background:
-    radial-gradient(circle at 50% 48%, rgba(255,255,255,.08), transparent 60%),
-    color-mix(in srgb, var(--cinema-panel) 92%, transparent);
-  transform: translateY(-1px);
-}
-
 .user-avatar-btn span {
   color: #fff;
   font-size: 1rem;
@@ -2252,76 +2222,6 @@ button.danger:hover { opacity: .85; }
 
 :root.light .user-avatar-btn span {
   color: #1b1d28;
-}
-
-.header-profile-btn::before,
-.header-profile-btn::after,
-.theme-toggle::before,
-.theme-toggle::after {
-  content: '';
-  position: absolute;
-  pointer-events: none;
-}
-
-.header-profile-btn::before {
-  width: 15px;
-  height: 15px;
-  left: 50%;
-  top: 14px;
-  transform: translateX(-50%);
-  border: 3px solid var(--cinema-purple);
-  border-radius: 50%;
-  box-shadow: 0 0 16px var(--cinema-purple-soft);
-}
-
-.header-profile-btn::after {
-  width: 27px;
-  height: 18px;
-  left: 50%;
-  top: 29px;
-  transform: translateX(-50%);
-  border: 3px solid var(--cinema-purple);
-  border-bottom: 0;
-  border-radius: 24px 24px 0 0;
-  box-shadow: 0 0 16px var(--cinema-purple-soft);
-}
-
-.theme-toggle::before {
-  width: 20px;
-  height: 20px;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  border: 4px solid var(--cinema-amber);
-  border-radius: 50%;
-  box-shadow: 0 0 18px rgba(255,178,63,.28);
-}
-
-.theme-toggle::after {
-  width: 36px;
-  height: 36px;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  background:
-    linear-gradient(var(--cinema-amber), var(--cinema-amber)) 50% 0 / 4px 8px no-repeat,
-    linear-gradient(var(--cinema-amber), var(--cinema-amber)) 50% 100% / 4px 8px no-repeat,
-    linear-gradient(90deg, var(--cinema-amber), var(--cinema-amber)) 0 50% / 8px 4px no-repeat,
-    linear-gradient(90deg, var(--cinema-amber), var(--cinema-amber)) 100% 50% / 8px 4px no-repeat,
-    linear-gradient(45deg, transparent 43%, var(--cinema-amber) 43% 57%, transparent 57%) 4px 4px / 10px 10px no-repeat,
-    linear-gradient(-45deg, transparent 43%, var(--cinema-amber) 43% 57%, transparent 57%) calc(100% - 14px) 4px / 10px 10px no-repeat,
-    linear-gradient(-45deg, transparent 43%, var(--cinema-amber) 43% 57%, transparent 57%) 4px calc(100% - 14px) / 10px 10px no-repeat,
-    linear-gradient(45deg, transparent 43%, var(--cinema-amber) 43% 57%, transparent 57%) calc(100% - 14px) calc(100% - 14px) / 10px 10px no-repeat;
-}
-
-:root.light .theme-toggle::before {
-  border-color: #7f8cff;
-  background: #7f8cff;
-  box-shadow: 8px -4px 0 0 var(--cinema-panel), 0 0 18px rgba(127,140,255,.22);
-}
-
-:root.light .theme-toggle::after {
-  display: none;
 }
 
 .status-tabs,
@@ -2474,27 +2374,6 @@ button.danger:hover { opacity: .85; }
   .user-avatar-btn {
     width: 38px;
     height: 38px;
-  }
-  .header-profile-btn::before {
-    width: 12px;
-    height: 12px;
-    top: 10px;
-    border-width: 2px;
-  }
-  .header-profile-btn::after {
-    width: 22px;
-    height: 14px;
-    top: 24px;
-    border-width: 2px;
-  }
-  .theme-toggle::before {
-    width: 17px;
-    height: 17px;
-    border-width: 3px;
-  }
-  .theme-toggle::after {
-    width: 32px;
-    height: 32px;
   }
 }
 .user-dropdown {

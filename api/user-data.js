@@ -12,6 +12,31 @@ function env() {
   return { supabaseUrl: supabaseUrl.replace(/\/$/, ''), supabaseKey };
 }
 
+async function getUserIdFromToken(token, signal) {
+  const { supabaseUrl, supabaseKey } = env();
+  const r = await fetch(`${supabaseUrl}/auth/v1/user`, {
+    signal,
+    headers: {
+      apikey: supabaseKey,
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+    },
+  });
+
+  const text = await r.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+
+  if (!r.ok || !data?.id) {
+    const msg = data?.message || data?.error_description || text || `Supabase auth returned ${r.status}`;
+    const error = new Error(msg);
+    error.status = r.status === 401 || r.status === 403 ? r.status : 401;
+    throw error;
+  }
+
+  return String(data.id);
+}
+
 async function supabaseRequest(path, { method = 'GET', token, body, signal, prefer } = {}) {
   const { supabaseUrl, supabaseKey } = env();
   const headers = {
@@ -50,10 +75,9 @@ export default async function handler(req, res) {
   const timeout = setTimeout(() => controller.abort(), 12000);
 
   try {
-    if (req.method === 'GET') {
-      const userId = String(req.query.userId || '');
-      if (!userId) return json(res, 400, { error: 'Missing userId.' });
+    const userId = await getUserIdFromToken(token, controller.signal);
 
+    if (req.method === 'GET') {
       const rows = await supabaseRequest(
         `user_data?select=movies,updated_at&user_id=eq.${encodeURIComponent(userId)}&order=updated_at.desc&limit=1`,
         { token, signal: controller.signal }
@@ -68,8 +92,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'PUT') {
-      const { userId, movies, updated_at } = req.body || {};
-      if (!userId) return json(res, 400, { error: 'Missing userId.' });
+      const { movies, updated_at } = req.body || {};
       if (!Array.isArray(movies)) return json(res, 400, { error: 'movies must be an array.' });
 
       const payload = {
@@ -98,7 +121,7 @@ export default async function handler(req, res) {
     return json(res, 405, { error: 'Method not allowed.' });
   } catch (e) {
     const isAbort = e?.name === 'AbortError';
-    return json(res, isAbort ? 504 : 500, {
+    return json(res, isAbort ? 504 : (e?.status || 500), {
       error: isAbort
         ? 'User data API timed out while querying Supabase.'
         : (e?.message || String(e)),

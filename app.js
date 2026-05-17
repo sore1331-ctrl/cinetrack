@@ -228,7 +228,19 @@ const POSTER_BASE = 'https://image.tmdb.org/t/p/w200';
 const SESSION_TIMEOUT_MS = 20000;
 const CLOUD_TIMEOUT_MS = 30000;
 
-let movies          = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+function readStoredArray(key) {
+  const raw = localStorage.getItem(key);
+  if (!raw) return [];
+  try {
+    const value = JSON.parse(raw);
+    return Array.isArray(value) ? value : [];
+  } catch (error) {
+    console.warn(`[cinetrack] Ignoring corrupt ${key} data:`, error?.message || error);
+    return [];
+  }
+}
+
+let movies          = readStoredArray(STORAGE_KEY);
 let activeType      = 'movie';   // 'movie' | 'tv' | 'anime'
 let activeView      = 'content'; // 'content' | 'stats' | 'community'
 let activeStatus    = 'all';
@@ -484,7 +496,7 @@ async function loadUserDataViaApi() {
   if (!token) throw new Error('Missing Supabase session token. Sign out and sign in again.');
 
   const { response: r, data: row } = await fetchJsonWithTimeout(
-    `/api/user-data?userId=${encodeURIComponent(currentUser.id)}`,
+    '/api/user-data',
     {
       cache: 'no-store',
       headers: { Authorization: `Bearer ${token}` },
@@ -646,7 +658,7 @@ async function saveUserData() {
   if (!readPendingSyncMarker() && !hasUnsyncedLocalChanges()) return { ok: true, skipped: true };
   const saveVersion = localChangeVersion;
   try {
-    const payload = { userId: currentUser.id, movies, updated_at: new Date().toISOString() };
+    const payload = { movies, updated_at: new Date().toISOString() };
     const result = await saveUserDataWithFallback(payload);
 
     lastCloudUpdatedAt = result.updated_at || payload.updated_at;

@@ -8,13 +8,13 @@ module.exports = defineConfig({
   fullyParallel: true,
   reporter: [['list'], ['html', { open: 'never' }]],
   webServer: {
-    command: 'npx http-server . -p 4173 -c-1 --silent',
-    url: 'http://127.0.0.1:4173',
-    reuseExistingServer: true,
+    command: 'node scripts/dev-server.js 4174',
+    url: 'http://127.0.0.1:4174',
+    reuseExistingServer: false,
     timeout: 20_000,
   },
   use: {
-    baseURL: 'http://127.0.0.1:4173',
+    baseURL: 'http://127.0.0.1:4174',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },

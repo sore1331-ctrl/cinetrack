@@ -4,6 +4,7 @@
   "description": "Personal movie, TV and anime tracker.",
   "main": "app.js",
   "scripts": {
+    "dev": "node scripts/dev-server.js 4173",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
     "test:headed": "playwright test --headed"

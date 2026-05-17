@@ -11,6 +11,49 @@ test.describe('desktop regressions', () => {
     test.skip(testInfo.project.name !== 'desktop', 'Desktop-only checks.');
   });
 
+  test('local API config route is available in dev/test', async ({ request }) => {
+    const response = await request.get('/api/config');
+    expect(response.ok()).toBeTruthy();
+    expect(response.headers()['cache-control']).toMatch(/no-store/);
+    const data = await response.json();
+    expect(data).toEqual(expect.objectContaining({
+      supabaseUrl: expect.any(String),
+      supabaseKey: expect.any(String),
+    }));
+  });
+
+  test('corrupt saved library data does not break startup', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(() => localStorage.setItem('cinetrack_movies', '{bad json'));
+    await page.reload();
+
+    await expect(page.locator('#auth-overlay')).toBeHidden();
+    await expect(page.locator('#movie-grid .movie-card').first()).toBeVisible();
+  });
+
+  test('header uses supplied theme-aware image assets', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(() => localStorage.setItem('cinetrack_theme', 'light'));
+    await page.reload();
+
+    await expect(page.locator('#auth-overlay')).toBeHidden();
+    await expect(page.locator('header .brand-logo-img')).toHaveAttribute('src', /cinetrack-logo-light\.png/);
+    await expect(page.locator('#header-profile-btn img')).toHaveAttribute('src', /profile-control-light\.png/);
+    await expect(page.locator('#theme-toggle img')).toHaveAttribute('src', /theme-control-light\.png/);
+    await expect(page.locator('#header-profile-btn')).toHaveAttribute('aria-label', 'Profile');
+
+    const pseudoDisplays = await page.locator('#theme-toggle').evaluate(el => ({
+      before: getComputedStyle(el, '::before').display,
+      after: getComputedStyle(el, '::after').display,
+    }));
+    expect(pseudoDisplays).toEqual({ before: 'none', after: 'none' });
+
+    await page.locator('#theme-toggle').click();
+    await expect(page.locator('header .brand-logo-img')).toHaveAttribute('src', /cinetrack-logo\.png/);
+    await expect(page.locator('#header-profile-btn img')).toHaveAttribute('src', /profile-control\.png/);
+    await expect(page.locator('#theme-toggle img')).toHaveAttribute('src', /theme-control\.png/);
+  });
+
   test('custom filter dropdown renders above movie cards', async ({ page }) => {
     await openApp(page);
 
