@@ -4539,6 +4539,10 @@ main {
   --nav-pill-shadow: 0 12px 26px rgba(0,0,0,.16);
 }
 
+:root.light {
+  --nav-pill-shadow: 0 10px 24px rgba(141,98,255,.12);
+}
+
 .type-tab[data-type="movie"]     { --tab-accent: #b879ff; }
 .type-tab[data-type="tv"]        { --tab-accent: #3b9eff; }
 .type-tab[data-type="anime"]     { --tab-accent: #a855f7; }
@@ -4701,6 +4705,16 @@ main {
     border-color: color-mix(in srgb, var(--glass-border) 92%, transparent);
     box-shadow:
       inset 0 1px 0 color-mix(in srgb, var(--glass-highlight) 85%, transparent),
+      var(--nav-pill-shadow);
+  }
+
+  :root.light .type-tab.active::before {
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--tab-accent) 13%, transparent), transparent 70%),
+      rgba(255,255,255,.72);
+    border-color: color-mix(in srgb, var(--tab-accent) 16%, rgba(255,255,255,.72));
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.86),
       var(--nav-pill-shadow);
   }
 
