@@ -4857,6 +4857,10 @@ main {
   user-select: none;
 }
 
+.account-control-img {
+  clip-path: circle(45.5% at 50% 50%);
+}
+
 .profile-hero-orbit {
   padding: 0;
   border: 0;
