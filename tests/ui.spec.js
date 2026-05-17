@@ -120,4 +120,12 @@ test.describe('mobile regressions', () => {
     await expect(page.locator('#calendar-panel')).toBeVisible();
     await expect(page.locator('.calendar-header')).toContainText('Calendar');
   });
+
+  test('mobile bottom nav does not duplicate Profile', async ({ page }) => {
+    await openApp(page);
+
+    await expect(page.locator('.mobile-bottom-nav')).toBeVisible();
+    await expect(page.locator('.mobile-nav-btn[data-mobile-view="profile"]')).toHaveCount(0);
+    await expect(page.locator('#header-profile-btn')).toBeVisible();
+  });
 });
