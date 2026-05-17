@@ -4313,8 +4313,10 @@ function renderProfile() {
           <div class="appearance-group">
             <div class="appearance-group-title">Motion & alerts</div>
             <div class="appearance-row">
-              <div class="appearance-label">Animated orbs</div>
-              <p class="appearance-note">Adds moving colour glows behind the glass panels. Reduce motion / no blur turns this off.</p>
+              <div class="appearance-label-row">
+                <div class="appearance-label">Animated orbs</div>
+                <button type="button" class="info-btn appearance-info-btn" aria-label="Animated orbs help" title="Adds moving colour glows behind the glass panels. Reduce motion / no blur turns this off.">?</button>
+              </div>
               <div class="pill-group" data-pref="orbs">
                 ${ORBS_OPTIONS.map(name => {
                   const current = localStorage.getItem('cinetrack_orbs') || 'static';

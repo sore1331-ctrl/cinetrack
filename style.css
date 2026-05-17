@@ -3252,11 +3252,16 @@ a.top-rated-card:hover {
 .appearance-row { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
 .appearance-row:last-child { margin-bottom: 0; }
 .appearance-label { font-size: .82rem; font-weight: 600; color: var(--muted); }
-.appearance-note {
-  color: var(--muted);
-  font-size: .72rem;
-  line-height: 1.35;
-  margin-top: -2px;
+.appearance-label-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.appearance-info-btn {
+  width: 17px;
+  height: 17px;
+  font-size: .68rem;
 }
 .pill-group { display: flex; gap: 6px; flex-wrap: wrap; }
 .pill-btn {
