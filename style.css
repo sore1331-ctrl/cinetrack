@@ -2413,6 +2413,8 @@ button.danger:hover { opacity: .85; }
 /* ── Stats panel ── */
 .stats-panel {
   padding: 24px 0 40px;
+  margin: 0 auto;
+  width: 100%;
 }
 .stats-page-head {
   display: flex;
