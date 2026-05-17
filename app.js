@@ -4350,6 +4350,8 @@ function renderProfile() {
     </div>
   `;
 
+  applyTheme(document.documentElement.classList.contains('light') ? 'light' : 'dark');
+
   // Clicking a recent card opens the edit modal
   panel.querySelectorAll('.profile-recent-card[data-edit]').forEach(card => {
     card.addEventListener('click', () => openModal(movies.find(m => m.id === card.dataset.edit)));
