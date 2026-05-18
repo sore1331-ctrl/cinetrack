@@ -105,7 +105,7 @@ function mergeSeasons(existing = [], incoming = []) {
   return [...byNumber.values()];
 }
 
-function mergeEntry(existing, incoming) {
+function mergeEntry(existing, incoming, { protectExistingProgress = true } = {}) {
   if (!existing) return incoming;
   if (!incoming) return existing;
 
@@ -114,14 +114,18 @@ function mergeEntry(existing, incoming) {
   const merged = { ...existing, ...incoming };
   const seasons = mergeSeasons(existing.seasons, incoming.seasons);
   if (seasons) merged.seasons = seasons;
-  if (Number(existing.rating || 0) > 0 && Number(incoming.rating || 0) === 0) {
+  if (protectExistingProgress && Number(existing.rating || 0) > 0 && Number(incoming.rating || 0) === 0) {
     merged.rating = existing.rating;
   }
 
-  merged.totalEpisodes = Math.max(Number(existing.totalEpisodes || 0), Number(incoming.totalEpisodes || 0));
-  merged.watchedEpisodes = Math.max(existingProgress, incomingProgress);
+  if (protectExistingProgress) {
+    merged.totalEpisodes = Math.max(Number(existing.totalEpisodes || 0), Number(incoming.totalEpisodes || 0));
+    merged.watchedEpisodes = Math.max(existingProgress, incomingProgress);
+  }
 
-  if (existing.status === 'watched' && incoming.status !== 'watched' && existingProgress >= incomingProgress) {
+  if (!protectExistingProgress) {
+    merged.status = incoming.status;
+  } else if (existing.status === 'watched' && incoming.status !== 'watched' && existingProgress >= incomingProgress) {
     merged.status = 'watched';
   } else if (incoming.status === 'watched' || existing.status === 'watched') {
     merged.status = merged.watchedEpisodes >= (merged.totalEpisodes || 0) || incoming.status === 'watched'
@@ -135,16 +139,19 @@ function mergeEntry(existing, incoming) {
     const total = merged.seasons.reduce((sum, season) => sum + Number(season?.total || 0), 0);
     const watched = merged.seasons.reduce((sum, season) => sum + Math.min(Number(season?.watched || 0), Number(season?.total || 0)), 0);
     merged.totalEpisodes = Math.max(merged.totalEpisodes || 0, total);
-    merged.watchedEpisodes = Math.max(merged.watchedEpisodes || 0, watched);
+    merged.watchedEpisodes = protectExistingProgress
+      ? Math.max(merged.watchedEpisodes || 0, watched)
+      : watched;
   }
 
   return merged;
 }
 
-function mergeLibraries(existingMovies = [], incomingMovies = [], { keepMissingExisting = false } = {}) {
+function mergeLibraries(existingMovies = [], incomingMovies = [], { keepMissingExisting = false, protectExistingProgress = true } = {}) {
   const output = [];
   const indexByKey = new Map();
   const existingByKey = new Map();
+  const incomingByKey = new Map();
 
   for (const movie of existingMovies) {
     const key = entryKey(movie);
@@ -153,9 +160,18 @@ function mergeLibraries(existingMovies = [], incomingMovies = [], { keepMissingE
 
   for (const movie of incomingMovies) {
     const key = entryKey(movie);
-    const merged = key ? mergeEntry(existingByKey.get(key), movie) : movie;
+    const existing = key ? (incomingByKey.get(key) || existingByKey.get(key)) : null;
+    const merged = key ? mergeEntry(existing, movie, { protectExistingProgress }) : movie;
+    if (key && incomingByKey.has(key)) {
+      output[indexByKey.get(key)] = merged;
+      incomingByKey.set(key, merged);
+      continue;
+    }
     output.push(merged);
-    if (key) indexByKey.set(key, output.length - 1);
+    if (key) {
+      indexByKey.set(key, output.length - 1);
+      incomingByKey.set(key, merged);
+    }
   }
 
   if (keepMissingExisting) {
@@ -171,22 +187,18 @@ function mergeLibraries(existingMovies = [], incomingMovies = [], { keepMissingE
 
 async function backupExistingUserData({ token, userId, row, reason, signal }) {
   if (!row || !Array.isArray(row.movies)) return;
-  try {
-    await supabaseRequest('user_data_backups', {
-      method: 'POST',
-      token,
-      body: {
-        user_id: userId,
-        movies: row.movies,
-        original_updated_at: row.updated_at,
-        reason,
-      },
-      prefer: 'return=minimal',
-      signal,
-    });
-  } catch (error) {
-    console.warn('[cinetrack] User data backup failed:', error?.message || error);
-  }
+  await supabaseRequest('user_data_backups', {
+    method: 'POST',
+    token,
+    body: {
+      user_id: userId,
+      movies: row.movies,
+      original_updated_at: row.updated_at,
+      reason,
+    },
+    prefer: 'return=minimal',
+    signal,
+  });
 }
 
 export default async function handler(req, res) {
@@ -223,9 +235,14 @@ export default async function handler(req, res) {
         { token, signal: controller.signal }
       );
       const existingRow = existingRows?.[0] || null;
-      const staleClient = Boolean(existingRow?.updated_at && base_updated_at && existingRow.updated_at > base_updated_at);
+      const existingTime = Date.parse(existingRow?.updated_at || '');
+      const baseTime = Date.parse(base_updated_at || '');
+      const staleClient = Boolean(Number.isFinite(existingTime) && Number.isFinite(baseTime) && existingTime > baseTime);
       const mergedMovies = existingRow?.movies
-        ? mergeLibraries(existingRow.movies, movies, { keepMissingExisting: staleClient })
+        ? mergeLibraries(existingRow.movies, movies, {
+            keepMissingExisting: staleClient,
+            protectExistingProgress: staleClient,
+          })
         : movies;
 
       await backupExistingUserData({

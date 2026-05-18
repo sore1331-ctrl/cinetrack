@@ -243,31 +243,32 @@ function readStoredArray(key) {
 }
 
 function writeLocalLibraryBackup(reason, sourceMovies = movies) {
-  if (!Array.isArray(sourceMovies) || !sourceMovies.length) return;
+  if (!Array.isArray(sourceMovies) || !sourceMovies.length) return true;
+  const snapshot = {
+    reason,
+    createdAt: new Date().toISOString(),
+    cloudUpdatedAt: lastCloudUpdatedAt || null,
+    itemCount: sourceMovies.length,
+    movies: sourceMovies,
+  };
   try {
     const current = JSON.parse(localStorage.getItem(LOCAL_BACKUPS_KEY) || '[]');
     const backups = Array.isArray(current) ? current : [];
-    backups.unshift({
-      reason,
-      createdAt: new Date().toISOString(),
-      cloudUpdatedAt: lastCloudUpdatedAt || null,
-      itemCount: sourceMovies.length,
-      movies: sourceMovies,
-    });
-    localStorage.setItem(LOCAL_BACKUPS_KEY, JSON.stringify(backups.slice(0, MAX_LOCAL_BACKUPS)));
+    for (let limit = MAX_LOCAL_BACKUPS; limit >= 1; limit--) {
+      try {
+        localStorage.setItem(LOCAL_BACKUPS_KEY, JSON.stringify([snapshot, ...backups].slice(0, limit)));
+        return true;
+      } catch {}
+    }
   } catch (error) {
     try {
-      localStorage.setItem(LOCAL_BACKUPS_KEY, JSON.stringify([{
-        reason,
-        createdAt: new Date().toISOString(),
-        cloudUpdatedAt: lastCloudUpdatedAt || null,
-        itemCount: sourceMovies.length,
-        movies: sourceMovies,
-      }]));
+      localStorage.setItem(LOCAL_BACKUPS_KEY, JSON.stringify([snapshot]));
+      return true;
     } catch {
       console.warn('[cinetrack] Could not write local library backup:', error?.message || error);
     }
   }
+  return false;
 }
 
 let movies          = readStoredArray(STORAGE_KEY);
@@ -539,25 +540,7 @@ async function loadUserDataViaApi() {
 }
 
 async function saveUserDataDirect(payload) {
-  const { data, error } = await withTimeout(
-    sb
-      .from('user_data')
-      .upsert({
-        user_id: payload.userId || currentUser?.id,
-        movies: payload.movies,
-        updated_at: payload.updated_at,
-      }, { onConflict: 'user_id' })
-      .select('updated_at')
-      .single(),
-    'Direct cloud save',
-    CLOUD_TIMEOUT_MS
-  );
-  if (error) throw error;
-  return {
-    ok: true,
-    updated_at: data?.updated_at || payload.updated_at,
-    item_count: payload.movies.length,
-  };
+  throw new Error('Direct cloud save is disabled so progress cannot bypass backup and merge protection.');
 }
 
 async function saveUserDataViaApi(payload) {
@@ -601,17 +584,10 @@ async function loadUserDataWithFallback() {
 
 async function saveUserDataWithFallback(payload) {
   try {
-    return currentAccessToken ? await saveUserDataViaApi(payload) : await saveUserDataDirect(payload);
+    return await saveUserDataViaApi(payload);
   } catch (firstError) {
-    console.warn('[cinetrack] Primary cloud save failed, trying fallback:', firstError?.message || firstError);
-    if (currentAccessToken) {
-      currentAccessToken = '';
-      try {
-        return await saveUserDataDirect(payload);
-      } catch (directError) {
-        console.warn('[cinetrack] Direct cloud save fallback failed, retrying API with fresh session:', directError?.message || directError);
-      }
-    }
+    console.warn('[cinetrack] Cloud save failed, retrying API with fresh session:', firstError?.message || firstError);
+    currentAccessToken = '';
     return saveUserDataViaApi(payload);
   }
 }
@@ -651,7 +627,9 @@ async function loadUserData(options = {}) {
     }
 
     if (row?.exists && Array.isArray(row.movies)) {
-      writeLocalLibraryBackup(force ? 'before-force-cloud-load' : 'before-cloud-load', movies);
+      if (!writeLocalLibraryBackup(force ? 'before-force-cloud-load' : 'before-cloud-load', movies)) {
+        throw new Error('Could not create a local safety backup before applying cloud data.');
+      }
       applyingRemoteData = true;
       movies = row.movies;
       syncEpisodeProgress();
@@ -1744,15 +1722,33 @@ function applyTMDBSelection(details) {
   if (details.runtime) document.getElementById('f-runtime').value = details.runtime;
 
   // If TMDB returned per-season data, populate the season buffer (preserving
-  // any watched counts the user already had on existing seasons by number).
+  // any watched counts the user already had, even if season numbers changed).
   if (Array.isArray(details.seasons) && details.seasons.length) {
-    const prev = new Map(editingSeasons.map(s => [s.number, s.watched || 0]));
+    const previousTotal = Math.max(0, seasonTotal(editingSeasons, 'total'), parseInt(epTotalInput.value) || 0);
+    const detailsTotal = seasonTotal(details.seasons, 'total');
+    const selectedStatus = document.getElementById('f-status')?.value || '';
+    const previousWatched = Math.max(
+      0,
+      seasonTotal(editingSeasons, 'watched'),
+      parseInt(epWatchedInput.value) || 0,
+      selectedStatus === 'watched' ? previousTotal : 0,
+      selectedStatus === 'watched' ? detailsTotal : 0
+    );
     editingSeasons = details.seasons.map(s => ({
       number:  s.number,
       total:   s.total,
-      watched: Math.min(prev.get(s.number) || 0, s.total),
+      watched: 0,
       name:    s.name,
     }));
+    let remaining = previousWatched;
+    editingSeasons
+      .slice()
+      .sort((a, b) => (a.number || 0) - (b.number || 0))
+      .forEach(season => {
+        const total = Math.max(0, Number(season.total) || 0);
+        season.watched = Math.max(season.watched || 0, Math.min(total, remaining));
+        remaining -= Math.min(total, remaining);
+      });
     const unfinished = editingSeasons.findIndex(s => (s.watched || 0) < (s.total || 0));
     editingSeasonIdx = unfinished === -1 ? 0 : unfinished;
     rebuildSeasonDropdown();
@@ -5331,6 +5327,16 @@ async function importRows(rows) {
     progressText.textContent = `Matching "${title}" (${i + 1} of ${total})…`;
     progressBar.style.width = `${Math.round((i / total) * 100)}%`;
     const tmdb = await matchWithTMDB(title, year, mediaType);
+    const source = tmdb ? 'tmdb' : 'manual';
+    const externalId = tmdb?.tmdbId ? String(tmdb.tmdbId) : '';
+    const duplicate = findDuplicateTitle({
+      title: tmdb?.title || title,
+      year: tmdb?.year || year,
+      mediaType,
+      source,
+      externalId,
+    });
+    if (duplicate) { skipped++; continue; }
     const isShow      = mediaType === 'tv' || mediaType === 'anime';
     const epTotalUsed = isShow ? (totalEpisodes || (tmdb?.total_episodes || 0)) : 0;
     const epWatchUsed = isShow ? Math.min(watchedEpisodes, epTotalUsed || watchedEpisodes) : 0;
