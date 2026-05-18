@@ -3209,7 +3209,7 @@ function addFromDiscover({ tmdbId, type, title, year, posterPath }, btn) {
 }
 
 const DISMISSED_RECS_KEY = 'cinetrack_dismissed_recs';
-const RECS_CACHE_KEY     = 'cinetrack_recs_cache_v1';
+const RECS_CACHE_KEY     = 'cinetrack_recs_cache_v2';
 const RECS_TTL_MS        = 24 * 60 * 60 * 1000;  // 24 hours
 
 function getDismissedRecs() {
@@ -3238,8 +3238,53 @@ function recIdentity({ title, year, media_type }) {
   return `${normaliseDuplicateTitle(title)}:${normaliseDuplicateYear(year)}:${media_type || ''}`;
 }
 
-function recTitleIdentity({ title, media_type }) {
-  return `${normaliseDuplicateTitle(title)}:${media_type || ''}`;
+function recMediaType(rec) {
+  return rec?.media_type || rec?.mediaType || '';
+}
+
+function compatibleRecTypes(a, b) {
+  if (!a || !b) return true;
+  if (a === b) return true;
+  return (a === 'anime' && b === 'tv') || (a === 'tv' && b === 'anime');
+}
+
+function normaliseRecommendationForScope(rec, scope = 'all') {
+  const mediaType = scope === 'anime' && rec?.media_type === 'tv'
+    ? 'anime'
+    : recMediaType(rec);
+  return { ...rec, media_type: mediaType };
+}
+
+function recommendationSourceKey(rec) {
+  const source = rec?.source || 'tmdb';
+  const externalId = rec?.externalId || rec?.id;
+  return externalId ? `${source}:${externalId}` : '';
+}
+
+function findTrackedRecommendationMatch(rec) {
+  if (!rec) return null;
+  const source = rec.source || 'tmdb';
+  const recType = recMediaType(rec);
+  const recId = rec.id == null ? '' : String(rec.id);
+  const recSourceKey = recommendationSourceKey(rec);
+  const recTitle = normaliseDuplicateTitle(rec.title);
+  const recYear = normaliseDuplicateYear(rec.year);
+
+  return movies.find(m => {
+    const movieType = m.mediaType || '';
+    if (!compatibleRecTypes(movieType, recType)) return false;
+
+    if (source === 'tmdb' && recId && m.tmdbId && String(m.tmdbId) === recId) return true;
+    if (recSourceKey && m.externalSource && m.externalId && `${m.externalSource}:${m.externalId}` === recSourceKey) return true;
+
+    const movieTitle = normaliseDuplicateTitle(m.title);
+    if (!movieTitle || !recTitle || movieTitle !== recTitle) return false;
+
+    const movieYear = normaliseDuplicateYear(m.year);
+    if (movieYear && recYear) return movieYear === recYear;
+
+    return recTitle.length >= 8;
+  }) || null;
 }
 
 function recommendationInfoUrl(rec) {
@@ -3248,15 +3293,6 @@ function recommendationInfoUrl(rec) {
   if (source === 'anilist') return `https://anilist.co/anime/${encodeURIComponent(rec.externalId || rec.id)}`;
   const tmdbType = rec.media_type === 'movie' ? 'movie' : 'tv';
   return `https://www.themoviedb.org/${tmdbType}/${encodeURIComponent(rec.id)}`;
-}
-
-function trackedRecommendationIds() {
-  const ids = new Set();
-  movies.forEach(m => {
-    if (m.tmdbId) ids.add(`tmdb:${m.tmdbId}`);
-    if (m.externalSource && m.externalId) ids.add(`${m.externalSource}:${m.externalId}`);
-  });
-  return ids;
 }
 
 async function resolveRecommendationSeed(movie) {
@@ -3426,31 +3462,16 @@ async function loadRecommendations({ force = false } = {}) {
 }
 
 function renderRecsCards(section, results, genreCounts, scope = 'all') {
-  const trackedTmdbIds = new Set(movies.map(m => String(m.tmdbId)).filter(Boolean));
-  const trackedSourceIds = trackedRecommendationIds();
-  const trackedKeys = new Set(movies.map(m => recIdentity({
-    title: m.title,
-    year: m.year,
-    media_type: m.mediaType,
-  })).filter(Boolean));
-  const trackedTitleKeys = new Set(movies
-    .map(m => recTitleIdentity({ title: m.title, media_type: m.mediaType }))
-    .filter(key => key.split(':')[0].length >= 8));
   const dismissed      = getDismissedRecs();
   const seen = new Set();
   const recs = [];
-  for (const r of results) {
-    const source = r.source || 'tmdb';
-    const sourceKey = `${source}:${r.externalId || r.id}`;
+  for (const rawRec of results) {
+    const r = normaliseRecommendationForScope(rawRec, scope);
     const key = recIdentity(r);
-    const titleKey = recTitleIdentity(r);
     if (scope !== 'all' && r.media_type !== scope) continue;
     if (
-      (source === 'tmdb' && trackedTmdbIds.has(String(r.id))) ||
-      trackedSourceIds.has(sourceKey) ||
-      trackedKeys.has(key) ||
-      (titleKey.split(':')[0].length >= 8 && trackedTitleKeys.has(titleKey)) ||
       dismissed.has(String(r.id)) ||
+      findTrackedRecommendationMatch(r) ||
       seen.has(key)
     ) continue;
     seen.add(key);
@@ -3556,14 +3577,8 @@ function renderRecsCards(section, results, genreCounts, scope = 'all') {
     const recTitle  = btn.dataset.recTitle;
     const recYear   = btn.dataset.recYear;
     const recPoster = btn.dataset.recPoster;
-    const recSourceKey = `${recSource}:${recId}`;
-    const recTitleKey = recTitleIdentity({ title: recTitle, media_type: recType });
-    if (movies.some(m =>
-      (recSource === 'tmdb' && String(m.tmdbId) === recId) ||
-      (m.externalSource && m.externalId && `${m.externalSource}:${m.externalId}` === recSourceKey) ||
-      recIdentity({ title: m.title, year: m.year, media_type: m.mediaType }) === recIdentity({ title: recTitle, year: recYear, media_type: recType }) ||
-      (recTitleKey.split(':')[0].length >= 8 && recTitleIdentity({ title: m.title, media_type: m.mediaType }) === recTitleKey)
-    )) {
+    const recCandidate = { id: recId, source: recSource, externalId: recId, media_type: recType, title: recTitle, year: recYear };
+    if (findTrackedRecommendationMatch(recCandidate)) {
       btn.textContent = '✓ Added';
       btn.disabled = true;
       return;
@@ -3586,8 +3601,6 @@ function renderRecsCards(section, results, genreCounts, scope = 'all') {
     save(); updateCountryDropdown();
     btn.textContent = '✓ Added';
     btn.disabled = true;
-    if (recSource === 'tmdb') trackedTmdbIds.add(recId);
-
     // Enrich with full metadata in the background.
     (async () => {
       try {

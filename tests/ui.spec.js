@@ -133,6 +133,37 @@ test.describe('desktop regressions', () => {
     await expect(page.locator('#empty-msg')).toContainText('No matching titles');
     await expect(page.locator('#empty-msg')).not.toContainText('Welcome to Cinetrack');
   });
+
+  test('recommendations hide titles already tracked across compatible media types', async ({ page }) => {
+    await page.route('**/api/recommend?**', route => route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        results: [
+          { id: 27205, source: 'tmdb', media_type: 'movie', title: 'Inception', year: '2010', poster_path: null, overview: '' },
+          { id: 999001, source: 'tmdb', media_type: 'tv', title: 'Attack on Titan', year: '2013', poster_path: null, overview: '' },
+          { id: 999002, source: 'tmdb', media_type: 'movie', title: 'Dune: Part Two', year: '2024', poster_path: null, overview: '' },
+          { id: 999003, source: 'tmdb', media_type: 'movie', title: 'Arrival', year: '2016', poster_path: null, overview: '' },
+        ],
+      }),
+    }));
+    await page.addInitScript(() => {
+      localStorage.setItem('cinetrack_movies', JSON.stringify([
+        { id: 'm1', addedAt: 3, title: 'Inception', year: '2010', status: 'watched', rating: 9, mediaType: 'movie', tmdbId: 27205, genre: 'Sci-Fi', runtime: 148 },
+        { id: 'm2', addedAt: 2, title: 'Attack on Titan', year: '2013', status: 'watched', rating: 10, mediaType: 'anime', externalSource: 'anilist', externalId: '16498', genre: 'Action', runtime: 0 },
+        { id: 'm3', addedAt: 1, title: 'Dune: Part Two', year: '2024', status: 'watchlist', rating: 0, mediaType: 'movie', genre: 'Sci-Fi', runtime: 166 },
+      ]));
+      localStorage.removeItem('cinetrack_recs_cache_v2');
+    });
+
+    await openApp(page);
+    await page.locator('.type-tab[data-type="stats"]').click();
+
+    const recSection = page.locator('#recs-section');
+    await expect(recSection).toContainText('Arrival');
+    await expect(recSection).not.toContainText('Inception');
+    await expect(recSection).not.toContainText('Attack on Titan');
+    await expect(recSection).not.toContainText('Dune: Part Two');
+  });
 });
 
 test.describe('mobile regressions', () => {
