@@ -37,11 +37,37 @@ ALTER TABLE public.user_data
 ALTER TABLE public.user_data
   ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
 
--- 3. Enable Row Level Security.
+-- 3. Automatic backups before the app overwrites the main user_data row.
+CREATE TABLE IF NOT EXISTS public.user_data_backups (
+  id                  bigserial PRIMARY KEY,
+  user_id             uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  movies              jsonb DEFAULT '[]'::jsonb,
+  original_updated_at timestamptz,
+  reason              text DEFAULT 'pre-save',
+  created_at          timestamptz DEFAULT now()
+);
+
+ALTER TABLE public.user_data_backups
+  ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE;
+
+ALTER TABLE public.user_data_backups
+  ADD COLUMN IF NOT EXISTS movies jsonb DEFAULT '[]'::jsonb;
+
+ALTER TABLE public.user_data_backups
+  ADD COLUMN IF NOT EXISTS original_updated_at timestamptz;
+
+ALTER TABLE public.user_data_backups
+  ADD COLUMN IF NOT EXISTS reason text DEFAULT 'pre-save';
+
+ALTER TABLE public.user_data_backups
+  ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now();
+
+-- 4. Enable Row Level Security.
 ALTER TABLE public.profiles  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_data ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_data_backups ENABLE ROW LEVEL SECURITY;
 
--- 4. Recreate policies idempotently.
+-- 5. Recreate policies idempotently.
 DROP POLICY IF EXISTS "profiles_select" ON public.profiles;
 DROP POLICY IF EXISTS "profiles_modify" ON public.profiles;
 DROP POLICY IF EXISTS "Anyone can read profiles" ON public.profiles;
@@ -61,6 +87,8 @@ DROP POLICY IF EXISTS "user_data_update_own" ON public.user_data;
 DROP POLICY IF EXISTS "user_data_delete_own" ON public.user_data;
 DROP POLICY IF EXISTS "user_data_select_shared" ON public.user_data;
 DROP POLICY IF EXISTS "user_data_select_authenticated" ON public.user_data;
+DROP POLICY IF EXISTS "user_data_backups_select_own" ON public.user_data_backups;
+DROP POLICY IF EXISTS "user_data_backups_insert_own" ON public.user_data_backups;
 
 -- Profiles:
 -- Signed-in users can read profile display data for community features.
@@ -108,6 +136,16 @@ CREATE POLICY "user_data_update_own" ON public.user_data
 CREATE POLICY "user_data_delete_own" ON public.user_data
   FOR DELETE TO authenticated
   USING ((select auth.uid()) = user_id);
+
+-- Backups:
+-- Users can read and create their own immutable backup snapshots.
+CREATE POLICY "user_data_backups_select_own" ON public.user_data_backups
+  FOR SELECT TO authenticated
+  USING ((select auth.uid()) = user_id);
+
+CREATE POLICY "user_data_backups_insert_own" ON public.user_data_backups
+  FOR INSERT TO authenticated
+  WITH CHECK ((select auth.uid()) = user_id);
 
 -- This helper is not used by CineTrack at runtime and should not be callable
 -- from the API if it exists.

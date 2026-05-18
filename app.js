@@ -224,6 +224,8 @@ function applyAllAppearance() {
 // ── State ──────────────────────────────────────────────
 const STORAGE_KEY = 'cinetrack_movies';
 const PENDING_SYNC_KEY = 'cinetrack_pending_sync';
+const LOCAL_BACKUPS_KEY = 'cinetrack_library_backups_v1';
+const MAX_LOCAL_BACKUPS = 3;
 const POSTER_BASE = 'https://image.tmdb.org/t/p/w200';
 const SESSION_TIMEOUT_MS = 20000;
 const CLOUD_TIMEOUT_MS = 30000;
@@ -237,6 +239,34 @@ function readStoredArray(key) {
   } catch (error) {
     console.warn(`[cinetrack] Ignoring corrupt ${key} data:`, error?.message || error);
     return [];
+  }
+}
+
+function writeLocalLibraryBackup(reason, sourceMovies = movies) {
+  if (!Array.isArray(sourceMovies) || !sourceMovies.length) return;
+  try {
+    const current = JSON.parse(localStorage.getItem(LOCAL_BACKUPS_KEY) || '[]');
+    const backups = Array.isArray(current) ? current : [];
+    backups.unshift({
+      reason,
+      createdAt: new Date().toISOString(),
+      cloudUpdatedAt: lastCloudUpdatedAt || null,
+      itemCount: sourceMovies.length,
+      movies: sourceMovies,
+    });
+    localStorage.setItem(LOCAL_BACKUPS_KEY, JSON.stringify(backups.slice(0, MAX_LOCAL_BACKUPS)));
+  } catch (error) {
+    try {
+      localStorage.setItem(LOCAL_BACKUPS_KEY, JSON.stringify([{
+        reason,
+        createdAt: new Date().toISOString(),
+        cloudUpdatedAt: lastCloudUpdatedAt || null,
+        itemCount: sourceMovies.length,
+        movies: sourceMovies,
+      }]));
+    } catch {
+      console.warn('[cinetrack] Could not write local library backup:', error?.message || error);
+    }
   }
 }
 
@@ -513,7 +543,7 @@ async function saveUserDataDirect(payload) {
     sb
       .from('user_data')
       .upsert({
-        user_id: payload.userId,
+        user_id: payload.userId || currentUser?.id,
         movies: payload.movies,
         updated_at: payload.updated_at,
       }, { onConflict: 'user_id' })
@@ -621,6 +651,7 @@ async function loadUserData(options = {}) {
     }
 
     if (row?.exists && Array.isArray(row.movies)) {
+      writeLocalLibraryBackup(force ? 'before-force-cloud-load' : 'before-cloud-load', movies);
       applyingRemoteData = true;
       movies = row.movies;
       syncEpisodeProgress();
@@ -658,7 +689,13 @@ async function saveUserData() {
   if (!readPendingSyncMarker() && !hasUnsyncedLocalChanges()) return { ok: true, skipped: true };
   const saveVersion = localChangeVersion;
   try {
-    const payload = { movies, updated_at: new Date().toISOString() };
+    writeLocalLibraryBackup('before-cloud-save', movies);
+    const payload = {
+      userId: currentUser.id,
+      movies,
+      updated_at: new Date().toISOString(),
+      base_updated_at: lastCloudUpdatedAt,
+    };
     const result = await saveUserDataWithFallback(payload);
 
     lastCloudUpdatedAt = result.updated_at || payload.updated_at;
@@ -720,6 +757,11 @@ function applyWatchedCountAcrossSeasons(m, watchedCount) {
     delete m.progressOverflow;
   }
   return true;
+}
+
+function seasonTotal(seasons, field) {
+  if (!Array.isArray(seasons)) return 0;
+  return seasons.reduce((sum, season) => sum + Math.max(0, Number(season?.[field]) || 0), 0);
 }
 
 // First season with watched < total. Returns null if all caught up.
@@ -1536,7 +1578,21 @@ async function fetchDetailsForEntry(movie) {
 function applyMetadataRefresh(movie, details) {
   if (!movie || !details) return { demoted: false };
   const wasShow = movie.mediaType === 'tv' || movie.mediaType === 'anime';
-  const previousWatched = wasShow ? Math.max(0, movie.watchedEpisodes || 0) : 0;
+  const previousTotal = wasShow
+    ? Math.max(0, movie.totalEpisodes || 0, seasonTotal(movie.seasons, 'total'))
+    : 0;
+  const detailsTotal = wasShow
+    ? Math.max(0, details.total_episodes || 0, seasonTotal(details.seasons, 'total'))
+    : 0;
+  const previousWatched = wasShow
+    ? Math.max(
+        0,
+        movie.watchedEpisodes || 0,
+        seasonTotal(movie.seasons, 'watched'),
+        movie.status === 'watched' ? previousTotal : 0,
+        movie.status === 'watched' ? detailsTotal : 0
+      )
+    : 0;
   const previousStatus  = movie.status;
   if (details.title)    movie.title    = details.title;
   if (details.year)     movie.year     = details.year;
@@ -1561,7 +1617,11 @@ function applyMetadataRefresh(movie, details) {
       movie.totalEpisodes = details.total_episodes;
       movie.watchedEpisodes = Math.max(previousWatched, movie.watchedEpisodes || 0);
     }
-    if (movie.status === 'watched' && (movie.totalEpisodes || 0) > 0 && movie.watchedEpisodes < movie.totalEpisodes) {
+    if (previousStatus === 'watched' && (movie.totalEpisodes || 0) > 0) {
+      movie.status = 'watched';
+      applyWatchedCountAcrossSeasons(movie, movie.totalEpisodes);
+      movie.watchedEpisodes = movie.totalEpisodes;
+    } else if (movie.status === 'watched' && (movie.totalEpisodes || 0) > 0 && movie.watchedEpisodes < movie.totalEpisodes) {
       movie.status = 'in_progress';
     }
   }
@@ -5599,6 +5659,7 @@ signoutBtn.addEventListener('click', async () => {
   lastCloudItemCount = null;
   localChangeVersion = 0;
   lastSavedLocalVersion = 0;
+  writeLocalLibraryBackup('before-sign-out-clear', movies);
   localStorage.removeItem(STORAGE_KEY);
   clearPendingSyncMarker();
   localStorage.removeItem('cinetrack_sharing');
