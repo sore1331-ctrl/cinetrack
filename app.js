@@ -248,6 +248,7 @@ function writeLocalLibraryBackup(reason, sourceMovies = movies) {
     reason,
     createdAt: new Date().toISOString(),
     cloudUpdatedAt: lastCloudUpdatedAt || null,
+    cloudVersion: lastCloudVersion || 0,
     itemCount: sourceMovies.length,
     movies: sourceMovies,
   };
@@ -300,6 +301,7 @@ let cloudPollTimer  = null;
 let cloudRefreshInFlight = false;
 let lastCloudRefreshAttempt = 0;
 let lastCloudUpdatedAt = null;
+let lastCloudVersion = 0;
 let lastCloudItemCount = null;
 let localChangeVersion = 0;
 let lastSavedLocalVersion = 0;
@@ -507,7 +509,7 @@ async function loadUserDataDirect() {
   const { data, error } = await withTimeout(
     sb
       .from('user_data')
-      .select('movies,updated_at')
+      .select('movies,updated_at,version')
       .eq('user_id', currentUser.id)
       .maybeSingle(),
     'Direct cloud load',
@@ -517,6 +519,7 @@ async function loadUserDataDirect() {
   return {
     movies: Array.isArray(data?.movies) ? data.movies : [],
     updated_at: data?.updated_at || null,
+    version: Number(data?.version || 0),
     item_count: Array.isArray(data?.movies) ? data.movies.length : 0,
     exists: Boolean(data),
   };
@@ -640,6 +643,7 @@ async function loadUserData(options = {}) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
       applyingRemoteData = false;
       lastCloudUpdatedAt = row.updated_at || lastCloudUpdatedAt;
+      lastCloudVersion = Number(row.version || lastCloudVersion || 0);
       lastCloudItemCount = row.item_count ?? row.movies.length;
       updateSyncDetails();
       lastSavedLocalVersion = localChangeVersion;
@@ -677,10 +681,12 @@ async function saveUserData() {
       movies,
       updated_at: new Date().toISOString(),
       base_updated_at: lastCloudUpdatedAt,
+      base_version: lastCloudVersion,
     };
     const result = await saveUserDataWithFallback(payload);
 
     lastCloudUpdatedAt = result.updated_at || payload.updated_at;
+    lastCloudVersion = Number(result.version || lastCloudVersion || 0);
     lastCloudItemCount = result.item_count ?? movies.length;
     lastSavedLocalVersion = Math.max(lastSavedLocalVersion, saveVersion);
     clearPendingSyncMarker();

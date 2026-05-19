@@ -78,6 +78,10 @@ function statusRank(status) {
   return { dropped: 0, watchlist: 1, in_progress: 2, watched: 3 }[status] ?? 0;
 }
 
+function stableString(value) {
+  return value == null ? null : String(value);
+}
+
 function showProgress(movie) {
   const watched = Number(movie?.watchedEpisodes || 0);
   const total = Number(movie?.totalEpisodes || 0);
@@ -85,6 +89,80 @@ function showProgress(movie) {
     ? movie.seasons.reduce((sum, season) => sum + Number(season?.watched || 0), 0)
     : 0;
   return Math.max(watched, seasonWatched, movie?.status === 'watched' && total > 0 ? total : 0);
+}
+
+function progressSnapshot(movie) {
+  if (!movie || typeof movie !== 'object') return null;
+  return {
+    status: movie.status || '',
+    watchedEpisodes: showProgress(movie),
+    totalEpisodes: Number(movie.totalEpisodes || 0),
+    rating: Number(movie.rating || 0),
+    watchCount: Number(movie.watchCount || movie.timesWatched || 0),
+  };
+}
+
+function eventIdentity(movie) {
+  const key = entryKey(movie);
+  return {
+    item_key: key || null,
+    media_type: movie?.mediaType || movie?.type || null,
+    tmdb_id: stableString(movie?.tmdbId),
+    external_source: movie?.externalSource || null,
+    external_id: stableString(movie?.externalId),
+    title: movie?.title || '',
+  };
+}
+
+function meaningfulChange(before, after) {
+  if (!before && after) return 'title_added';
+  if (before && !after) return 'title_removed';
+  if (!before || !after) return null;
+
+  const previous = progressSnapshot(before);
+  const next = progressSnapshot(after);
+  if (previous.status !== next.status) return 'status_changed';
+  if (previous.watchedEpisodes !== next.watchedEpisodes) return 'episodes_changed';
+  if (previous.totalEpisodes !== next.totalEpisodes) return 'total_episodes_changed';
+  if (previous.rating !== next.rating) return 'rating_changed';
+  if (previous.watchCount !== next.watchCount) return 'watch_count_changed';
+  return null;
+}
+
+function buildProgressEvents({ userId, beforeMovies = [], afterMovies = [], saveId, source = 'cloud-save' }) {
+  const beforeByKey = new Map();
+  const afterByKey = new Map();
+  const orderedKeys = [];
+
+  for (const movie of beforeMovies) {
+    const key = entryKey(movie);
+    if (!key) continue;
+    beforeByKey.set(key, movie);
+    orderedKeys.push(key);
+  }
+  for (const movie of afterMovies) {
+    const key = entryKey(movie);
+    if (!key) continue;
+    afterByKey.set(key, movie);
+    if (!beforeByKey.has(key)) orderedKeys.push(key);
+  }
+
+  return [...new Set(orderedKeys)].flatMap((key) => {
+    const before = beforeByKey.get(key) || null;
+    const after = afterByKey.get(key) || null;
+    const eventType = meaningfulChange(before, after);
+    if (!eventType) return [];
+    const identity = eventIdentity(after || before);
+    return [{
+      user_id: userId,
+      ...identity,
+      event_type: eventType,
+      before_value: progressSnapshot(before),
+      after_value: progressSnapshot(after),
+      save_id: saveId,
+      source,
+    }];
+  });
 }
 
 function mergeSeasons(existing = [], incoming = []) {
@@ -204,6 +282,19 @@ async function backupExistingUserData({ token, userId, row, reason, signal }) {
   });
 }
 
+async function writeProgressEvents({ token, userId, beforeMovies, afterMovies, saveId, source, signal }) {
+  const events = buildProgressEvents({ userId, beforeMovies, afterMovies, saveId, source });
+  if (!events.length) return 0;
+  await supabaseRequest('progress_events', {
+    method: 'POST',
+    token,
+    body: events,
+    prefer: 'return=minimal',
+    signal,
+  });
+  return events.length;
+}
+
 export default async function handler(req, res) {
   const auth = req.headers.authorization || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
@@ -217,7 +308,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'GET') {
       const rows = await supabaseRequest(
-        `user_data?select=movies,updated_at&user_id=eq.${encodeURIComponent(userId)}&order=updated_at.desc&limit=1`,
+        `user_data?select=movies,updated_at,version&user_id=eq.${encodeURIComponent(userId)}&order=updated_at.desc&limit=1`,
         { token, signal: controller.signal }
       );
       const row = rows?.[0] || null;
@@ -225,24 +316,31 @@ export default async function handler(req, res) {
         movies: Array.isArray(row?.movies) ? row.movies : [],
         item_count: Array.isArray(row?.movies) ? row.movies.length : 0,
         updated_at: row?.updated_at || null,
+        version: Number(row?.version || 0),
         exists: Boolean(row),
       });
     }
 
     if (req.method === 'PUT') {
-      const { movies, updated_at, base_updated_at } = req.body || {};
+      const { movies, updated_at, base_updated_at, base_version } = req.body || {};
       if (!Array.isArray(movies)) return json(res, 400, { error: 'movies must be an array.' });
 
       const existingRows = await supabaseRequest(
-        `user_data?select=movies,updated_at&user_id=eq.${encodeURIComponent(userId)}&order=updated_at.desc&limit=1`,
+        `user_data?select=movies,updated_at,version&user_id=eq.${encodeURIComponent(userId)}&order=updated_at.desc&limit=1`,
         { token, signal: controller.signal }
       );
       const existingRow = existingRows?.[0] || null;
       const existingTime = Date.parse(existingRow?.updated_at || '');
       const baseTime = Date.parse(base_updated_at || '');
+      const existingVersion = Number(existingRow?.version || 0);
+      const clientBaseVersion = Number(base_version || 0);
       const hasCloudBaseline = Number.isFinite(existingTime);
       const hasClientBaseline = Number.isFinite(baseTime);
-      const staleClient = Boolean(hasCloudBaseline && (!hasClientBaseline || existingTime > baseTime));
+      const versionMismatch = Boolean(existingRow && (!clientBaseVersion || clientBaseVersion !== existingVersion));
+      const staleClient = Boolean(
+        versionMismatch ||
+        (hasCloudBaseline && (!hasClientBaseline || existingTime > baseTime))
+      );
       const mergedMovies = existingRow?.movies
         ? mergeLibraries(existingRow.movies, movies, {
             keepMissingExisting: staleClient,
@@ -259,18 +357,50 @@ export default async function handler(req, res) {
         signal: controller.signal,
       });
 
+      const saveId = crypto.randomUUID();
+      const nextVersion = existingRow ? existingVersion + 1 : 1;
       const payload = {
         user_id: userId,
         movies: mergedMovies,
         updated_at: updated_at || new Date().toISOString(),
+        version: nextVersion,
       };
 
-      // Upsert is the simplest and most reliable operation for one row per user.
-      const rows = await supabaseRequest('user_data?on_conflict=user_id&select=user_id,updated_at', {
-        method: 'POST',
+      let rows;
+      if (existingRow) {
+        rows = await supabaseRequest(
+          `user_data?user_id=eq.${encodeURIComponent(userId)}&version=eq.${encodeURIComponent(existingVersion)}&select=user_id,updated_at,version`,
+          {
+            method: 'PATCH',
+            token,
+            body: payload,
+            prefer: 'return=representation',
+            signal: controller.signal,
+          }
+        );
+        if (!rows?.length) {
+          return json(res, 409, {
+            error: 'Cloud data changed during save. Reloading before saving prevents progress loss.',
+            conflict: true,
+          });
+        }
+      } else {
+        rows = await supabaseRequest('user_data?on_conflict=user_id&select=user_id,updated_at,version', {
+          method: 'POST',
+          token,
+          body: payload,
+          prefer: 'resolution=merge-duplicates,return=representation',
+          signal: controller.signal,
+        });
+      }
+
+      const eventCount = await writeProgressEvents({
         token,
-        body: payload,
-        prefer: 'resolution=merge-duplicates,return=representation',
+        userId,
+        beforeMovies: existingRow?.movies || [],
+        afterMovies: mergedMovies,
+        saveId,
+        source: staleClient ? 'stale-merge-save' : 'cloud-save',
         signal: controller.signal,
       });
 
@@ -278,8 +408,10 @@ export default async function handler(req, res) {
         ok: true,
         item_count: mergedMovies.length,
         updated_at: rows?.[0]?.updated_at || payload.updated_at,
+        version: Number(rows?.[0]?.version || payload.version),
         merged: Boolean(existingRow),
         stale_client: staleClient,
+        event_count: eventCount,
       });
     }
 

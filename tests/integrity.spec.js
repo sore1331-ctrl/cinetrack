@@ -10,7 +10,7 @@ function loadUserDataHelpers() {
   const start = source.indexOf('function entryKey');
   const end = source.indexOf('async function backupExistingUserData');
   const sandbox = {};
-  vm.runInNewContext(`${source.slice(start, end)}; helpers = { mergeLibraries };`, sandbox);
+  vm.runInNewContext(`${source.slice(start, end)}; helpers = { mergeLibraries, buildProgressEvents };`, sandbox);
   return sandbox.helpers;
 }
 
@@ -121,6 +121,56 @@ test.describe('tracker data integrity', () => {
     expect(api).toContain('hasCloudBaseline && (!hasClientBaseline || existingTime > baseTime)');
   });
 
+  test('cloud saves use optimistic versions and conflict instead of blind overwrite', () => {
+    const api = fs.readFileSync(path.join(root, 'api', 'user-data.js'), 'utf8');
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+
+    expect(api).toContain('base_version');
+    expect(api).toContain('versionMismatch');
+    expect(api).toContain('&version=eq.${encodeURIComponent(existingVersion)}');
+    expect(api).toContain("return json(res, 409");
+    expect(app).toContain('base_version: lastCloudVersion');
+    expect(app).toContain('lastCloudVersion = Number(result.version');
+  });
+
+  test('progress events capture append-only audit changes', () => {
+    const { buildProgressEvents } = loadUserDataHelpers();
+    const before = [{
+      id: 'same-title',
+      mediaType: 'tv',
+      tmdbId: 777,
+      title: 'Audited Show',
+      status: 'in_progress',
+      watchedEpisodes: 6,
+      totalEpisodes: 8,
+    }];
+    const after = [{
+      id: 'same-title',
+      mediaType: 'tv',
+      tmdbId: 777,
+      title: 'Audited Show',
+      status: 'watched',
+      watchedEpisodes: 8,
+      totalEpisodes: 8,
+    }];
+
+    const events = buildProgressEvents({
+      userId: '00000000-0000-0000-0000-000000000001',
+      beforeMovies: before,
+      afterMovies: after,
+      saveId: '00000000-0000-0000-0000-000000000002',
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toEqual(expect.objectContaining({
+      item_key: 'tv:tmdb:777',
+      event_type: 'status_changed',
+      title: 'Audited Show',
+    }));
+    expect(events[0].before_value).toEqual(expect.objectContaining({ status: 'in_progress', watchedEpisodes: 6 }));
+    expect(events[0].after_value).toEqual(expect.objectContaining({ status: 'watched', watchedEpisodes: 8 }));
+  });
+
   test('unsafe sync fallback and fail-open backup patterns are absent', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
     const api = fs.readFileSync(path.join(root, 'api', 'user-data.js'), 'utf8');
@@ -131,5 +181,6 @@ test.describe('tracker data integrity', () => {
     expect(backupFn).not.toContain('catch');
     expect(api).toContain('Date.parse(existingRow?.updated_at');
     expect(app).toContain('if (!backedUpLocal && force)');
+    expect(api).toContain("await supabaseRequest('progress_events'");
   });
 });
