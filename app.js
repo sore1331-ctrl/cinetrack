@@ -627,8 +627,12 @@ async function loadUserData(options = {}) {
     }
 
     if (row?.exists && Array.isArray(row.movies)) {
-      if (!writeLocalLibraryBackup(force ? 'before-force-cloud-load' : 'before-cloud-load', movies)) {
+      const backedUpLocal = writeLocalLibraryBackup(force ? 'before-force-cloud-load' : 'before-cloud-load', movies);
+      if (!backedUpLocal && force) {
         throw new Error('Could not create a local safety backup before applying cloud data.');
+      }
+      if (!backedUpLocal) {
+        console.warn('[cinetrack] Local safety backup could not be written; continuing with cloud refresh.');
       }
       applyingRemoteData = true;
       movies = row.movies;

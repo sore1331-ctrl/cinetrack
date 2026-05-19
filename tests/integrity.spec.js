@@ -95,13 +95,14 @@ test.describe('tracker data integrity', () => {
   test('incoming duplicate rows collapse by source key before saving', () => {
     const { mergeLibraries } = loadUserDataHelpers();
     const incoming = [
-      { id: 'first', mediaType: 'tv', tmdbId: 999, title: 'Duplicate Show', status: 'watchlist', watchedEpisodes: 0, totalEpisodes: 10 },
-      { id: 'second', mediaType: 'tv', tmdbId: 999, title: 'Duplicate Show', status: 'in_progress', watchedEpisodes: 4, totalEpisodes: 10 },
+      { id: 'first', mediaType: 'tv', tmdbId: 999, title: 'Duplicate Show', status: 'in_progress', watchedEpisodes: 4, totalEpisodes: 10 },
+      { id: 'second', mediaType: 'tv', tmdbId: 999, title: 'Duplicate Show', status: 'watchlist', watchedEpisodes: 0, totalEpisodes: 10 },
     ];
 
     const merged = mergeLibraries([], incoming, {
       keepMissingExisting: false,
       protectExistingProgress: false,
+      protectIncomingDuplicates: true,
     });
 
     expect(merged).toHaveLength(1);
@@ -110,6 +111,14 @@ test.describe('tracker data integrity', () => {
       status: 'in_progress',
       watchedEpisodes: 4,
     }));
+  });
+
+  test('missing client baseline is treated as stale when cloud already exists', () => {
+    const api = fs.readFileSync(path.join(root, 'api', 'user-data.js'), 'utf8');
+
+    expect(api).toContain('const hasCloudBaseline = Number.isFinite(existingTime);');
+    expect(api).toContain('const hasClientBaseline = Number.isFinite(baseTime);');
+    expect(api).toContain('hasCloudBaseline && (!hasClientBaseline || existingTime > baseTime)');
   });
 
   test('unsafe sync fallback and fail-open backup patterns are absent', () => {
@@ -121,6 +130,6 @@ test.describe('tracker data integrity', () => {
     expect(saveFallback).not.toContain('saveUserDataDirect(payload)');
     expect(backupFn).not.toContain('catch');
     expect(api).toContain('Date.parse(existingRow?.updated_at');
-    expect(app).toContain('Could not create a local safety backup before applying cloud data.');
+    expect(app).toContain('if (!backedUpLocal && force)');
   });
 });

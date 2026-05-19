@@ -147,7 +147,7 @@ function mergeEntry(existing, incoming, { protectExistingProgress = true } = {})
   return merged;
 }
 
-function mergeLibraries(existingMovies = [], incomingMovies = [], { keepMissingExisting = false, protectExistingProgress = true } = {}) {
+function mergeLibraries(existingMovies = [], incomingMovies = [], { keepMissingExisting = false, protectExistingProgress = true, protectIncomingDuplicates = true } = {}) {
   const output = [];
   const indexByKey = new Map();
   const existingByKey = new Map();
@@ -160,8 +160,11 @@ function mergeLibraries(existingMovies = [], incomingMovies = [], { keepMissingE
 
   for (const movie of incomingMovies) {
     const key = entryKey(movie);
+    const duplicateInIncoming = key && incomingByKey.has(key);
     const existing = key ? (incomingByKey.get(key) || existingByKey.get(key)) : null;
-    const merged = key ? mergeEntry(existing, movie, { protectExistingProgress }) : movie;
+    const merged = key ? mergeEntry(existing, movie, {
+      protectExistingProgress: protectExistingProgress || (protectIncomingDuplicates && duplicateInIncoming),
+    }) : movie;
     if (key && incomingByKey.has(key)) {
       output[indexByKey.get(key)] = merged;
       incomingByKey.set(key, merged);
@@ -237,11 +240,14 @@ export default async function handler(req, res) {
       const existingRow = existingRows?.[0] || null;
       const existingTime = Date.parse(existingRow?.updated_at || '');
       const baseTime = Date.parse(base_updated_at || '');
-      const staleClient = Boolean(Number.isFinite(existingTime) && Number.isFinite(baseTime) && existingTime > baseTime);
+      const hasCloudBaseline = Number.isFinite(existingTime);
+      const hasClientBaseline = Number.isFinite(baseTime);
+      const staleClient = Boolean(hasCloudBaseline && (!hasClientBaseline || existingTime > baseTime));
       const mergedMovies = existingRow?.movies
         ? mergeLibraries(existingRow.movies, movies, {
             keepMissingExisting: staleClient,
             protectExistingProgress: staleClient,
+            protectIncomingDuplicates: true,
           })
         : movies;
 
