@@ -79,7 +79,9 @@ test.describe('desktop regressions', () => {
       document.documentElement.setAttribute('data-orbs', 'animated');
       document.documentElement.removeAttribute('data-motion');
     });
-    await page.waitForTimeout(300);
+    await expect.poll(() => page.evaluate(() =>
+      Number(getComputedStyle(document.body, '::before').opacity)
+    )).toBeGreaterThan(0.25);
 
     const animated = await page.evaluate(() => ({
       bodyAnimation: getComputedStyle(document.body).animationName,
@@ -92,7 +94,9 @@ test.describe('desktop regressions', () => {
     expect(animated.orbOpacity).toBeGreaterThan(0.25);
 
     await page.evaluate(() => document.documentElement.setAttribute('data-motion', 'reduced'));
-    await page.waitForTimeout(300);
+    await expect.poll(() => page.evaluate(() =>
+      Number(getComputedStyle(document.body, '::before').opacity)
+    )).toBeLessThan(0.01);
 
     const reduced = await page.evaluate(() => ({
       bodyAnimation: getComputedStyle(document.body).animationName,

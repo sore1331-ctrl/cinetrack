@@ -173,6 +173,24 @@ async function handleAnilist(req, res, action) {
     return json(res, 200, { results: (data.Page?.media || []).map(slimMedia) });
   }
 
+  if (action === 'match') {
+    const q = String(req.query.q || '').trim();
+    const year = Number(req.query.year || 0);
+    if (!q) return json(res, 400, { error: 'Missing q.' });
+    const data = await anilistQuery(`
+      query ($search: String!) {
+        Page(page: 1, perPage: 8) {
+          media(search: $search, type: ANIME, sort: SEARCH_MATCH) { ${MEDIA_FIELDS} }
+        }
+      }
+    `, { search: q });
+    const candidates = (data.Page?.media || []).map(slimMedia);
+    const best = candidates.find(media => year && Number(media.year || media.seasonYear || 0) === year)
+      || candidates[0]
+      || null;
+    return json(res, 200, { matched: Boolean(best), media: best });
+  }
+
   if (action === 'details') {
     const id = Number(req.query.id || 0);
     if (!id) return json(res, 400, { error: 'Missing numeric AniList id.' });

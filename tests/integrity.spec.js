@@ -183,6 +183,31 @@ test.describe('tracker data integrity', () => {
     expect(tvmazeApi).toContain('ep.airdate >= today && ep.airdate <= horizon');
   });
 
+  test('anime recommendations prefer AniList before TMDB fallback', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const externalApi = fs.readFileSync(path.join(root, 'api', 'external.js'), 'utf8');
+
+    expect(externalApi).toContain("if (action === 'match')");
+    expect(app).toContain("provider: 'anilist'");
+    expect(app).toContain("action: 'match'");
+    expect(app).toContain('async function fetchAnilistRecommendationResults');
+    expect(app).toContain("'anilist-first'");
+    expect(app.indexOf("if (scope === 'anime')")).toBeLessThan(app.indexOf('const tmdbSeededPool = seededPool.filter'));
+  });
+
+  test('recommendations use controlled seeds and post-fetch scoring', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+
+    expect(app).toContain('function selectRecommendationSeeds');
+    expect(app).toContain('function rankRecommendationResults');
+    expect(app).toContain('function scoreRecommendation');
+    expect(app).toContain('function dismissedRecProfile');
+    expect(app).toContain('function visibleRecommendationCount');
+    expect(app).toContain('visibleRecommendationCount(cache.results, scope) >= 6');
+    expect(app).toContain('const sample = selectRecommendationSeeds');
+    expect(app).not.toContain('const sample = pickRandom');
+  });
+
   test('unsafe sync fallback and fail-open backup patterns are absent', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
     const api = fs.readFileSync(path.join(root, 'api', 'user-data.js'), 'utf8');

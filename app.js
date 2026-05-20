@@ -3364,6 +3364,24 @@ function writeRecsCache(cache) {
   localStorage.setItem(RECS_CACHE_KEY, JSON.stringify(cache));
 }
 
+function dismissedRecProfile() {
+  const dismissed = getDismissedRecs();
+  const cache = readRecsCache();
+  const results = Array.isArray(cache?.results) ? cache.results : [];
+  const profile = { genres: {}, mediaTypes: {} };
+  for (const rec of results) {
+    if (!dismissed.has(String(rec.id))) continue;
+    const type = recMediaType(rec);
+    if (type) profile.mediaTypes[type] = (profile.mediaTypes[type] || 0) + 1;
+    String(rec.genre || '')
+      .split(',')
+      .map(g => g.trim())
+      .filter(Boolean)
+      .forEach(g => { profile.genres[g] = (profile.genres[g] || 0) + 1; });
+  }
+  return profile;
+}
+
 function recommendationScopeType() {
   return ['movie', 'tv', 'anime'].includes(statsTypeFilter) ? statsTypeFilter : 'all';
 }
@@ -3433,6 +3451,26 @@ async function resolveRecommendationSeed(movie) {
   if (movie.mediaType === 'anime' && movie.externalSource === 'anilist' && movie.externalId) {
     return { ...movie, _recAnilistId: movie.externalId };
   }
+  if (movie.mediaType === 'anime') {
+    try {
+      const params = new URLSearchParams({
+        provider: 'anilist',
+        action: 'match',
+        q: movie.title || '',
+      });
+      if (movie.year) params.set('year', movie.year);
+      const r = await fetch(`/api/external?${params}`);
+      if (r.ok) {
+        const data = await r.json();
+        const id = data?.media?.id;
+        if (data?.matched && id) {
+          return { ...movie, _recAnilistId: id, _recTmdbId: movie.tmdbId || null };
+        }
+      }
+    } catch {
+      // TMDB fallback below still gives older TMDB-only anime a chance.
+    }
+  }
   if (movie.tmdbId) return { ...movie, _recTmdbId: movie.tmdbId };
   if (movie.externalSource !== 'tvmaze' || movie.mediaType !== 'tv' || !movie.externalId) return null;
 
@@ -3465,6 +3503,37 @@ function normaliseAnilistRecommendation(media) {
   };
 }
 
+function seedKeyForMovie(movie) {
+  return movie.tmdbId ? `tmdb:${movie.tmdbId}` : `${movie.externalSource}:${movie.externalId}:${movie.title}:${movie.year}`;
+}
+
+function selectRecommendationSeeds(scored, limit = 8) {
+  const primary = scored.slice(0, Math.min(4, limit));
+  const rotation = scored
+    .slice(primary.length, Math.min(scored.length, 24))
+    .sort((a, b) => String(seedKeyForMovie(a)).localeCompare(String(seedKeyForMovie(b))))
+    .slice(0, Math.max(0, limit - primary.length));
+  return [...primary, ...rotation];
+}
+
+async function fetchAnilistRecommendationResults(seededPool) {
+  const anilistIds = seededPool
+    .filter(m => m._recAnilistId)
+    .map(m => String(m._recAnilistId))
+    .slice(0, 8);
+  if (!anilistIds.length) return [];
+
+  const params = new URLSearchParams({
+    provider: 'anilist',
+    action: 'recommendations',
+    ids: anilistIds.join(','),
+  });
+  const r = await fetch(`/api/external?${params}`);
+  if (!r.ok) return [];
+  const anilistData = await r.json();
+  return (anilistData.results || []).map(normaliseAnilistRecommendation);
+}
+
 // Fisher–Yates partial shuffle: take n items at random from arr.
 function pickRandom(arr, n) {
   const copy = [...arr];
@@ -3473,6 +3542,44 @@ function pickRandom(arr, n) {
     [copy[i], copy[j]] = [copy[j], copy[i]];
   }
   return copy.slice(0, n);
+}
+
+function scoreRecommendation(rec, { genreCounts = {}, dismissedProfile = {}, scope = 'all' } = {}) {
+  const genres = String(rec.genre || '')
+    .split(',')
+    .map(g => g.trim())
+    .filter(Boolean);
+  const genreScore = genres.reduce((sum, genre) => sum + (genreCounts[genre] || 0), 0);
+  const dismissedGenrePenalty = genres.reduce((sum, genre) => sum + (dismissedProfile.genres?.[genre] || 0), 0);
+  const type = recMediaType(rec);
+  const typePenalty = dismissedProfile.mediaTypes?.[type] || 0;
+  const popularity = Math.log10(Math.max(1, Number(rec.popularity || 0)));
+  const votes = Math.log10(Math.max(1, Number(rec.vote_count || 0)));
+  const rating = Number(rec.vote_average || rec.averageScore || 0) / 2;
+  const sourceBoost = scope === 'anime' && (rec.source || '') === 'anilist' ? 8 : 0;
+
+  return sourceBoost + genreScore * 2 + popularity + votes + rating - dismissedGenrePenalty * 2 - typePenalty;
+}
+
+function rankRecommendationResults(results, context) {
+  return [...(results || [])]
+    .map((rec, idx) => ({ ...rec, _recScore: scoreRecommendation(rec, context), _recOrder: idx }))
+    .sort((a, b) => b._recScore - a._recScore || a._recOrder - b._recOrder);
+}
+
+function visibleRecommendationCount(results, scope) {
+  const dismissed = getDismissedRecs();
+  const seen = new Set();
+  let count = 0;
+  for (const rawRec of results || []) {
+    const rec = normaliseRecommendationForScope(rawRec, scope);
+    const key = recIdentity(rec);
+    if (scope !== 'all' && rec.media_type !== scope) continue;
+    if (dismissed.has(String(rec.id)) || findTrackedRecommendationMatch(rec) || seen.has(key)) continue;
+    seen.add(key);
+    count += 1;
+  }
+  return count;
 }
 
 async function loadRecommendations({ force = false } = {}) {
@@ -3522,15 +3629,22 @@ async function loadRecommendations({ force = false } = {}) {
   // keeping seeds grounded in your strongest signals.
   const topPool = scored.slice(0, 20);
   const poolKey = `${scope}:` + topPool.map(m =>
-    m.tmdbId ? `tmdb:${m.tmdbId}` : `${m.externalSource}:${m.externalId}:${m.title}:${m.year}`
+    seedKeyForMovie(m)
   ).sort().join(',');
 
   // Cache check (skip when forced)
   if (!force) {
     const cache = readRecsCache();
     if (cache && cache.poolKey === poolKey && (Date.now() - cache.fetchedAt) < RECS_TTL_MS) {
-      renderRecsCards(section, cache.results, genreCounts, scope);
-      return;
+      if (visibleRecommendationCount(cache.results, scope) >= 6) {
+        const ranked = rankRecommendationResults(cache.results, {
+          genreCounts,
+          dismissedProfile: dismissedRecProfile(),
+          scope,
+        });
+        renderRecsCards(section, ranked, genreCounts, scope);
+        return;
+      }
     }
   }
 
@@ -3541,30 +3655,21 @@ async function loadRecommendations({ force = false } = {}) {
   }
 
   if (scope === 'anime') {
-    const anilistIds = seededPool
-      .filter(m => m._recAnilistId)
-      .map(m => String(m._recAnilistId))
-      .slice(0, 8);
-    if (anilistIds.length) {
-      try {
-        const params = new URLSearchParams({
-          provider: 'anilist',
-          action: 'recommendations',
-          ids: anilistIds.join(','),
-        });
-        const r = await fetch(`/api/external?${params}`);
-        if (r.ok) {
-          const anilistData = await r.json();
-          const anilistResults = (anilistData.results || []).map(normaliseAnilistRecommendation);
-          if (anilistResults.length) {
-            writeRecsCache({ fetchedAt: Date.now(), poolKey, results: anilistResults });
-            renderRecsCards(section, anilistResults, genreCounts, scope);
-            return;
-          }
-        }
-      } catch {
-        // Fall through to TMDB fallback below.
-      }
+    let anilistResults = [];
+    try {
+      anilistResults = await fetchAnilistRecommendationResults(seededPool);
+    } catch {
+      anilistResults = [];
+    }
+    if (anilistResults.length >= 12) {
+      anilistResults = rankRecommendationResults(anilistResults, {
+        genreCounts,
+        dismissedProfile: dismissedRecProfile(),
+        scope,
+      });
+      writeRecsCache({ fetchedAt: Date.now(), poolKey, results: anilistResults, source: 'anilist' });
+      renderRecsCards(section, anilistResults, genreCounts, scope);
+      return;
     }
   }
 
@@ -3574,8 +3679,7 @@ async function loadRecommendations({ force = false } = {}) {
     return;
   }
 
-  const sample = pickRandom(tmdbSeededPool, Math.min(8, tmdbSeededPool.length))
-    .sort((a, b) => b._score - a._score);  // best-scored first → API ranks them higher
+  const sample = selectRecommendationSeeds(tmdbSeededPool, Math.min(8, tmdbSeededPool.length));
   const idParam = sample.map(m => `${m._recTmdbId}:${m.mediaType}`).join(',');
 
   let data;
@@ -3590,8 +3694,26 @@ async function loadRecommendations({ force = false } = {}) {
     return;
   }
 
-  const results = data.results || [];
-  writeRecsCache({ fetchedAt: Date.now(), poolKey, results });
+  let results = data.results || [];
+  if (scope === 'anime') {
+    try {
+      const anilistResults = await fetchAnilistRecommendationResults(seededPool);
+      const seenAnime = new Set(anilistResults.map(rec => recommendationSourceKey(rec) || recIdentity(rec)));
+      const tmdbFallback = results
+        .map(rec => normaliseRecommendationForScope(rec, scope))
+        .filter(rec => !seenAnime.has(recommendationSourceKey(rec) || recIdentity(rec)))
+        .slice(0, Math.max(0, 18 - anilistResults.length));
+      results = [...anilistResults, ...tmdbFallback];
+    } catch {
+      results = results.map(rec => normaliseRecommendationForScope(rec, scope));
+    }
+  }
+  results = rankRecommendationResults(results, {
+    genreCounts,
+    dismissedProfile: dismissedRecProfile(),
+    scope,
+  });
+  writeRecsCache({ fetchedAt: Date.now(), poolKey, results, source: scope === 'anime' ? 'anilist-first' : 'tmdb' });
   renderRecsCards(section, results, genreCounts, scope);
 }
 
