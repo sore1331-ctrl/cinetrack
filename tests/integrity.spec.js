@@ -208,6 +208,24 @@ test.describe('tracker data integrity', () => {
     expect(app).not.toContain('const sample = pickRandom');
   });
 
+  test('recommendation refresh rotates seeds and bypasses request cache', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+
+    expect(app).toContain('function recommendationRefreshIndex');
+    expect(app).toContain('const refreshIndex = recommendationRefreshIndex(scope, force);');
+    expect(app).toContain('selectRecommendationSeeds(topPool, Math.min(8, topPool.length), refreshIndex)');
+    expect(app).toContain("params.set('_', String(Date.now()))");
+    expect(app).toContain("{ cache: force ? 'no-store' : 'default' }");
+  });
+
+  test('recommendations render ten cards per page', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+
+    expect(app).toContain('const RECS_VISIBLE_LIMIT = 10;');
+    expect(app).toContain('if (recs.length >= RECS_VISIBLE_LIMIT) break;');
+    expect(app).not.toContain('if (recs.length >= 18) break;');
+  });
+
   test('unsafe sync fallback and fail-open backup patterns are absent', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
     const api = fs.readFileSync(path.join(root, 'api', 'user-data.js'), 'utf8');

@@ -3344,6 +3344,8 @@ function addFromDiscover({ tmdbId, type, title, year, posterPath }, btn) {
 
 const DISMISSED_RECS_KEY = 'cinetrack_dismissed_recs';
 const RECS_CACHE_KEY     = 'cinetrack_recs_cache_v2';
+const RECS_REFRESH_KEY   = 'cinetrack_recs_refresh_index';
+const RECS_VISIBLE_LIMIT = 10;
 const RECS_TTL_MS        = 24 * 60 * 60 * 1000;  // 24 hours
 
 function getDismissedRecs() {
@@ -3507,16 +3509,31 @@ function seedKeyForMovie(movie) {
   return movie.tmdbId ? `tmdb:${movie.tmdbId}` : `${movie.externalSource}:${movie.externalId}:${movie.title}:${movie.year}`;
 }
 
-function selectRecommendationSeeds(scored, limit = 8) {
+function recommendationRefreshIndex(scope, force = false) {
+  const key = `${RECS_REFRESH_KEY}:${scope}`;
+  const current = Number(localStorage.getItem(key) || 0);
+  if (!force) return current;
+  const next = current + 1;
+  localStorage.setItem(key, String(next));
+  return next;
+}
+
+function rotateList(items, offset) {
+  if (!items.length) return items;
+  const n = Math.abs(offset) % items.length;
+  return [...items.slice(n), ...items.slice(0, n)];
+}
+
+function selectRecommendationSeeds(scored, limit = 8, rotationIndex = 0) {
   const primary = scored.slice(0, Math.min(4, limit));
   const rotation = scored
     .slice(primary.length, Math.min(scored.length, 24))
     .sort((a, b) => String(seedKeyForMovie(a)).localeCompare(String(seedKeyForMovie(b))))
-    .slice(0, Math.max(0, limit - primary.length));
-  return [...primary, ...rotation];
+  const rotated = rotateList(rotation, rotationIndex * Math.max(1, limit - primary.length));
+  return [...primary, ...rotated.slice(0, Math.max(0, limit - primary.length))];
 }
 
-async function fetchAnilistRecommendationResults(seededPool) {
+async function fetchAnilistRecommendationResults(seededPool, { force = false } = {}) {
   const anilistIds = seededPool
     .filter(m => m._recAnilistId)
     .map(m => String(m._recAnilistId))
@@ -3528,7 +3545,8 @@ async function fetchAnilistRecommendationResults(seededPool) {
     action: 'recommendations',
     ids: anilistIds.join(','),
   });
-  const r = await fetch(`/api/external?${params}`);
+  if (force) params.set('_', String(Date.now()));
+  const r = await fetch(`/api/external?${params}`, { cache: force ? 'no-store' : 'default' });
   if (!r.ok) return [];
   const anilistData = await r.json();
   return (anilistData.results || []).map(normaliseAnilistRecommendation);
@@ -3628,6 +3646,7 @@ async function loadRecommendations({ force = false } = {}) {
   // Top 20 → random sample 8. Sampling gives variety on refresh while
   // keeping seeds grounded in your strongest signals.
   const topPool = scored.slice(0, 20);
+  const refreshIndex = recommendationRefreshIndex(scope, force);
   const poolKey = `${scope}:` + topPool.map(m =>
     seedKeyForMovie(m)
   ).sort().join(',');
@@ -3648,7 +3667,8 @@ async function loadRecommendations({ force = false } = {}) {
     }
   }
 
-  const seededPool = (await Promise.all(topPool.map(resolveRecommendationSeed))).filter(Boolean);
+  const selectedPool = selectRecommendationSeeds(topPool, Math.min(8, topPool.length), refreshIndex);
+  const seededPool = (await Promise.all(selectedPool.map(resolveRecommendationSeed))).filter(Boolean);
   if (!seededPool.length) {
     section.innerHTML = '<p class="recs-empty">Could not match your watched titles to recommendation sources yet. Try refreshing after adding a few more watched titles.</p>';
     return;
@@ -3657,7 +3677,7 @@ async function loadRecommendations({ force = false } = {}) {
   if (scope === 'anime') {
     let anilistResults = [];
     try {
-      anilistResults = await fetchAnilistRecommendationResults(seededPool);
+      anilistResults = await fetchAnilistRecommendationResults(seededPool, { force });
     } catch {
       anilistResults = [];
     }
@@ -3679,14 +3699,15 @@ async function loadRecommendations({ force = false } = {}) {
     return;
   }
 
-  const sample = selectRecommendationSeeds(tmdbSeededPool, Math.min(8, tmdbSeededPool.length));
+  const sample = selectRecommendationSeeds(tmdbSeededPool, Math.min(8, tmdbSeededPool.length), refreshIndex);
   const idParam = sample.map(m => `${m._recTmdbId}:${m.mediaType}`).join(',');
 
   let data;
   try {
     const params = new URLSearchParams({ ids: idParam });
     if (scope !== 'all') params.set('type', scope);
-    const r = await fetch(`/api/recommend?${params}`);
+    if (force) params.set('_', String(Date.now()));
+    const r = await fetch(`/api/recommend?${params}`, { cache: force ? 'no-store' : 'default' });
     if (!r.ok) throw new Error(r.status);
     data = await r.json();
   } catch {
@@ -3697,12 +3718,12 @@ async function loadRecommendations({ force = false } = {}) {
   let results = data.results || [];
   if (scope === 'anime') {
     try {
-      const anilistResults = await fetchAnilistRecommendationResults(seededPool);
+      const anilistResults = await fetchAnilistRecommendationResults(seededPool, { force });
       const seenAnime = new Set(anilistResults.map(rec => recommendationSourceKey(rec) || recIdentity(rec)));
       const tmdbFallback = results
         .map(rec => normaliseRecommendationForScope(rec, scope))
         .filter(rec => !seenAnime.has(recommendationSourceKey(rec) || recIdentity(rec)))
-        .slice(0, Math.max(0, 18 - anilistResults.length));
+        .slice(0, Math.max(0, RECS_VISIBLE_LIMIT - anilistResults.length));
       results = [...anilistResults, ...tmdbFallback];
     } catch {
       results = results.map(rec => normaliseRecommendationForScope(rec, scope));
@@ -3732,7 +3753,7 @@ function renderRecsCards(section, results, genreCounts, scope = 'all') {
     ) continue;
     seen.add(key);
     recs.push(r);
-    if (recs.length >= 18) break;
+    if (recs.length >= RECS_VISIBLE_LIMIT) break;
   }
 
   if (!recs.length) {
