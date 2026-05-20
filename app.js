@@ -3524,7 +3524,10 @@ function rotateList(items, offset) {
   return [...items.slice(n), ...items.slice(0, n)];
 }
 
-function selectRecommendationSeeds(scored, limit = 8, rotationIndex = 0) {
+function selectRecommendationSeeds(scored, limit = 8, rotationIndex = 0, force = false) {
+  if (force) {
+    return rotateList(scored.slice(0, 24), rotationIndex * limit).slice(0, limit);
+  }
   const primary = scored.slice(0, Math.min(4, limit));
   const rotation = scored
     .slice(primary.length, Math.min(scored.length, 24))
@@ -3583,6 +3586,11 @@ function rankRecommendationResults(results, context) {
   return [...(results || [])]
     .map((rec, idx) => ({ ...rec, _recScore: scoreRecommendation(rec, context), _recOrder: idx }))
     .sort((a, b) => b._recScore - a._recScore || a._recOrder - b._recOrder);
+}
+
+function rotateForcedRecommendations(results, refreshIndex, force) {
+  if (!force || results.length <= RECS_VISIBLE_LIMIT) return results;
+  return rotateList(results, refreshIndex * RECS_VISIBLE_LIMIT);
 }
 
 function visibleRecommendationCount(results, scope) {
@@ -3667,7 +3675,7 @@ async function loadRecommendations({ force = false } = {}) {
     }
   }
 
-  const selectedPool = selectRecommendationSeeds(topPool, Math.min(8, topPool.length), refreshIndex);
+  const selectedPool = selectRecommendationSeeds(topPool, Math.min(8, topPool.length), refreshIndex, force);
   const seededPool = (await Promise.all(selectedPool.map(resolveRecommendationSeed))).filter(Boolean);
   if (!seededPool.length) {
     section.innerHTML = '<p class="recs-empty">Could not match your watched titles to recommendation sources yet. Try refreshing after adding a few more watched titles.</p>';
@@ -3687,6 +3695,7 @@ async function loadRecommendations({ force = false } = {}) {
         dismissedProfile: dismissedRecProfile(),
         scope,
       });
+      anilistResults = rotateForcedRecommendations(anilistResults, refreshIndex, force);
       writeRecsCache({ fetchedAt: Date.now(), poolKey, results: anilistResults, source: 'anilist' });
       renderRecsCards(section, anilistResults, genreCounts, scope);
       return;
@@ -3699,7 +3708,7 @@ async function loadRecommendations({ force = false } = {}) {
     return;
   }
 
-  const sample = selectRecommendationSeeds(tmdbSeededPool, Math.min(8, tmdbSeededPool.length), refreshIndex);
+  const sample = selectRecommendationSeeds(tmdbSeededPool, Math.min(8, tmdbSeededPool.length), refreshIndex, force);
   const idParam = sample.map(m => `${m._recTmdbId}:${m.mediaType}`).join(',');
 
   let data;
@@ -3734,6 +3743,7 @@ async function loadRecommendations({ force = false } = {}) {
     dismissedProfile: dismissedRecProfile(),
     scope,
   });
+  results = rotateForcedRecommendations(results, refreshIndex, force);
   writeRecsCache({ fetchedAt: Date.now(), poolKey, results, source: scope === 'anime' ? 'anilist-first' : 'tmdb' });
   renderRecsCards(section, results, genreCounts, scope);
 }

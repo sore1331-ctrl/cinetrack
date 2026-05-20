@@ -213,7 +213,9 @@ test.describe('tracker data integrity', () => {
 
     expect(app).toContain('function recommendationRefreshIndex');
     expect(app).toContain('const refreshIndex = recommendationRefreshIndex(scope, force);');
-    expect(app).toContain('selectRecommendationSeeds(topPool, Math.min(8, topPool.length), refreshIndex)');
+    expect(app).toContain('selectRecommendationSeeds(topPool, Math.min(8, topPool.length), refreshIndex, force)');
+    expect(app).toContain('function rotateForcedRecommendations');
+    expect(app).toContain('rotateForcedRecommendations(results, refreshIndex, force)');
     expect(app).toContain("params.set('_', String(Date.now()))");
     expect(app).toContain("{ cache: force ? 'no-store' : 'default' }");
   });
