@@ -2526,6 +2526,18 @@ function writeUpcomingCache(cache) {
   localStorage.setItem(UPCOMING_CACHE_KEY, JSON.stringify(cache));
 }
 
+function mergeUpcomingCache(items = []) {
+  if (!Array.isArray(items) || !items.length) return;
+  const cache = readUpcomingCache() || { fetchedAt: Date.now(), byId: {} };
+  const byId = cache.byId && typeof cache.byId === 'object' ? cache.byId : {};
+  for (const item of items) {
+    const key = item?.sourceKey || `${item?.type || 'tv'}:${item?.tmdbId || item?.externalId || ''}`;
+    if (!key || key.endsWith(':')) continue;
+    byId[key] = item;
+  }
+  writeUpcomingCache({ fetchedAt: Date.now(), byId });
+}
+
 // Caller passes ids as 'type:id' (e.g. 'tv:1399' or 'movie:823464').
 // Bare numeric ids are tolerated and treated as TV.
 async function fetchUpcoming(ids, { force = false } = {}) {
@@ -2595,6 +2607,51 @@ async function fetchExternalUpcomingForEntries(entries) {
   });
 
   return (await Promise.all(tasks)).filter(Boolean);
+}
+
+async function fetchTvmazeCalendarForEntries(entries, { force = false } = {}) {
+  const tvEntries = entries.filter(m =>
+    m &&
+    m.mediaType === 'tv' &&
+    calendarKeyForEntry(m) &&
+    (m.status === 'in_progress' || m.status === 'watchlist')
+  );
+  if (!tvEntries.length) return [];
+
+  const todayStr = todayDateString();
+  const tvHorizon = new Date(); tvHorizon.setHours(0,0,0,0); tvHorizon.setDate(tvHorizon.getDate() + UPCOMING_HORIZON_DAYS);
+  const tvHorizonStr = `${tvHorizon.getFullYear()}-${String(tvHorizon.getMonth()+1).padStart(2,'0')}-${String(tvHorizon.getDate()).padStart(2,'0')}`;
+
+  const cache = readUpcomingCache();
+  const now = Date.now();
+  const fresh = cache && (now - cache.fetchedAt) < UPCOMING_TTL_MS;
+  const keys = tvEntries.map(calendarKeyForEntry);
+  const cached = fresh && !force && keys.every(key => cache.byId?.[key]?.source === 'tvmaze');
+  if (cached) return keys.map(key => cache.byId[key]).filter(item => item?.source === 'tvmaze');
+
+  const r = await fetch('/api/tvmaze-calendar', {
+    method: 'POST',
+    cache: 'no-store',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      today: todayStr,
+      horizon: tvHorizonStr,
+      entries: tvEntries.map(m => ({
+        sourceKey: calendarKeyForEntry(m),
+        title: m.title || '',
+        year: m.year || '',
+        tmdbId: m.tmdbId || null,
+        externalSource: m.externalSource || null,
+        externalId: m.externalId || null,
+        posterUrl: m.posterUrl || '',
+      })),
+    }),
+  });
+  if (!r.ok) throw new Error(`TVMaze calendar lookup failed (${r.status})`);
+  const data = await r.json();
+  const results = data.results || [];
+  mergeUpcomingCache(results);
+  return results;
 }
 
 // ── Episode-air-today notifications ─────────────────────
@@ -2737,14 +2794,19 @@ async function checkEpisodeNotifications() {
 // badge even if the user never opens the Calendar panel.
 async function warmUpcomingCacheForBadge() {
   const ids = [];
+  const tvEntries = [];
   for (const m of movies) {
     if (!m.tmdbId) continue;
     const isShow = m.mediaType === 'tv' || m.mediaType === 'anime';
-    if (isShow && (m.status === 'in_progress' || m.status === 'watchlist')) ids.push(`tv:${m.tmdbId}`);
+    if (isShow && (m.status === 'in_progress' || m.status === 'watchlist')) {
+      ids.push(`tv:${m.tmdbId}`);
+      if (m.mediaType === 'tv') tvEntries.push(m);
+    }
     else if (m.mediaType === 'movie' && m.status === 'watchlist') ids.push(`movie:${m.tmdbId}`);
   }
-  if (!ids.length) { updateCalendarAiringBadge(); return; }
+  if (!ids.length && !tvEntries.length) { updateCalendarAiringBadge(); return; }
   try { await fetchUpcoming(ids); } catch { /* offline-safe */ }
+  try { await fetchTvmazeCalendarForEntries(tvEntries); } catch { /* offline-safe */ }
   updateCalendarAiringBadge();
   // Re-render the content grid so any "Today" highlights appear without
   // waiting for the next user interaction.
@@ -2773,7 +2835,13 @@ async function refreshTrackedCalendarSources({ force = false } = {}) {
     fetchUpcoming(tmdbIds, { force }),
     fetchExternalUpcomingForEntries(externalEntries),
   ]);
-  return { tracked, upcoming: [...tmdbUpcoming, ...externalUpcoming] };
+  let tvmazeUpcoming = [];
+  try {
+    tvmazeUpcoming = await fetchTvmazeCalendarForEntries(tracked, { force });
+  } catch (e) {
+    console.warn('[cinetrack] TVMaze calendar lookup failed:', e?.message || e);
+  }
+  return { tracked, upcoming: [...tmdbUpcoming, ...externalUpcoming, ...tvmazeUpcoming] };
 }
 
 async function maybeRefreshCalendarOncePerAccountToday() {

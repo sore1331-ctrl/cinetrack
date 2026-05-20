@@ -171,6 +171,18 @@ test.describe('tracker data integrity', () => {
     expect(events[0].after_value).toEqual(expect.objectContaining({ status: 'watched', watchedEpisodes: 8 }));
   });
 
+  test('tracked TV calendar uses TVMaze data for card highlights', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const tvmazeApi = fs.readFileSync(path.join(root, 'api', 'tvmaze-calendar.js'), 'utf8');
+
+    expect(app).toContain('async function fetchTvmazeCalendarForEntries');
+    expect(app).toContain("cache.byId?.[key]?.source === 'tvmaze'");
+    expect(app).toContain('mergeUpcomingCache(results)');
+    expect(app).toContain('tvmazeUpcoming = await fetchTvmazeCalendarForEntries(tracked, { force });');
+    expect(tvmazeApi).toContain('findCalendarEpisode');
+    expect(tvmazeApi).toContain('ep.airdate >= today && ep.airdate <= horizon');
+  });
+
   test('unsafe sync fallback and fail-open backup patterns are absent', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
     const api = fs.readFileSync(path.join(root, 'api', 'user-data.js'), 'utf8');
