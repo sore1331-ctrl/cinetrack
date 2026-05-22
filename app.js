@@ -235,6 +235,7 @@ const sourceModel = window.CineTrack?.sources;
 const progressModel = window.CineTrack?.progress;
 const recommendationModel = window.CineTrack?.recommendations;
 const formatModel = window.CineTrack?.format;
+const networkModel = window.CineTrack?.network;
 
 function readStoredArray(key) {
   return storageModel.readArray(key);
@@ -350,12 +351,7 @@ function updateSyncDetails() {
 
 // ── Supabase init ───────────────────────────────────────
 function withTimeout(promise, label = 'Operation', timeoutMs = 10000) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => {
-      reject(new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s.`));
-    }, timeoutMs)),
-  ]);
+  return networkModel.withTimeout(promise, label, timeoutMs);
 }
 
 async function initSupabase() {
@@ -458,22 +454,7 @@ async function getSupabaseAccessToken() {
 }
 
 async function fetchJsonWithTimeout(url, options = {}, label = 'Request', timeoutMs = CLOUD_TIMEOUT_MS) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
-    let data = null;
-    try { data = await response.json(); }
-    catch { data = null; }
-    return { response, data };
-  } catch (e) {
-    if (e?.name === 'AbortError') {
-      throw new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s.`);
-    }
-    throw e;
-  } finally {
-    clearTimeout(timeout);
-  }
+  return networkModel.fetchJsonWithTimeout(url, options, label, timeoutMs);
 }
 
 async function loadUserDataDirect() {

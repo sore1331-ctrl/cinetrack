@@ -71,6 +71,22 @@ function loadFormatModel() {
   return sandbox.window.CineTrack.format;
 }
 
+function loadNetworkModel(extra = {}) {
+  const source = fs.readFileSync(path.join(root, 'scripts', 'network-model.js'), 'utf8');
+  const sandbox = {
+    window: {
+      CineTrack: {},
+    },
+    setTimeout,
+    clearTimeout,
+    AbortController,
+    fetch,
+    ...extra,
+  };
+  vm.runInNewContext(source, sandbox);
+  return sandbox.window.CineTrack.network;
+}
+
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
   return {
@@ -446,5 +462,20 @@ test.describe('tracker data integrity', () => {
     expect(model.runtime(125)).toBe('2h 5m');
     expect(model.calendarDuration(1440 * 400 + 60)).toBe('1y 1mo 5d');
     expect(model.starsHtml(2)).toContain('★★☆☆');
+  });
+
+  test('network model parses JSON responses with timeout wrapper', async () => {
+    const model = loadNetworkModel({
+      fetch: async () => ({
+        ok: true,
+        json: async () => ({ ok: true }),
+      }),
+    });
+
+    await expect(model.withTimeout(Promise.resolve('done'), 'Fast op', 100)).resolves.toBe('done');
+    const result = await model.fetchJsonWithTimeout('/api/example', {}, 'Example', 100);
+
+    expect(result.data).toEqual({ ok: true });
+    expect(result.response.ok).toBe(true);
   });
 });
