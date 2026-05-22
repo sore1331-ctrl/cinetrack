@@ -4894,6 +4894,7 @@ function render() {
           <span class="lbl-md">${m.status === 'in_progress' ? 'Watched' : 'In Prog'}</span>
           <span class="lbl-sm">${m.status === 'in_progress' ? '✓' : '▶'}</span>
         </button>` : '');
+    const actionRowClass = primaryActionHTML ? 'card-actions' : 'card-actions card-actions-compact';
     const hoverInfoParts = [
       m.genre    && `<div class="chi-genre">${esc(m.genre)}</div>`,
       m.director && `<div class="chi-dir">${isTV ? 'Created by' : 'Dir.'} ${esc(m.director)}</div>`,
@@ -4929,7 +4930,7 @@ function render() {
       ${m.rating ? starsHTML(m.rating) : ''}
       ${epHTML}
       ${m.notes ? `<div class="card-notes">${esc(m.notes)}</div>` : ''}
-      <div class="card-actions">
+      <div class="${actionRowClass}">
         <button class="btn-sm btn-icon" data-edit="${m.id}" title="Edit ${titleLabel}" aria-label="Edit ${titleLabel}"${mutationDisabled}>
           ✎
         </button>

@@ -779,6 +779,9 @@ a.card-title-link:hover {
   min-height: 40px;
   align-items: stretch;
 }
+.card-actions-compact {
+  justify-content: center;
+}
 
 .btn-sm {
   flex: 1;
