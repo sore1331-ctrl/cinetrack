@@ -230,47 +230,21 @@ const MAX_LOCAL_BACKUPS = 3;
 const POSTER_BASE = 'https://image.tmdb.org/t/p/w200';
 const SESSION_TIMEOUT_MS = 20000;
 const CLOUD_TIMEOUT_MS = 30000;
+const storageModel = window.CineTrack?.storage;
 
 function readStoredArray(key) {
-  const raw = localStorage.getItem(key);
-  if (!raw) return [];
-  try {
-    const value = JSON.parse(raw);
-    return Array.isArray(value) ? value : [];
-  } catch (error) {
-    console.warn(`[cinetrack] Ignoring corrupt ${key} data:`, error?.message || error);
-    return [];
-  }
+  return storageModel.readArray(key);
 }
 
 function writeLocalLibraryBackup(reason, sourceMovies = movies) {
-  if (!Array.isArray(sourceMovies) || !sourceMovies.length) return true;
-  const snapshot = {
+  return storageModel.writeLibraryBackup({
+    key: LOCAL_BACKUPS_KEY,
     reason,
-    createdAt: new Date().toISOString(),
+    movies: sourceMovies,
     cloudUpdatedAt: lastCloudUpdatedAt || null,
     cloudVersion: lastCloudVersion || 0,
-    itemCount: sourceMovies.length,
-    movies: sourceMovies,
-  };
-  try {
-    const current = JSON.parse(localStorage.getItem(LOCAL_BACKUPS_KEY) || '[]');
-    const backups = Array.isArray(current) ? current : [];
-    for (let limit = MAX_LOCAL_BACKUPS; limit >= 1; limit--) {
-      try {
-        localStorage.setItem(LOCAL_BACKUPS_KEY, JSON.stringify([snapshot, ...backups].slice(0, limit)));
-        return true;
-      } catch {}
-    }
-  } catch (error) {
-    try {
-      localStorage.setItem(LOCAL_BACKUPS_KEY, JSON.stringify([snapshot]));
-      return true;
-    } catch {
-      console.warn('[cinetrack] Could not write local library backup:', error?.message || error);
-    }
-  }
-  return false;
+    maxBackups: MAX_LOCAL_BACKUPS,
+  });
 }
 
 let movies          = readStoredArray(STORAGE_KEY);
@@ -457,27 +431,19 @@ function hasUnsyncedLocalChanges() {
 }
 
 function readPendingSyncMarker() {
-  try {
-    const marker = JSON.parse(localStorage.getItem(PENDING_SYNC_KEY) || 'null');
-    return marker && typeof marker === 'object' ? marker : null;
-  } catch {
-    return null;
-  }
+  return storageModel.readPendingSyncMarker(PENDING_SYNC_KEY);
 }
 
 function markPendingSync(reason = 'local-change') {
   if (applyingRemoteData) return;
-  try {
-    localStorage.setItem(PENDING_SYNC_KEY, JSON.stringify({
-      reason,
-      updatedAt: new Date().toISOString(),
-      itemCount: Array.isArray(movies) ? movies.length : 0,
-    }));
-  } catch {}
+  storageModel.markPendingSync(PENDING_SYNC_KEY, {
+    reason,
+    itemCount: Array.isArray(movies) ? movies.length : 0,
+  });
 }
 
 function clearPendingSyncMarker() {
-  try { localStorage.removeItem(PENDING_SYNC_KEY); } catch {}
+  storageModel.clearPendingSyncMarker(PENDING_SYNC_KEY);
 }
 
 async function getSupabaseAccessToken() {

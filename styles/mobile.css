@@ -1,0 +1,34 @@
+/* ── Mobile performance & touch optimisations ──
+   - Lower blur radius on heavy backdrop-filter surfaces below 700px;
+     phone GPUs handle 12px far more cheaply than 24px.
+   - Keep the animated glow layer lightweight on phones by relying on
+     transform animation instead of animating filters or layout.
+   - Bump text inputs and number inputs to 16px on ≤480px so iOS
+     Safari doesn't auto-zoom on focus.
+   - Provide a tactile :active state for touch devices since the
+     OS tap-highlight is suppressed (see body rule).
+*/
+@media (max-width: 700px) {
+  :root {
+    --glass-blur: 12px;
+    --glass-saturate: 150%;
+  }
+}
+@media (max-width: 480px) {
+  /* Inputs ≥16px → no iOS zoom on focus. Selects don't trigger zoom so
+     the existing smaller filter sizes can stay. */
+  #search-input,
+  label input, label textarea { font-size: 16px; }
+}
+@media (hover: none) and (pointer: coarse) {
+  button:active,
+  .btn-sm:active,
+  .stat-card-clickable:active,
+  .chart-row-clickable:active,
+  .top-rated-card:active,
+  .cal-row:active,
+  .rec-card:active {
+    transform: scale(.97);
+    transition: transform .05s;
+  }
+}
