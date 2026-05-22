@@ -38,6 +38,17 @@ function loadSourceModel() {
   return sandbox.window.CineTrack.sources;
 }
 
+function loadProgressModel() {
+  const source = fs.readFileSync(path.join(root, 'scripts', 'progress-model.js'), 'utf8');
+  const sandbox = {
+    window: {
+      CineTrack: {},
+    },
+  };
+  vm.runInNewContext(source, sandbox);
+  return sandbox.window.CineTrack.progress;
+}
+
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
   return {
@@ -344,5 +355,43 @@ test.describe('tracker data integrity', () => {
     expect(model.infoUrlForEntry({ tmdbId: 42, mediaType: 'movie' })).toBe('https://www.themoviedb.org/movie/42');
     expect(model.infoUrlForEntry({ externalSource: 'anilist', externalId: '123 45' })).toBe('https://anilist.co/anime/123%2045');
     expect(model.metadataRefreshLabel({ externalSource: 'anilist' })).toBe('Refresh from AniList');
+  });
+
+  test('progress model cascades season progress and recomputes totals', () => {
+    const model = loadProgressModel();
+    const entry = {
+      mediaType: 'tv',
+      status: 'in_progress',
+      seasons: [
+        { number: 1, total: 10, watched: 0 },
+        { number: 2, total: 8, watched: 3 },
+        { number: 3, total: 6, watched: 0 },
+      ],
+    };
+
+    model.syncEpisodeProgress([entry]);
+
+    expect(entry.seasons[0].watched).toBe(10);
+    expect(entry.seasons[1].watched).toBe(3);
+    expect(entry.totalEpisodes).toBe(24);
+    expect(entry.watchedEpisodes).toBe(13);
+    expect(model.activeSeason(entry)).toEqual(expect.objectContaining({ number: 2 }));
+  });
+
+  test('progress model preserves overflow when watched count exceeds known seasons', () => {
+    const model = loadProgressModel();
+    const entry = {
+      seasons: [
+        { number: 1, total: 4, watched: 0 },
+        { number: 2, total: 4, watched: 0 },
+      ],
+    };
+
+    expect(model.applyWatchedCountAcrossSeasons(entry, 10)).toBe(true);
+
+    expect(entry.seasons.map(season => season.watched)).toEqual([4, 4]);
+    expect(entry.totalEpisodes).toBe(8);
+    expect(entry.watchedEpisodes).toBe(10);
+    expect(entry.progressOverflow).toBe(2);
   });
 });

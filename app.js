@@ -232,6 +232,7 @@ const SESSION_TIMEOUT_MS = 20000;
 const CLOUD_TIMEOUT_MS = 30000;
 const storageModel = window.CineTrack?.storage;
 const sourceModel = window.CineTrack?.sources;
+const progressModel = window.CineTrack?.progress;
 
 function readStoredArray(key) {
   return storageModel.readArray(key);
@@ -672,78 +673,32 @@ async function saveUserData() {
 // Cascade rule: if any season has progress, all earlier seasons must be
 // fully watched. Mutates the array in place.
 function normaliseSeasons(seasons) {
-  if (!Array.isArray(seasons) || !seasons.length) return;
-  const sorted = [...seasons].sort((a, b) => a.number - b.number);
-  // Find the highest-indexed season with any progress
-  let lastTouched = -1;
-  for (let i = 0; i < sorted.length; i++) {
-    const w = Math.min(sorted[i].watched || 0, sorted[i].total || 0);
-    sorted[i].watched = w;
-    if (w > 0) lastTouched = i;
-  }
-  // Cascade: every earlier season is fully watched
-  for (let i = 0; i < lastTouched; i++) {
-    sorted[i].watched = sorted[i].total;
-  }
+  progressModel.normaliseSeasons(seasons);
 }
 
 // Recompute totalEpisodes / watchedEpisodes from seasons[] (kept as
 // derived sums so stats / CSV / cloud-sync continue to work).
 function recomputeShowProgress(m) {
-  if (!Array.isArray(m.seasons) || !m.seasons.length) return;
-  m.totalEpisodes   = m.seasons.reduce((s, x) => s + (x.total   || 0), 0);
-  m.watchedEpisodes = m.seasons.reduce((s, x) => s + Math.min(x.watched || 0, x.total || 0), 0);
+  progressModel.recomputeShowProgress(m);
 }
 
 function applyWatchedCountAcrossSeasons(m, watchedCount) {
-  if (!Array.isArray(m?.seasons) || !m.seasons.length) return false;
-  const target = Math.max(0, Number(watchedCount) || 0);
-  const sorted = [...m.seasons].sort((a, b) => (a.number || 0) - (b.number || 0));
-  let remaining = target;
-  for (const season of sorted) {
-    const total = Math.max(0, Number(season.total) || 0);
-    season.watched = Math.min(total, remaining);
-    remaining -= season.watched;
-  }
-  recomputeShowProgress(m);
-  if (remaining > 0) {
-    m.watchedEpisodes = target;
-    m.progressOverflow = remaining;
-  } else {
-    delete m.progressOverflow;
-  }
-  return true;
+  return progressModel.applyWatchedCountAcrossSeasons(m, watchedCount);
 }
 
 function seasonTotal(seasons, field) {
-  if (!Array.isArray(seasons)) return 0;
-  return seasons.reduce((sum, season) => sum + Math.max(0, Number(season?.[field]) || 0), 0);
+  return progressModel.seasonTotal(seasons, field);
 }
 
 // First season with watched < total. Returns null if all caught up.
 function activeSeason(m) {
-  if (!Array.isArray(m.seasons) || !m.seasons.length) return null;
-  const sorted = [...m.seasons].sort((a, b) => a.number - b.number);
-  return sorted.find(s => (s.watched || 0) < (s.total || 0)) || null;
+  return progressModel.activeSeason(m);
 }
 
 // If a TV/anime entry is marked watched, every episode counts as watched.
 // Applies at the season level too when seasons[] is present.
 function syncEpisodeProgress() {
-  for (const m of movies) {
-    if (m.mediaType !== 'tv' && m.mediaType !== 'anime') continue;
-    if (m.status === 'watched') {
-      if (Array.isArray(m.seasons) && m.seasons.length) {
-        m.seasons.forEach(s => { s.watched = s.total; });
-        recomputeShowProgress(m);
-      } else if ((m.totalEpisodes || 0) > 0) {
-        m.watchedEpisodes = m.totalEpisodes;
-      }
-    } else if (Array.isArray(m.seasons) && m.seasons.length) {
-      normaliseSeasons(m.seasons);
-      recomputeShowProgress(m);
-    }
-  }
+  progressModel.syncEpisodeProgress(movies);
 }
 
 // One-shot at startup to fix any legacy data missing the invariant.
