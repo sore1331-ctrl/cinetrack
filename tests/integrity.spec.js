@@ -14,6 +14,40 @@ function loadUserDataHelpers() {
   return sandbox.helpers;
 }
 
+function loadStorageModel(storage) {
+  const source = fs.readFileSync(path.join(root, 'scripts', 'storage-model.js'), 'utf8');
+  const sandbox = {
+    console,
+    window: {
+      CineTrack: {},
+      localStorage: storage,
+    },
+  };
+  vm.runInNewContext(source, sandbox);
+  return sandbox.window.CineTrack.storage;
+}
+
+function loadSourceModel() {
+  const source = fs.readFileSync(path.join(root, 'scripts', 'source-model.js'), 'utf8');
+  const sandbox = {
+    window: {
+      CineTrack: {},
+    },
+  };
+  vm.runInNewContext(source, sandbox);
+  return sandbox.window.CineTrack.sources;
+}
+
+function memoryStorage(initial = {}) {
+  const data = new Map(Object.entries(initial));
+  return {
+    getItem: key => data.has(key) ? data.get(key) : null,
+    setItem: (key, value) => { data.set(key, String(value)); },
+    removeItem: key => { data.delete(key); },
+    dump: () => Object.fromEntries(data.entries()),
+  };
+}
+
 test.describe('tracker data integrity', () => {
   test.beforeEach(({}, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'Run integrity checks once.');
@@ -251,5 +285,64 @@ test.describe('tracker data integrity', () => {
     expect(api).toContain('Date.parse(existingRow?.updated_at');
     expect(app).toContain('if (!backedUpLocal && force)');
     expect(api).toContain("await supabaseRequest('progress_events'");
+  });
+
+  test('storage model ignores corrupt arrays and trims local backups', () => {
+    const storage = memoryStorage({
+      broken: '{bad json',
+      backups: JSON.stringify([{ reason: 'old-a' }, { reason: 'old-b' }]),
+    });
+    const model = loadStorageModel(storage);
+
+    expect(model.readArray('broken', storage)).toEqual([]);
+    expect(model.writeLibraryBackup({
+      key: 'backups',
+      reason: 'before-cloud-save',
+      movies: [{ id: 'one', title: 'Safe Title' }],
+      cloudUpdatedAt: '2026-05-22T10:00:00.000Z',
+      cloudVersion: 4,
+      maxBackups: 2,
+      storage,
+    })).toBe(true);
+
+    const saved = JSON.parse(storage.getItem('backups'));
+    expect(saved).toHaveLength(2);
+    expect(saved[0]).toEqual(expect.objectContaining({
+      reason: 'before-cloud-save',
+      cloudVersion: 4,
+      itemCount: 1,
+    }));
+    expect(saved[0].movies).toEqual([{ id: 'one', title: 'Safe Title' }]);
+  });
+
+  test('storage model records and clears pending sync markers', () => {
+    const storage = memoryStorage();
+    const model = loadStorageModel(storage);
+
+    model.markPendingSync('pending', {
+      reason: 'episode-progress',
+      itemCount: 12,
+      storage,
+    });
+
+    expect(model.readPendingSyncMarker('pending', storage)).toEqual(expect.objectContaining({
+      reason: 'episode-progress',
+      itemCount: 12,
+    }));
+
+    model.clearPendingSyncMarker('pending', storage);
+    expect(model.readPendingSyncMarker('pending', storage)).toBeNull();
+  });
+
+  test('source model normalizes poster and metadata links', () => {
+    const model = loadSourceModel();
+
+    expect(model.posterUrl('/abc.jpg', 'https://image.tmdb.org/t/p/w200')).toBe('https://image.tmdb.org/t/p/w200/abc.jpg');
+    expect(model.posterUrl('https://cdn.example/poster.jpg', 'https://image.tmdb.org/t/p/w200')).toBe('https://cdn.example/poster.jpg');
+    expect(model.sourceForEntry({ tmdbId: 42, externalSource: 'anilist' })).toBe('tmdb');
+    expect(model.sourceForEntry({ externalSource: 'anilist' })).toBe('anilist');
+    expect(model.infoUrlForEntry({ tmdbId: 42, mediaType: 'movie' })).toBe('https://www.themoviedb.org/movie/42');
+    expect(model.infoUrlForEntry({ externalSource: 'anilist', externalId: '123 45' })).toBe('https://anilist.co/anime/123%2045');
+    expect(model.metadataRefreshLabel({ externalSource: 'anilist' })).toBe('Refresh from AniList');
   });
 });

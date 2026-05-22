@@ -231,6 +231,7 @@ const POSTER_BASE = 'https://image.tmdb.org/t/p/w200';
 const SESSION_TIMEOUT_MS = 20000;
 const CLOUD_TIMEOUT_MS = 30000;
 const storageModel = window.CineTrack?.storage;
+const sourceModel = window.CineTrack?.sources;
 
 function readStoredArray(key) {
   return storageModel.readArray(key);
@@ -1389,8 +1390,7 @@ function countryNameFromCode(code) {
 }
 
 function externalPosterUrl(path) {
-  if (!path) return '';
-  return /^https?:\/\//i.test(path) ? path : POSTER_BASE + path;
+  return sourceModel.posterUrl(path, POSTER_BASE);
 }
 
 async function searchExternalTitle(q, type) {
@@ -1478,27 +1478,15 @@ async function fetchExternalDetails(id, type, rowData = null) {
 }
 
 function sourceForEntry(movie) {
-  if (movie?.tmdbId) return 'tmdb';
-  if (movie?.externalSource && movie.externalSource !== 'manual') return movie.externalSource;
-  return 'manual';
+  return sourceModel.sourceForEntry(movie);
 }
 
 function infoUrlForEntry(movie) {
-  if (!movie) return '';
-  if (movie.tmdbId) {
-    return `https://www.themoviedb.org/${movie.mediaType === 'movie' ? 'movie' : 'tv'}/${movie.tmdbId}`;
-  }
-  if (movie.externalSource === 'anilist' && movie.externalId) {
-    return `https://anilist.co/anime/${encodeURIComponent(movie.externalId)}`;
-  }
-  return '';
+  return sourceModel.infoUrlForEntry(movie);
 }
 
 function metadataRefreshLabel(movie) {
-  const source = sourceForEntry(movie);
-  if (source === 'anilist') return 'Refresh from AniList';
-  if (source === 'tmdb') return 'Refresh from TMDB';
-  return 'Refresh metadata';
+  return sourceModel.metadataRefreshLabel(movie);
 }
 
 async function matchEntryWithTMDB(movie) {
