@@ -4888,6 +4888,12 @@ function render() {
     const titleLabel = esc(m.title);
     const infoUrl = infoUrlForEntry(m);
     const toggleActionLabel = m.status === 'in_progress' ? 'Mark watched' : 'Mark in progress';
+    const primaryActionHTML = epIncBtn || ((m.status !== 'watched') ? `
+        <button class="btn-sm btn-primary-action" data-toggle="${m.id}" title="${toggleActionLabel} ${titleLabel}" aria-label="${toggleActionLabel} ${titleLabel}"${mutationDisabled}>
+          <span class="lbl-lg">${m.status === 'in_progress' ? '✓ Watched' : '▶ In Progress'}</span>
+          <span class="lbl-md">${m.status === 'in_progress' ? 'Watched' : 'In Prog'}</span>
+          <span class="lbl-sm">${m.status === 'in_progress' ? '✓' : '▶'}</span>
+        </button>` : '');
     const hoverInfoParts = [
       m.genre    && `<div class="chi-genre">${esc(m.genre)}</div>`,
       m.director && `<div class="chi-dir">${isTV ? 'Created by' : 'Dir.'} ${esc(m.director)}</div>`,
@@ -4924,17 +4930,16 @@ function render() {
       ${epHTML}
       ${m.notes ? `<div class="card-notes">${esc(m.notes)}</div>` : ''}
       <div class="card-actions">
-        <button class="btn-sm" data-edit="${m.id}" title="Edit ${titleLabel}" aria-label="Edit ${titleLabel}"${mutationDisabled}>
-          <span class="lbl-md lbl-lg">Edit</span><span class="lbl-sm">✎</span>
+        <button class="btn-sm btn-icon" data-edit="${m.id}" title="Edit ${titleLabel}" aria-label="Edit ${titleLabel}"${mutationDisabled}>
+          ✎
         </button>
-        ${epIncBtn}
-        ${(m.status !== 'watched' && !epIncBtn) ? `
-        <button class="btn-sm" data-toggle="${m.id}" title="${toggleActionLabel} ${titleLabel}" aria-label="${toggleActionLabel} ${titleLabel}"${mutationDisabled}>
-          <span class="lbl-lg">${m.status === 'in_progress' ? '✓ Watched' : '▶ In Progress'}</span>
-          <span class="lbl-md">${m.status === 'in_progress' ? 'Watched' : 'In Prog'}</span>
-          <span class="lbl-sm">${m.status === 'in_progress' ? '✓' : '▶'}</span>
-        </button>` : ''}
-        <button class="btn-sm danger" data-delete="${m.id}"${mutationDisabled}>✕</button>
+        ${primaryActionHTML}
+        <div class="card-more-wrap">
+          <button class="btn-sm btn-icon card-more-btn" data-action-menu="${m.id}" title="More actions for ${titleLabel}" aria-label="More actions for ${titleLabel}" aria-expanded="false"${mutationDisabled}>⋯</button>
+          <div class="card-action-menu" role="menu" hidden>
+            <button type="button" class="card-menu-item danger" data-delete="${m.id}" role="menuitem"${mutationDisabled}>Delete</button>
+          </div>
+        </div>
       </div>
     `;
     const deleteBtn = card.querySelector('[data-delete]');
@@ -5334,6 +5339,16 @@ document.getElementById('sort-order').addEventListener('change', e => {
 });
 
 grid.addEventListener('click', e => {
+  const clickedMoreWrap = e.target.closest('.card-more-wrap');
+  if (!clickedMoreWrap) {
+    grid.querySelectorAll('.movie-card.action-menu-open').forEach(el => {
+      el.classList.remove('action-menu-open');
+      el.querySelector('[data-action-menu]')?.setAttribute('aria-expanded', 'false');
+      const menu = el.querySelector('.card-action-menu');
+      if (menu) menu.hidden = true;
+    });
+  }
+
   const noteEl = e.target.closest('.card-notes');
   if (noteEl) { noteEl.classList.toggle('expanded'); return; }
 
@@ -5341,9 +5356,10 @@ grid.addEventListener('click', e => {
   const toggleId = e.target.closest('[data-toggle]')?.dataset.toggle;
   const deleteId = e.target.closest('[data-delete]')?.dataset.delete;
   const epIncId  = e.target.closest('[data-ep-inc]')?.dataset.epInc;
+  const menuId   = e.target.closest('[data-action-menu]')?.dataset.actionMenu;
 
   // Click poster to edit (skip in select mode or when clicking checkbox)
-  if (!editId && !toggleId && !deleteId && !epIncId && !selectMode && !e.target.closest('.card-checkbox')) {
+  if (!editId && !toggleId && !deleteId && !epIncId && !menuId && !selectMode && !e.target.closest('.card-checkbox')) {
     const poster = e.target.closest('.card-poster');
     if (poster) {
       const card = poster.closest('.movie-card');
@@ -5352,7 +5368,22 @@ grid.addEventListener('click', e => {
     }
   }
 
-  if (epIncId) {
+  if (menuId) {
+    const card = e.target.closest('.movie-card');
+    const wasOpen = card?.classList.contains('action-menu-open');
+    grid.querySelectorAll('.movie-card.action-menu-open').forEach(el => {
+      el.classList.remove('action-menu-open');
+      el.querySelector('[data-action-menu]')?.setAttribute('aria-expanded', 'false');
+      const menu = el.querySelector('.card-action-menu');
+      if (menu) menu.hidden = true;
+    });
+    if (card && !wasOpen) {
+      card.classList.add('action-menu-open');
+      e.target.closest('[data-action-menu]')?.setAttribute('aria-expanded', 'true');
+      const menu = card.querySelector('.card-action-menu');
+      if (menu) menu.hidden = false;
+    }
+  } else if (epIncId) {
     const m = movies.find(m => m.id === epIncId);
     if (!m) return;
     if (Array.isArray(m.seasons) && m.seasons.length) {
@@ -5388,6 +5419,12 @@ grid.addEventListener('click', e => {
       save(); render();
     }
   } else if (deleteId) {
+    grid.querySelectorAll('.movie-card.action-menu-open').forEach(el => {
+      el.classList.remove('action-menu-open');
+      el.querySelector('[data-action-menu]')?.setAttribute('aria-expanded', 'false');
+      const menu = el.querySelector('.card-action-menu');
+      if (menu) menu.hidden = true;
+    });
     const m = movies.find(m => m.id === deleteId);
     if (m) {
       pendingDeleteId = deleteId;

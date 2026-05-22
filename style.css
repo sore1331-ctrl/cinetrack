@@ -777,6 +777,7 @@ a.card-title-link:hover {
   margin-top: auto;
   padding: 8px 14px 0;
   min-height: 40px;
+  align-items: stretch;
 }
 
 .btn-sm {
@@ -797,6 +798,80 @@ a.card-title-link:hover {
   justify-content: center;
 }
 .btn-sm:hover { border-color: var(--accent); color: var(--text); }
+.btn-sm.btn-icon,
+.card-more-wrap {
+  flex: 0 0 38px;
+}
+.btn-sm.btn-icon {
+  width: 38px;
+  padding: 0;
+  font-size: .95rem;
+}
+.btn-sm.btn-primary-action {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.btn-sm.btn-primary-action:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.card-more-wrap {
+  position: relative;
+  min-width: 0;
+}
+.card-more-wrap > .btn-sm {
+  width: 100%;
+  height: 100%;
+}
+.card-action-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  min-width: 118px;
+  padding: 5px;
+  border: 1px solid color-mix(in srgb, var(--glass-ring) 78%, transparent);
+  border-radius: 8px;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.08), transparent 38%),
+    color-mix(in srgb, var(--surface) 94%, #050508 6%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+          backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  box-shadow: 0 14px 34px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.08);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity .14s ease, transform .14s ease;
+  z-index: 8;
+}
+.card-action-menu[hidden] { display: none; }
+.movie-card.action-menu-open .card-action-menu {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+.card-menu-item {
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: .78rem;
+  text-align: left;
+}
+.card-menu-item:hover {
+  background: var(--glass-control-bg-hover);
+}
+.card-menu-item.danger {
+  color: #f08a82;
+}
+.card-menu-item.danger:hover {
+  background: rgba(192, 57, 43, .18);
+  color: #fff;
+}
 .card-actions .btn-sm.danger {
   flex: 0 0 42px;
   background: rgba(192, 57, 43, .14);
