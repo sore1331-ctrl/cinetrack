@@ -255,6 +255,51 @@ body::before {
 :root.light[data-bg="cyber"] { --orb-a: #a5f3fc; --orb-b: #ddd6fe; --orb-c: #bbf7d0; }
 :root[data-bg="lavender"] { --orb-a: #4c1d95; --orb-b: #7c3aed; --orb-c: #db2777; --orb-opacity: .6; }
 :root.light[data-bg="lavender"] { --orb-a: #ddd6fe; --orb-b: #e9d5ff; --orb-c: #fbcfe8; }
+:root[data-bg="cinema"] {
+  --bg: #07070a;
+  --orb-a: #151620;
+  --orb-b: #101115;
+  --orb-c: #1b1720;
+  --orb-opacity: .18;
+}
+:root.light[data-bg="cinema"] {
+  --bg: #f1f1f4;
+  --orb-a: #d6d7df;
+  --orb-b: #e8e3e6;
+  --orb-c: #d7dde2;
+  --orb-opacity: .34;
+}
+:root[data-bg="cinema"] body {
+  background:
+    radial-gradient(80vmax at 50% -20%, rgba(255,255,255,.055) 0%, transparent 52%),
+    radial-gradient(90vmax at 50% 115%, rgba(95,68,120,.10) 0%, transparent 58%),
+    linear-gradient(180deg, rgba(255,255,255,.025), transparent 22%),
+    var(--bg);
+}
+:root.light[data-bg="cinema"] body {
+  background:
+    radial-gradient(80vmax at 50% -20%, rgba(255,255,255,.82) 0%, transparent 52%),
+    radial-gradient(90vmax at 50% 115%, rgba(168,151,190,.20) 0%, transparent 58%),
+    linear-gradient(180deg, rgba(255,255,255,.38), transparent 24%),
+    var(--bg);
+}
+:root[data-bg="cinema"] body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: .045;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(255,255,255,.55) 0 1px, transparent 1px),
+    radial-gradient(circle at 70% 60%, rgba(255,255,255,.35) 0 1px, transparent 1px);
+  background-size: 3px 3px, 5px 5px;
+  mix-blend-mode: screen;
+}
+:root.light[data-bg="cinema"] body::after {
+  opacity: .06;
+  mix-blend-mode: multiply;
+}
 :root[data-bg="mono"]   { --orb-opacity: 0; }
 :root.light[data-bg="mono"] { --orb-opacity: 0; }
 :root[data-bg="mono"] body { background-image: none; }
@@ -3220,6 +3265,7 @@ a.top-rated-card:hover {
 .bg-swatch[data-bg="ember"]    { --sw-a: #7f1d1d; --sw-b: #ea580c; }
 .bg-swatch[data-bg="cyber"]    { --sw-a: #0e7490; --sw-b: #6d28d9; }
 .bg-swatch[data-bg="lavender"] { --sw-a: #4c1d95; --sw-b: #db2777; }
+.bg-swatch[data-bg="cinema"]   { --sw-a: #111217; --sw-b: #3a3146; }
 .bg-swatch[data-bg="mono"]     { --sw-a: transparent; --sw-b: transparent; }
 .bg-swatch-label {
   position: absolute; bottom: 4px; left: 0; right: 0;

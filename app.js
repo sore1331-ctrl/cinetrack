@@ -38,6 +38,7 @@ const BG_PRESETS = [
   'ember',
   'cyber',
   'lavender',
+  'cinema',
   'mono',
 ];
 function applyBgPreset(name) {
