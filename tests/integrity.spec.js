@@ -60,6 +60,17 @@ function loadRecommendationModel() {
   return sandbox.window.CineTrack.recommendations;
 }
 
+function loadFormatModel() {
+  const source = fs.readFileSync(path.join(root, 'scripts', 'format-model.js'), 'utf8');
+  const sandbox = {
+    window: {
+      CineTrack: {},
+    },
+  };
+  vm.runInNewContext(source, sandbox);
+  return sandbox.window.CineTrack.format;
+}
+
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
   return {
@@ -424,5 +435,16 @@ test.describe('tracker data integrity', () => {
     expect(model.compatibleTypes('anime', 'tv')).toBe(true);
     expect(model.sourceKey({ source: 'anilist', externalId: 123 })).toBe('anilist:123');
     expect(model.rotateForced([1, 2, 3, 4], 1, true, 2)).toEqual([3, 4, 1, 2]);
+  });
+
+  test('format model normalizes duplicate titles and durations', () => {
+    const model = loadFormatModel();
+
+    expect(model.escapeHtml('<CineTrack & "Films">')).toBe('&lt;CineTrack &amp; &quot;Films&quot;&gt;');
+    expect(model.normaliseTitle('The Lord & the Rings (Extended)')).toBe('lord and rings');
+    expect(model.normaliseYear('Released in 2026')).toBe('2026');
+    expect(model.runtime(125)).toBe('2h 5m');
+    expect(model.calendarDuration(1440 * 400 + 60)).toBe('1y 1mo 5d');
+    expect(model.starsHtml(2)).toContain('★★☆☆');
   });
 });

@@ -234,6 +234,7 @@ const storageModel = window.CineTrack?.storage;
 const sourceModel = window.CineTrack?.sources;
 const progressModel = window.CineTrack?.progress;
 const recommendationModel = window.CineTrack?.recommendations;
+const formatModel = window.CineTrack?.format;
 
 function readStoredArray(key) {
   return storageModel.readArray(key);
@@ -1685,21 +1686,11 @@ function applyTMDBSelection(details) {
 }
 
 function normaliseDuplicateTitle(value) {
-  return String(value || '')
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/&/g, ' and ')
-    .replace(/\([^)]*\)|\[[^\]]*\]/g, ' ')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .replace(/\b(the|a|an)\b/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return formatModel.normaliseTitle(value);
 }
 
 function normaliseDuplicateYear(value) {
-  const match = String(value || '').match(/\d{4}/);
-  return match ? match[0] : '';
+  return formatModel.normaliseYear(value);
 }
 
 function findDuplicateTitle({ title, year, mediaType, source, externalId }) {
@@ -1961,30 +1952,20 @@ function filtered() {
 }
 
 // ── Helpers ─────────────────────────────────────────────
-const EMOJIS = ['🎬','🎥','🎞️','🍿','🎦','🌟','🎭','🎪'];
-
 function posterEmoji(title) {
-  let h = 0;
-  for (const c of title) h = (h * 31 + c.charCodeAt(0)) | 0;
-  return EMOJIS[Math.abs(h) % EMOJIS.length];
+  return formatModel.posterEmoji(title);
 }
 
 function starsHTML(rating) {
-  if (!rating) return '';
-  return `<span class="card-stars" title="${rating}/10">${'★'.repeat(rating)}${'☆'.repeat(10 - rating)}</span>`;
+  return formatModel.starsHtml(rating);
 }
 
 function esc(str) {
-  return String(str)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return formatModel.escapeHtml(str);
 }
 
 function formatRuntime(mins) {
-  if (!mins) return '';
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return h > 0 ? (m > 0 ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
+  return formatModel.runtime(mins);
 }
 
 function actualWatchedMinutes(m) {
@@ -1999,23 +1980,7 @@ function actualWatchedMinutes(m) {
 let timeSpentFormat = localStorage.getItem('cinetrack_time_spent_format') === 'calendar' ? 'calendar' : 'runtime';
 
 function formatCalendarDuration(mins) {
-  if (!mins) return '';
-  let days = Math.floor(mins / 1440);
-  if (days < 1) return formatRuntime(mins);
-
-  const years = Math.floor(days / 365);
-  days %= 365;
-  const months = Math.floor(days / 30);
-  days %= 30;
-  const weeks = Math.floor(days / 7);
-  days %= 7;
-
-  const parts = [];
-  if (years) parts.push(`${years}y`);
-  if (months) parts.push(`${months}mo`);
-  if (weeks) parts.push(`${weeks}w`);
-  if (days) parts.push(`${days}d`);
-  return parts.join(' ') || formatRuntime(mins);
+  return formatModel.calendarDuration(mins);
 }
 
 function formatTimeSpent(mins) {
