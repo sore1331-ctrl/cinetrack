@@ -87,6 +87,17 @@ function loadNetworkModel(extra = {}) {
   return sandbox.window.CineTrack.network;
 }
 
+function loadCsvModel() {
+  const source = fs.readFileSync(path.join(root, 'scripts', 'csv-model.js'), 'utf8');
+  const sandbox = {
+    window: {
+      CineTrack: {},
+    },
+  };
+  vm.runInNewContext(source, sandbox);
+  return sandbox.window.CineTrack.csv;
+}
+
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
   return {
@@ -477,5 +488,50 @@ test.describe('tracker data integrity', () => {
 
     expect(result.data).toEqual({ ok: true });
     expect(result.response.ok).toBe(true);
+  });
+
+  test('csv model parses aliases, quotes, and normalizes show progress', () => {
+    const model = loadCsvModel();
+    const rows = model.parse([
+      'name,release_year,genres,type,status,rating,total_episodes,episodes_watched,overview',
+      '"Dark, The",2017,"Sci-Fi, Thriller",show,watchlist,12,26,40,"A ""time"" story"',
+    ].join('\n'));
+
+    expect(rows).toEqual([expect.objectContaining({
+      title: 'Dark, The',
+      year: '2017',
+      genre: 'Sci-Fi, Thriller',
+      mediaType: 'show',
+      notes: 'A "time" story',
+    })]);
+
+    expect(model.normaliseRow(rows[0])).toEqual(expect.objectContaining({
+      mediaType: 'tv',
+      status: 'watched',
+      rating: 10,
+      totalEpisodes: 26,
+      watchedEpisodes: 26,
+    }));
+  });
+
+  test('csv model exports safe spreadsheet text and template data', () => {
+    const model = loadCsvModel();
+    const text = model.exportText([{
+      title: 'Quote "Test"',
+      year: 2026,
+      genre: 'Drama, Action',
+      director: 'Someone',
+      country: 'United States',
+      status: 'watched',
+      rating: 9,
+      runtime: 120,
+      notes: null,
+      mediaType: 'movie',
+    }]);
+
+    expect(text).toContain('title,year,genre,director,country,status,rating,runtime,notes,type');
+    expect(text).toContain('"Quote ""Test"""');
+    expect(text).toContain('"Drama, Action"');
+    expect(model.TEMPLATE_CSV).toContain('episodes_watched');
   });
 });

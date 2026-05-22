@@ -236,6 +236,7 @@ const progressModel = window.CineTrack?.progress;
 const recommendationModel = window.CineTrack?.recommendations;
 const formatModel = window.CineTrack?.format;
 const networkModel = window.CineTrack?.network;
+const csvModel = window.CineTrack?.csv;
 
 function readStoredArray(key) {
   return storageModel.readArray(key);
@@ -4562,14 +4563,7 @@ function exportCSV() {
     : movies.filter(m => m.mediaType === activeType && m.status !== 'dropped');
   if (!list.length) { showToast('No titles to export for this tab.', true); return; }
 
-  const headers = ['title','year','genre','director','country','status','rating','runtime','notes','type'];
-  const rows = list.map(m =>
-    [m.title, m.year, m.genre, m.director, m.country, m.status, m.rating || '', m.runtime || '', m.notes, m.mediaType]
-      .map(v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`)
-      .join(',')
-  );
-
-  const csv  = [headers.join(','), ...rows].join('\n');
+  const csv  = csvModel.exportText(list);
   const blob = new Blob([csv], { type: 'text/csv' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
@@ -5278,51 +5272,8 @@ const progressCancel = document.getElementById('progress-cancel');
 
 let cancelImport = false;
 
-const COL_MAP = {
-  title: 'title', name: 'title',
-  year: 'year', release_year: 'year', release_date: 'year',
-  genre: 'genre', genres: 'genre',
-  director: 'director', creator: 'director', created_by: 'director',
-  country: 'country', origin_country: 'country',
-  status: 'status', rating: 'rating', runtime: 'runtime',
-  notes: 'notes', overview: 'notes', description: 'notes',
-  type: 'mediaType', media_type: 'mediaType', mediatype: 'mediaType',
-  poster: 'posterUrl', poster_url: 'posterUrl', posterurl: 'posterUrl',
-  total_episodes: 'totalEpisodes', totalepisodes: 'totalEpisodes', episodes: 'totalEpisodes', episode_count: 'totalEpisodes',
-  episodes_watched: 'watchedEpisodes', watched_episodes: 'watchedEpisodes', watchedepisodes: 'watchedEpisodes',
-};
-
 function parseCSV(text) {
-  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
-  if (lines.length < 2) return [];
-
-  function parseLine(line) {
-    const fields = [];
-    let cur = '', inQuote = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') {
-        if (inQuote && line[i + 1] === '"') { cur += '"'; i++; }
-        else inQuote = !inQuote;
-      } else if (ch === ',' && !inQuote) {
-        fields.push(cur.trim()); cur = '';
-      } else { cur += ch; }
-    }
-    fields.push(cur.trim());
-    return fields;
-  }
-
-  const headers = parseLine(lines[0]).map(h => h.toLowerCase().replace(/\s+/g, '_'));
-  const rows = [];
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue;
-    const vals = parseLine(line);
-    const obj = {};
-    headers.forEach((h, idx) => { const field = COL_MAP[h]; if (field) obj[field] = vals[idx] ?? ''; });
-    rows.push(obj);
-  }
-  return rows;
+  return csvModel.parse(text);
 }
 
 function showToast(msg, isError = false) {
@@ -5334,27 +5285,7 @@ function showToast(msg, isError = false) {
 }
 
 function normaliseRow(row) {
-  const rawType   = (row.mediaType || '').toLowerCase();
-  const mediaType = (rawType === 'tv' || rawType === 'tv show' || rawType === 'show') ? 'tv'
-                  : rawType === 'anime' ? 'anime' : 'movie';
-  const rawStatus = (row.status || '').toLowerCase().trim();
-  let status      = rawStatus === 'watched' ? 'watched'
-                  : (rawStatus === 'in_progress' || rawStatus === 'in progress' || rawStatus === 'inprogress') ? 'in_progress'
-                  : rawStatus === 'dropped' ? 'dropped'
-                  : 'watchlist';
-  const year      = (row.year || '').toString().slice(0, 4);
-  const runtime   = parseInt(row.runtime) || 0;
-  const isShow    = mediaType === 'tv' || mediaType === 'anime';
-  const totalEpisodes   = isShow ? Math.max(0, parseInt(row.totalEpisodes)   || 0) : 0;
-  let   watchedEpisodes = isShow ? Math.max(0, parseInt(row.watchedEpisodes) || 0) : 0;
-  if (totalEpisodes > 0 && watchedEpisodes > totalEpisodes) watchedEpisodes = totalEpisodes;
-  if (status !== 'dropped' && isShow && totalEpisodes > 0) {
-    if      (watchedEpisodes >= totalEpisodes) status = 'watched';
-    else if (watchedEpisodes > 0)              status = 'in_progress';
-  }
-  const rating    = (status === 'watched' || status === 'in_progress' || status === 'dropped')
-                    ? Math.min(10, Math.max(0, parseInt(row.rating) || 0)) : 0;
-  return { mediaType, status, rating, year, runtime, totalEpisodes, watchedEpisodes };
+  return csvModel.normaliseRow(row);
 }
 
 async function matchWithTMDB(title, year, mediaType) {
@@ -5433,8 +5364,7 @@ csvInput.addEventListener('change', () => {
   reader.readAsText(file);
 });
 
-const TEMPLATE_CSV = `title,year,genre,director,country,status,rating,runtime,notes,type,total_episodes,episodes_watched\nInception,2010,"Sci-Fi, Thriller",Christopher Nolan,United States,watched,9,148,Mind-bending film,movie,,\nBreaking Bad,2008,"Crime, Drama",Vince Gilligan,United States,watched,10,2700,Greatest TV drama,tv,62,62\nDark,2017,"Sci-Fi, Thriller",Baran bo Odar,Germany,in_progress,9,1530,Time-travel mystery,tv,26,12\n`;
-const TEMPLATE_URL = URL.createObjectURL(new Blob([TEMPLATE_CSV], { type: 'text/csv' }));
+const TEMPLATE_URL = URL.createObjectURL(new Blob([csvModel.TEMPLATE_CSV], { type: 'text/csv' }));
 
 // ── Auth UI ──────────────────────────────────────────────
 const authOverlay  = document.getElementById('auth-overlay');
