@@ -183,6 +183,18 @@ test.describe('tracker data integrity', () => {
     expect(tvmazeApi).toContain('ep.airdate >= today && ep.airdate <= horizon');
   });
 
+  test('tracked calendar only renders confirmed future dates', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const tvmazeApi = fs.readFileSync(path.join(root, 'api', 'tvmaze-calendar.js'), 'utf8');
+
+    expect(app).toContain('Calendar only shows confirmed future dates');
+    expect(app).toContain('if (!row.date) return;');
+    expect(app).toContain('ne.airDate >= todayStr && ne.airDate <= tvHorizonStr');
+    expect(app).not.toContain('Between seasons / no date yet');
+    expect(app).not.toContain('No date scheduled');
+    expect(tvmazeApi).toContain('if (!episode) return null;');
+  });
+
   test('anime recommendations prefer AniList before TMDB fallback', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
     const externalApi = fs.readFileSync(path.join(root, 'api', 'external.js'), 'utf8');

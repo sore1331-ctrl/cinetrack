@@ -76,6 +76,8 @@ async function calendarEntry(entry, today, horizon) {
 
   const episodes = await tvmaze(`/shows/${show.id}/episodes`);
   const episode = findCalendarEpisode(episodes, today, horizon);
+  if (!episode) return null;
+
   const sourceKey = entry.sourceKey || (entry.tmdbId ? `tv:${entry.tmdbId}` : `tvmaze:${show.id}`);
 
   return {

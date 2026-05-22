@@ -2985,17 +2985,18 @@ async function renderCalendarTracked(body, { force = false } = {}) {
     // Index local entries so we can read user posters / titles back
     const localByKey = new Map(tracked.map(m => [calendarKeyForEntry(m), m]));
 
-    // Normalize each upcoming entry into a unified row descriptor.
+    // Normalize each upcoming entry into a unified row descriptor. Tracked
+    // Calendar only shows confirmed future dates; undated shows belong in
+    // library health/status checks, not the schedule.
     const dated   = [];
-    const undated = [];   // TV between seasons / no scheduled date
     const calendarRowKeys = new Set();
 
   function addCalendarRow(row) {
-    const key = `${row.kind}:${row.tmdbId || row.title}:${row.date || 'undated'}`;
+    if (!row.date) return;
+    const key = `${row.kind}:${row.tmdbId || row.title}:${row.date}`;
     if (calendarRowKeys.has(key)) return;
     calendarRowKeys.add(key);
-    if (row.date) dated.push(row);
-    else undated.push(row);
+    dated.push(row);
   }
 
   for (const u of upcoming) {
@@ -3020,7 +3021,7 @@ async function renderCalendarTracked(body, { force = false } = {}) {
 
     // TV / anime
     const ne = u.nextEpisode;
-    if (ne && ne.airDate && ne.airDate <= tvHorizonStr) {
+    if (ne && ne.airDate && ne.airDate >= todayStr && ne.airDate <= tvHorizonStr) {
       addCalendarRow({
         date: ne.airDate,
         kind: local?.mediaType === 'anime' ? 'anime' : 'tv',
@@ -3029,14 +3030,6 @@ async function renderCalendarTracked(body, { force = false } = {}) {
         poster: local?.posterUrl || u.poster_url || (u.poster_path ? POSTER_BASE + u.poster_path : ''),
         sublabel: `S${ne.season}E${ne.episode}${ne.name ? ` · ${esc(ne.name)}` : ''}`,
         tmdbUrl:  u.externalUrl || `https://www.themoviedb.org/tv/${u.tmdbId}`,
-      });
-    } else if (!ne || !ne.airDate) {
-      addCalendarRow({
-        kind: local?.mediaType === 'anime' ? 'anime' : 'tv',
-        tmdbId: u.tmdbId || u.externalId || '',
-        title:  local?.title || u.title,
-        poster: local?.posterUrl || u.poster_url || (u.poster_path ? POSTER_BASE + u.poster_path : ''),
-        tmdbUrl: u.externalUrl || `https://www.themoviedb.org/tv/${u.tmdbId}`,
       });
     }
   }
@@ -3071,9 +3064,9 @@ async function renderCalendarTracked(body, { force = false } = {}) {
     }
   }
 
-  if (!dated.length && !undated.length) {
+  if (!dated.length) {
     body.querySelector('.calendar-list').innerHTML =
-      `<p class="recs-empty">Nothing on the horizon. Watchlist movies will show up to ${MOVIE_HORIZON_DAYS} days before release; in-progress shows up to ${UPCOMING_HORIZON_DAYS} days.</p>`;
+      `<p class="recs-empty">Nothing confirmed on the horizon. Calendar only shows titles with a future episode or release date from connected sources.</p>`;
     return;
   }
 
@@ -3098,17 +3091,7 @@ async function renderCalendarTracked(body, { force = false } = {}) {
     `;
   }).join('');
 
-  const hiatusHTML = undated.length ? `
-    <div class="cal-group cal-group-hiatus">
-      <div class="cal-group-head">
-        <h3 class="cal-group-date">Between seasons / no date yet</h3>
-        <span class="cal-count">${undated.length} ${undated.length === 1 ? 'title' : 'titles'}</span>
-      </div>
-      ${undated.map(r => calRow(r, { hideSub: true })).join('')}
-    </div>
-  ` : '';
-
-  body.querySelector('.calendar-list').innerHTML = groupHTML + hiatusHTML;
+  body.querySelector('.calendar-list').innerHTML = groupHTML;
 
   // Refresh the nav-tab dot using the freshly-fetched cache
     updateCalendarAiringBadge();
@@ -3121,9 +3104,7 @@ async function renderCalendarTracked(body, { force = false } = {}) {
     const poster = r.poster
       ? `<img class="cal-poster" src="${r.poster}" alt="${esc(r.title)}" loading="lazy" />`
       : `<div class="cal-poster cal-poster-emoji">${fallback}</div>`;
-    const sub = !opts.hideSub
-      ? r.sublabel
-      : '<em>No date scheduled</em>';
+    const sub = r.sublabel;
     const kindLabel = r.kind === 'movie' ? 'Film' : r.kind === 'anime' ? 'Anime' : 'TV';
     return `
       <a class="cal-row${opts.airingToday ? ' cal-row-today' : ''}" href="${r.tmdbUrl}" target="_blank" rel="noopener noreferrer" title="View on TMDB">
