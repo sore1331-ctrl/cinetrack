@@ -233,6 +233,7 @@ const CLOUD_TIMEOUT_MS = 30000;
 const storageModel = window.CineTrack?.storage;
 const sourceModel = window.CineTrack?.sources;
 const progressModel = window.CineTrack?.progress;
+const recommendationModel = window.CineTrack?.recommendations;
 
 function readStoredArray(key) {
   return storageModel.readArray(key);
@@ -3284,26 +3285,19 @@ function recIdentity({ title, year, media_type }) {
 }
 
 function recMediaType(rec) {
-  return rec?.media_type || rec?.mediaType || '';
+  return recommendationModel.mediaType(rec);
 }
 
 function compatibleRecTypes(a, b) {
-  if (!a || !b) return true;
-  if (a === b) return true;
-  return (a === 'anime' && b === 'tv') || (a === 'tv' && b === 'anime');
+  return recommendationModel.compatibleTypes(a, b);
 }
 
 function normaliseRecommendationForScope(rec, scope = 'all') {
-  const mediaType = scope === 'anime' && rec?.media_type === 'tv'
-    ? 'anime'
-    : recMediaType(rec);
-  return { ...rec, media_type: mediaType };
+  return recommendationModel.normaliseForScope(rec, scope);
 }
 
 function recommendationSourceKey(rec) {
-  const source = rec?.source || 'tmdb';
-  const externalId = rec?.externalId || rec?.id;
-  return externalId ? `${source}:${externalId}` : '';
+  return recommendationModel.sourceKey(rec);
 }
 
 function findTrackedRecommendationMatch(rec) {
@@ -3333,11 +3327,7 @@ function findTrackedRecommendationMatch(rec) {
 }
 
 function recommendationInfoUrl(rec) {
-  if (!rec?.id) return '';
-  const source = rec.source || 'tmdb';
-  if (source === 'anilist') return `https://anilist.co/anime/${encodeURIComponent(rec.externalId || rec.id)}`;
-  const tmdbType = rec.media_type === 'movie' ? 'movie' : 'tv';
-  return `https://www.themoviedb.org/${tmdbType}/${encodeURIComponent(rec.id)}`;
+  return recommendationModel.infoUrl(rec);
 }
 
 async function resolveRecommendationSeed(movie) {
@@ -3381,23 +3371,11 @@ async function resolveRecommendationSeed(movie) {
 }
 
 function normaliseAnilistRecommendation(media) {
-  return {
-    id: media.id,
-    source: 'anilist',
-    externalId: media.id,
-    media_type: 'anime',
-    title: media.title,
-    year: media.year || media.seasonYear || '',
-    poster_path: media.coverImage || '',
-    overview: media.description || '',
-    genre: (media.genres || []).join(', '),
-    runtime: media.duration || 0,
-    total_episodes: media.episodes || 0,
-  };
+  return recommendationModel.normaliseAnilist(media);
 }
 
 function seedKeyForMovie(movie) {
-  return movie.tmdbId ? `tmdb:${movie.tmdbId}` : `${movie.externalSource}:${movie.externalId}:${movie.title}:${movie.year}`;
+  return recommendationModel.seedKey(movie);
 }
 
 function recommendationRefreshIndex(scope, force = false) {
@@ -3410,21 +3388,11 @@ function recommendationRefreshIndex(scope, force = false) {
 }
 
 function rotateList(items, offset) {
-  if (!items.length) return items;
-  const n = Math.abs(offset) % items.length;
-  return [...items.slice(n), ...items.slice(0, n)];
+  return recommendationModel.rotateList(items, offset);
 }
 
 function selectRecommendationSeeds(scored, limit = 8, rotationIndex = 0, force = false) {
-  if (force) {
-    return rotateList(scored.slice(0, 24), rotationIndex * limit).slice(0, limit);
-  }
-  const primary = scored.slice(0, Math.min(4, limit));
-  const rotation = scored
-    .slice(primary.length, Math.min(scored.length, 24))
-    .sort((a, b) => String(seedKeyForMovie(a)).localeCompare(String(seedKeyForMovie(b))))
-  const rotated = rotateList(rotation, rotationIndex * Math.max(1, limit - primary.length));
-  return [...primary, ...rotated.slice(0, Math.max(0, limit - primary.length))];
+  return recommendationModel.selectSeeds(scored, limit, rotationIndex, force);
 }
 
 async function fetchAnilistRecommendationResults(seededPool, { force = false } = {}) {
@@ -3457,31 +3425,15 @@ function pickRandom(arr, n) {
 }
 
 function scoreRecommendation(rec, { genreCounts = {}, dismissedProfile = {}, scope = 'all' } = {}) {
-  const genres = String(rec.genre || '')
-    .split(',')
-    .map(g => g.trim())
-    .filter(Boolean);
-  const genreScore = genres.reduce((sum, genre) => sum + (genreCounts[genre] || 0), 0);
-  const dismissedGenrePenalty = genres.reduce((sum, genre) => sum + (dismissedProfile.genres?.[genre] || 0), 0);
-  const type = recMediaType(rec);
-  const typePenalty = dismissedProfile.mediaTypes?.[type] || 0;
-  const popularity = Math.log10(Math.max(1, Number(rec.popularity || 0)));
-  const votes = Math.log10(Math.max(1, Number(rec.vote_count || 0)));
-  const rating = Number(rec.vote_average || rec.averageScore || 0) / 2;
-  const sourceBoost = scope === 'anime' && (rec.source || '') === 'anilist' ? 8 : 0;
-
-  return sourceBoost + genreScore * 2 + popularity + votes + rating - dismissedGenrePenalty * 2 - typePenalty;
+  return recommendationModel.score(rec, { genreCounts, dismissedProfile, scope });
 }
 
 function rankRecommendationResults(results, context) {
-  return [...(results || [])]
-    .map((rec, idx) => ({ ...rec, _recScore: scoreRecommendation(rec, context), _recOrder: idx }))
-    .sort((a, b) => b._recScore - a._recScore || a._recOrder - b._recOrder);
+  return recommendationModel.rank(results, context);
 }
 
 function rotateForcedRecommendations(results, refreshIndex, force) {
-  if (!force || results.length <= RECS_VISIBLE_LIMIT) return results;
-  return rotateList(results, refreshIndex * RECS_VISIBLE_LIMIT);
+  return recommendationModel.rotateForced(results, refreshIndex, force, RECS_VISIBLE_LIMIT);
 }
 
 function visibleRecommendationCount(results, scope) {

@@ -49,6 +49,17 @@ function loadProgressModel() {
   return sandbox.window.CineTrack.progress;
 }
 
+function loadRecommendationModel() {
+  const source = fs.readFileSync(path.join(root, 'scripts', 'recommendation-model.js'), 'utf8');
+  const sandbox = {
+    window: {
+      CineTrack: {},
+    },
+  };
+  vm.runInNewContext(source, sandbox);
+  return sandbox.window.CineTrack.recommendations;
+}
+
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
   return {
@@ -393,5 +404,25 @@ test.describe('tracker data integrity', () => {
     expect(entry.totalEpisodes).toBe(8);
     expect(entry.watchedEpisodes).toBe(10);
     expect(entry.progressOverflow).toBe(2);
+  });
+
+  test('recommendation model ranks anime source and rotates forced batches', () => {
+    const model = loadRecommendationModel();
+    const results = [
+      { id: 1, source: 'tmdb', media_type: 'tv', genre: 'Action', popularity: 10, vote_count: 100, vote_average: 8 },
+      { id: 2, source: 'anilist', media_type: 'anime', genre: 'Drama', averageScore: 80 },
+    ];
+
+    const ranked = model.rank(results, {
+      genreCounts: { Action: 1, Drama: 1 },
+      dismissedProfile: { genres: {}, mediaTypes: {} },
+      scope: 'anime',
+    });
+
+    expect(ranked[0]).toEqual(expect.objectContaining({ id: 2, source: 'anilist' }));
+    expect(model.normaliseForScope({ media_type: 'tv' }, 'anime').media_type).toBe('anime');
+    expect(model.compatibleTypes('anime', 'tv')).toBe(true);
+    expect(model.sourceKey({ source: 'anilist', externalId: 123 })).toBe('anilist:123');
+    expect(model.rotateForced([1, 2, 3, 4], 1, true, 2)).toEqual([3, 4, 1, 2]);
   });
 });
