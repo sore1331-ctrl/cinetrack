@@ -115,6 +115,17 @@ function loadCardModel() {
   return sandbox.window.CineTrack.cards;
 }
 
+function loadFilterModel() {
+  const source = fs.readFileSync(path.join(root, 'scripts', 'filter-model.js'), 'utf8');
+  const sandbox = {
+    window: {
+      CineTrack: {},
+    },
+  };
+  vm.runInNewContext(source, sandbox);
+  return sandbox.window.CineTrack.filters;
+}
+
 function loadRecommendationModel() {
   const source = fs.readFileSync(path.join(root, 'scripts', 'recommendation-model.js'), 'utf8');
   const sandbox = {
@@ -545,6 +556,59 @@ test.describe('tracker data integrity', () => {
     ].forEach(name => {
       expect(index).toContain(`href="styles/${name}.css`);
     });
+  });
+
+  test('filter model applies library filters and sorting', () => {
+    const model = loadFilterModel();
+    const entries = [
+      { id: 'old', mediaType: 'movie', title: 'Old Comedy', status: 'watchlist', genre: 'Comedy', country: 'US', year: '1999', rating: 0, addedAt: 1 },
+      { id: 'hit', mediaType: 'movie', title: 'Bright Drama', status: 'watched', genre: 'Drama, Comedy', country: 'US', year: '2024', rating: 9, addedAt: 2 },
+      { id: 'drop', mediaType: 'movie', title: 'Dropped', status: 'dropped', genre: 'Drama', country: 'US', year: '2024', rating: 8, addedAt: 3 },
+      { id: 'show', mediaType: 'tv', title: 'Running Show', status: 'watchlist', genre: 'Drama', country: 'GB', year: '2025', rating: 7, sourceStatus: 'Returning Series', addedAt: 4 },
+    ];
+
+    expect(model.hasActiveFilters({ activeStatus: 'all', searchQuery: 'bright' })).toBe(true);
+    expect(model.countMoreFilters({ genreFilter: 'Drama', sortOrder: 'rating', yearMinFilter: '2020' })).toBe(3);
+    expect(model.yearPreset('2010s')).toEqual({ yearMinFilter: '2010', yearMaxFilter: '2019' });
+    expect(model.ratingPreset('unrated')).toEqual({ ratingMinFilter: 'unrated', ratingMaxFilter: '' });
+    expect(model.pageSize('100')).toBe(100);
+    expect(model.pageSize('999', 50)).toBe(50);
+
+    const movieResults = model.apply(entries, {
+      activeType: 'movie',
+      activeStatus: 'all',
+      genreFilter: 'Comedy',
+      countryFilter: 'US',
+      yearMinFilter: '2020',
+      ratingMinFilter: '8',
+      sortOrder: 'rating',
+    }, {
+      seriesStatusBucket: entry => entry.sourceStatus === 'Returning Series' ? 'ongoing' : 'unknown',
+      isAiringToday: entry => entry.id === 'old',
+    });
+    expect(movieResults.map(entry => entry.id)).toEqual(['hit']);
+
+    const seriesResults = model.apply(entries, {
+      activeType: 'tv',
+      activeStatus: 'all',
+      sortOrder: 'series_ongoing',
+    }, {
+      seriesStatusBucket: entry => entry.sourceStatus === 'Returning Series' ? 'ongoing' : 'unknown',
+    });
+    expect(seriesResults.map(entry => entry.id)).toEqual(['show']);
+  });
+
+  test('library filters are routed through the filter model', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+
+    expect(index).toContain('scripts/filter-model.js');
+    expect(app).toContain('const filterModel = window.CineTrack?.filters;');
+    expect(app).toContain('function currentFilterState()');
+    expect(app).toContain('filterModel.apply(movies, currentFilterState()');
+    expect(app).toContain('filterModel.hasActiveFilters(currentFilterState())');
+    expect(app).toContain('filterModel.countMoreFilters(currentFilterState())');
+    expect(app).toContain("filterModel.pageSize(localStorage.getItem('cinetrack_pagesize'))");
   });
 
   test('anime recommendations prefer AniList before TMDB fallback', () => {

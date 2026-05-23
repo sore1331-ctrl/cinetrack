@@ -252,6 +252,7 @@ const profileModel = window.CineTrack?.profile;
 const calendarModel = window.CineTrack?.calendar;
 const statsModel = window.CineTrack?.stats;
 const cardModel = window.CineTrack?.cards;
+const filterModel = window.CineTrack?.filters;
 const errorLog = window.CineTrack?.errors;
 const syncModel = window.CineTrack?.sync;
 
@@ -323,7 +324,7 @@ let tmdbSelection   = null;
 let activeMediaType = 'movie';
 let searchTimer     = null;
 let currentPage     = 0;
-let pageSize        = parseInt(localStorage.getItem('cinetrack_pagesize') || '50');
+let pageSize        = filterModel.pageSize(localStorage.getItem('cinetrack_pagesize'));
 let selectMode      = false;
 let cloudSyncTimer  = null;
 let cloudPollTimer  = null;
@@ -1093,24 +1094,30 @@ selectModeBtn.addEventListener('click', () => {
 // ── Clear filters ───────────────────────────────────────
 const clearFiltersBtn = document.getElementById('clear-filters-btn');
 
+function currentFilterState() {
+  return {
+    activeType,
+    activeStatus,
+    searchQuery,
+    countryFilter,
+    genreFilter,
+    seriesStatusFilter,
+    yearMinFilter,
+    yearMaxFilter,
+    ratingMinFilter,
+    ratingMaxFilter,
+    sortOrder,
+  };
+}
+
 function hasActiveFilters() {
-  return !!(searchQuery || genreFilter || countryFilter || activeStatus !== 'all'
-    || seriesStatusFilter || sortOrder === 'series_ongoing' || sortOrder === 'series_ended'
-    || yearMinFilter || yearMaxFilter || ratingMinFilter || ratingMaxFilter);
+  return filterModel.hasActiveFilters(currentFilterState());
 }
 
 // Count of filters that live behind the "⚙ Filters" popover. Excludes
 // search and the status-tab row since those have their own UI affordances.
 function countMoreFilters() {
-  let n = 0;
-  if (genreFilter)   n++;
-  if (countryFilter) n++;
-  if (sortOrder && sortOrder !== 'added') n++;
-  if (yearMinFilter)   n++;
-  if (yearMaxFilter)   n++;
-  if (ratingMinFilter) n++;
-  if (ratingMaxFilter) n++;
-  return n;
+  return filterModel.countMoreFilters(currentFilterState());
 }
 
 function updateClearFiltersBtn() {
@@ -1208,20 +1215,11 @@ function syncSeriesStatusFilterVisibility() {
 }
 
 function applyYearFilterPreset(value) {
-  yearMinFilter = '';
-  yearMaxFilter = '';
-  if (value === '2020s') { yearMinFilter = '2020'; yearMaxFilter = '2029'; }
-  else if (value === '2010s') { yearMinFilter = '2010'; yearMaxFilter = '2019'; }
-  else if (value === '2000s') { yearMinFilter = '2000'; yearMaxFilter = '2009'; }
-  else if (value === '1990s') { yearMinFilter = '1990'; yearMaxFilter = '1999'; }
-  else if (value === 'older') { yearMaxFilter = '1989'; }
+  ({ yearMinFilter, yearMaxFilter } = filterModel.yearPreset(value));
 }
 
 function applyRatingFilterPreset(value) {
-  ratingMinFilter = '';
-  ratingMaxFilter = '';
-  if (value === 'unrated') ratingMinFilter = 'unrated';
-  else if (value) ratingMinFilter = value;
+  ({ ratingMinFilter, ratingMaxFilter } = filterModel.ratingPreset(value));
 }
 
 function selectedOptionText(select) {
@@ -1403,7 +1401,7 @@ initCustomFilterSelects();
 // ── Page size ───────────────────────────────────────────
 pageSizeSelect.value = String(pageSize);
 pageSizeSelect.addEventListener('change', () => {
-  pageSize = parseInt(pageSizeSelect.value);
+  pageSize = filterModel.pageSize(pageSizeSelect.value, pageSize);
   localStorage.setItem('cinetrack_pagesize', pageSize);
   currentPage = 0;
   render();
@@ -1994,61 +1992,7 @@ function seriesStatusBucket(m) {
 }
 
 function filtered() {
-  const list = movies.filter(m => {
-    if (activeType === 'dropped') {
-      if (m.status !== 'dropped') return false;
-    } else {
-      if (m.mediaType !== activeType) return false;
-      if (m.status === 'dropped') return false;
-      if (activeStatus !== 'all' && m.status !== activeStatus) return false;
-    }
-    if (countryFilter && m.country !== countryFilter) return false;
-    if (seriesStatusFilter) {
-      const isSeries = m.mediaType === 'tv' || m.mediaType === 'anime';
-      if (!isSeries || seriesStatusBucket(m) !== seriesStatusFilter) return false;
-    }
-    if (sortOrder === 'series_ongoing' || sortOrder === 'series_ended') {
-      const isSeries = m.mediaType === 'tv' || m.mediaType === 'anime';
-      const target = sortOrder === 'series_ongoing' ? 'ongoing' : 'ended';
-      if (!isSeries || seriesStatusBucket(m) !== target) return false;
-    }
-    if (genreFilter) {
-      const genres = (m.genre || '').split(',').map(g => g.trim());
-      if (!genres.includes(genreFilter)) return false;
-    }
-    if (yearMinFilter || yearMaxFilter) {
-      const y = parseInt(m.year);
-      if (yearMinFilter && (!y || y < parseInt(yearMinFilter))) return false;
-      if (yearMaxFilter && (!y || y > parseInt(yearMaxFilter))) return false;
-    }
-  if (ratingMinFilter === 'unrated') {
-    if (m.rating) return false;
-  } else if (ratingMinFilter && (m.rating || 0) < parseInt(ratingMinFilter)) return false;
-    if (ratingMaxFilter && (m.rating || 0) > parseInt(ratingMaxFilter)) return false;
-    const q = searchQuery.toLowerCase();
-    if (q) {
-      const hay = [m.title, m.genre, m.director, m.country].join(' ').toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
-    return true;
-  });
-
-  list.sort((a, b) => {
-    // Pin anything airing/releasing today to the top, regardless of the
-    // user's sort choice. Within the "today" group and within "the rest"
-    // we still apply the chosen sort.
-    const aToday = isAiringToday(a) ? 0 : 1;
-    const bToday = isAiringToday(b) ? 0 : 1;
-    if (aToday !== bToday) return aToday - bToday;
-    switch (sortOrder) {
-      case 'title':  return a.title.localeCompare(b.title);
-      case 'year':   return (parseInt(b.year) || 0) - (parseInt(a.year) || 0);
-      case 'rating': return (b.rating || 0) - (a.rating || 0);
-      default:       return (b.addedAt || 0) - (a.addedAt || 0);
-    }
-  });
-
-  return list;
+  return filterModel.apply(movies, currentFilterState(), { seriesStatusBucket, isAiringToday });
 }
 
 // ── Helpers ─────────────────────────────────────────────
