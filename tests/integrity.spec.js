@@ -126,6 +126,17 @@ function loadFilterModel() {
   return sandbox.window.CineTrack.filters;
 }
 
+function loadPaginationModel() {
+  const source = fs.readFileSync(path.join(root, 'scripts', 'pagination-model.js'), 'utf8');
+  const sandbox = {
+    window: {
+      CineTrack: {},
+    },
+  };
+  vm.runInNewContext(source, sandbox);
+  return sandbox.window.CineTrack.pagination;
+}
+
 function loadRecommendationModel() {
   const source = fs.readFileSync(path.join(root, 'scripts', 'recommendation-model.js'), 'utf8');
   const sandbox = {
@@ -609,6 +620,35 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('filterModel.hasActiveFilters(currentFilterState())');
     expect(app).toContain('filterModel.countMoreFilters(currentFilterState())');
     expect(app).toContain("filterModel.pageSize(localStorage.getItem('cinetrack_pagesize'))");
+  });
+
+  test('pagination model clamps pages and builds visible windows', () => {
+    const model = loadPaginationModel();
+
+    expect(model.totalPages(0, 50)).toBe(1);
+    expect(model.clampPage(99, 120, 50)).toEqual({ page: 2, totalPages: 3 });
+    expect(model.clampPage(-4, 120, 50)).toEqual({ page: 0, totalPages: 3 });
+    expect(model.slicePage(['a', 'b', 'c', 'd'], 1, 2)).toEqual(['c', 'd']);
+
+    const middle = model.view(500, 5, 25, 5);
+    expect(middle.showControls).toBe(true);
+    expect(middle.pages.map(item => item.type === 'page' ? item.page : '...')).toEqual([0, '...', 3, 4, 5, 6, 7, '...', 19]);
+
+    const single = model.view(10, 0, 25);
+    expect(single.showControls).toBe(false);
+    expect(single.prevDisabled).toBe(true);
+    expect(single.nextDisabled).toBe(true);
+  });
+
+  test('pagination rendering is routed through the pagination model', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+
+    expect(index).toContain('scripts/pagination-model.js');
+    expect(app).toContain('const paginationModel = window.CineTrack?.pagination;');
+    expect(app).toContain('paginationModel.view(totalItems, currentPage, pageSize)');
+    expect(app).toContain('paginationModel.clampPage(currentPage, list.length, pageSize)');
+    expect(app).toContain('paginationModel.slicePage(list, currentPage, pageSize)');
   });
 
   test('anime recommendations prefer AniList before TMDB fallback', () => {

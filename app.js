@@ -253,6 +253,7 @@ const calendarModel = window.CineTrack?.calendar;
 const statsModel = window.CineTrack?.stats;
 const cardModel = window.CineTrack?.cards;
 const filterModel = window.CineTrack?.filters;
+const paginationModel = window.CineTrack?.pagination;
 const errorLog = window.CineTrack?.errors;
 const syncModel = window.CineTrack?.sync;
 
@@ -4630,27 +4631,22 @@ function exportCSV() {
 
 // ── Pagination ──────────────────────────────────────────
 function renderPagination(totalItems) {
-  const totalPages = Math.ceil(totalItems / pageSize);
+  const pagination = paginationModel.view(totalItems, currentPage, pageSize);
+  currentPage = pagination.page;
+  const totalPages = pagination.totalPages;
   if (totalPages <= 1) { paginationEl.classList.add('hidden'); pageSizeSelect.classList.add('hidden'); return; }
   paginationEl.classList.remove('hidden');
   pageSizeSelect.classList.remove('hidden');
 
-  const maxVisible = 7;
-  let start = Math.max(0, currentPage - Math.floor(maxVisible / 2));
-  let end   = Math.min(totalPages - 1, start + maxVisible - 1);
-  if (end - start < maxVisible - 1) start = Math.max(0, end - maxVisible + 1);
-
-  let pageNums = '';
-  if (start > 0) pageNums += `<button class="page-num" data-page="0">1</button><span class="page-ellipsis">…</span>`;
-  for (let i = start; i <= end; i++) {
-    pageNums += `<button class="page-num${i === currentPage ? ' active' : ''}" data-page="${i}">${i + 1}</button>`;
-  }
-  if (end < totalPages - 1) pageNums += `<span class="page-ellipsis">…</span><button class="page-num" data-page="${totalPages - 1}">${totalPages}</button>`;
+  const pageNums = pagination.pages.map(item => {
+    if (item.type === 'ellipsis') return '<span class="page-ellipsis">…</span>';
+    return `<button class="page-num${item.active ? ' active' : ''}" data-page="${item.page}">${item.label}</button>`;
+  }).join('');
 
   paginationEl.innerHTML =
-    `<button class="page-btn" id="page-prev" ${currentPage === 0 ? 'disabled' : ''}>◀</button>` +
+    `<button class="page-btn" id="page-prev" ${pagination.prevDisabled ? 'disabled' : ''}>◀</button>` +
     pageNums +
-    `<button class="page-btn" id="page-next" ${currentPage >= totalPages - 1 ? 'disabled' : ''}>▶</button>` +
+    `<button class="page-btn" id="page-next" ${pagination.nextDisabled ? 'disabled' : ''}>▶</button>` +
     `<span class="page-info">${totalItems} titles · page ${currentPage + 1} of ${totalPages}</span>`;
 
   paginationEl.querySelectorAll('.page-num').forEach(btn => {
@@ -4675,11 +4671,9 @@ function render() {
   syncSeriesStatusFilterVisibility();
   updateClearFiltersBtn();
 
-  const totalPages = Math.max(1, Math.ceil(list.length / pageSize));
-  if (currentPage >= totalPages) currentPage = totalPages - 1;
-  if (currentPage < 0) currentPage = 0;
-
-  const pageList = list.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+  const pageState = paginationModel.clampPage(currentPage, list.length, pageSize);
+  currentPage = pageState.page;
+  const pageList = paginationModel.slicePage(list, currentPage, pageSize);
   const mutationDisabled = isLibraryMutationLocked() ? ' disabled aria-disabled="true"' : '';
 
   grid.innerHTML = '';
