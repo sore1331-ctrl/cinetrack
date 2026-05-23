@@ -93,6 +93,17 @@ function loadCalendarModel() {
   return sandbox.window.CineTrack.calendar;
 }
 
+function loadStatsModel() {
+  const source = fs.readFileSync(path.join(root, 'scripts', 'stats-model.js'), 'utf8');
+  const sandbox = {
+    window: {
+      CineTrack: {},
+    },
+  };
+  vm.runInNewContext(source, sandbox);
+  return sandbox.window.CineTrack.stats;
+}
+
 function loadRecommendationModel() {
   const source = fs.readFileSync(path.join(root, 'scripts', 'recommendation-model.js'), 'utf8');
   const sandbox = {
@@ -430,6 +441,29 @@ test.describe('tracker data integrity', () => {
       status: 'watchlist',
       tmdbId: 20,
     }, cache, '2026-05-23')).toEqual({ type: 'movie', releaseDate: '2026-05-23' });
+  });
+
+  test('stats model builds reusable profile summaries', () => {
+    const model = loadStatsModel();
+    const summary = model.profileSummary([
+      { id: 'movie', mediaType: 'movie', status: 'watched', runtime: 120, rating: 8, genre: 'Drama, Comedy', country: 'US' },
+      { id: 'show', mediaType: 'tv', status: 'in_progress', runtime: 500, watchedEpisodes: 5, totalEpisodes: 10, genre: 'Drama' },
+      { id: 'anime', mediaType: 'anime', status: 'watchlist', runtime: 0, genre: 'Action' },
+    ]);
+
+    expect(model.actualWatchedMinutes({ mediaType: 'tv', status: 'in_progress', runtime: 500, watchedEpisodes: 5, totalEpisodes: 10 })).toBe(250);
+    expect(summary.watched).toHaveLength(1);
+    expect(summary.watchlist).toHaveLength(1);
+    expect(summary.totalMinutes).toBe(370);
+    expect(summary.avgRating).toBe('8.0');
+    expect(summary.byType).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'movie', watched: 1 }),
+      expect.objectContaining({ type: 'tv', inProgress: 1 }),
+      expect.objectContaining({ type: 'anime', watchlist: 1 }),
+    ]));
+    expect(summary.topGenres[0]).toEqual(['Drama', 1]);
+    expect(summary.topCountries[0]).toEqual(['US', 1]);
+    expect(summary.ratingDist).toEqual([[8, 1]]);
   });
 
   test('anime recommendations prefer AniList before TMDB fallback', () => {

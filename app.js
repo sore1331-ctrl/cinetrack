@@ -250,6 +250,7 @@ const csvModel = window.CineTrack?.csv;
 const libraryModel = window.CineTrack?.library;
 const profileModel = window.CineTrack?.profile;
 const calendarModel = window.CineTrack?.calendar;
+const statsModel = window.CineTrack?.stats;
 const errorLog = window.CineTrack?.errors;
 const syncModel = window.CineTrack?.sync;
 
@@ -2067,12 +2068,7 @@ function formatRuntime(mins) {
 }
 
 function actualWatchedMinutes(m) {
-  const isShow = m.mediaType === 'tv' || m.mediaType === 'anime';
-  if (isShow && (m.totalEpisodes || 0) > 0) {
-    const w = Math.min(m.watchedEpisodes || 0, m.totalEpisodes);
-    return Math.round((m.runtime || 0) * (w / m.totalEpisodes));
-  }
-  return m.status === 'watched' ? (m.runtime || 0) : 0;
+  return statsModel.actualWatchedMinutes(m);
 }
 
 let timeSpentFormat = localStorage.getItem('cinetrack_time_spent_format') === 'calendar' ? 'calendar' : 'runtime';
@@ -4242,21 +4238,14 @@ function renderProfile() {
   const panel = document.getElementById('profile-panel');
   if (!panel) return;
 
-  const watched   = movies.filter(m => m.status === 'watched');
-  const watchlist = movies.filter(m => m.status === 'watchlist');
-  const totalMins = movies.reduce((s, m) => s + actualWatchedMinutes(m), 0);
-  const ratings   = watched.filter(m => m.rating > 0).map(m => m.rating);
-  const avgRating = ratings.length
-    ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1)
-    : null;
+  const profileStats = statsModel.profileSummary(movies);
+  const watched = profileStats.watched;
+  const watchlist = profileStats.watchlist;
+  const totalMins = profileStats.totalMinutes;
+  const avgRating = profileStats.avgRating;
+  const ratings = profileStats.ratings;
 
-  // Per-type counts
-  const byType = ['movie', 'tv', 'anime'].map(t => ({
-    label: t === 'movie' ? '🎬 Films' : t === 'tv' ? '📺 TV Shows' : '🎌 Anime',
-    watched:    movies.filter(m => m.mediaType === t && m.status === 'watched').length,
-    inProgress: movies.filter(m => m.mediaType === t && m.status === 'in_progress').length,
-    watchlist:  movies.filter(m => m.mediaType === t && m.status === 'watchlist').length,
-  })).filter(t => t.watched + t.inProgress + t.watchlist > 0);
+  const byType = profileStats.byType;
 
   // Top genres across all types
   const genreCounts = {};
