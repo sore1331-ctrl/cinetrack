@@ -237,6 +237,7 @@ const recommendationModel = window.CineTrack?.recommendations;
 const formatModel = window.CineTrack?.format;
 const networkModel = window.CineTrack?.network;
 const csvModel = window.CineTrack?.csv;
+const libraryModel = window.CineTrack?.library;
 
 function readStoredArray(key) {
   return storageModel.readArray(key);
@@ -253,7 +254,7 @@ function writeLocalLibraryBackup(reason, sourceMovies = movies) {
   });
 }
 
-let movies          = readStoredArray(STORAGE_KEY);
+let movies          = libraryModel.sanitiseLibrary(readStoredArray(STORAGE_KEY), { idFactory: genId, now: Date.now });
 let activeType      = 'movie';   // 'movie' | 'tv' | 'anime'
 let activeView      = 'content'; // 'content' | 'stats' | 'community'
 let activeStatus    = 'all';
@@ -591,8 +592,7 @@ async function loadUserData(options = {}) {
         console.warn('[cinetrack] Local safety backup could not be written; continuing with cloud refresh.');
       }
       applyingRemoteData = true;
-      movies = row.movies;
-      syncEpisodeProgress();
+      replaceLibrary(row.movies);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
       applyingRemoteData = false;
       lastCloudUpdatedAt = row.updated_at || lastCloudUpdatedAt;
@@ -688,7 +688,43 @@ function syncEpisodeProgress() {
 // One-shot at startup to fix any legacy data missing the invariant.
 syncEpisodeProgress();
 
+function sanitiseLibrary(source = movies) {
+  return libraryModel.sanitiseLibrary(source, { idFactory: genId, now: Date.now });
+}
+
+function replaceLibrary(nextMovies) {
+  movies = sanitiseLibrary(nextMovies);
+  syncEpisodeProgress();
+  return movies;
+}
+
+function addLibraryEntry(entry, options = {}) {
+  movies = libraryModel.addEntry(movies, entry, { idFactory: genId, now: Date.now, ...options });
+  syncEpisodeProgress();
+  return movies[0];
+}
+
+function updateLibraryEntry(id, patch, options = {}) {
+  movies = libraryModel.updateEntry(movies, id, patch, { idFactory: genId, now: Date.now, ...options });
+  syncEpisodeProgress();
+  return movies.find(m => m.id === id) || null;
+}
+
+function removeLibraryEntry(id) {
+  movies = libraryModel.removeEntry(movies, id);
+}
+
+function removeLibraryEntries(ids) {
+  movies = libraryModel.removeEntries(movies, ids);
+}
+
+function changeLibraryStatus(ids, status) {
+  movies = libraryModel.changeStatus(movies, ids, status, { idFactory: genId, now: Date.now });
+  syncEpisodeProgress();
+}
+
 function save() {
+  movies = sanitiseLibrary();
   syncEpisodeProgress();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
   if (!applyingRemoteData) {
@@ -3131,9 +3167,7 @@ function addFromDiscover({ tmdbId, type, title, year, posterPath }, btn) {
   }
   const safeMediaType = type === 'anime' ? 'anime' : (type === 'tv' ? 'tv' : 'movie');
   const fetchType     = safeMediaType === 'movie' ? 'movie' : 'tv';
-  const newId = genId();
-  movies.unshift({
-    id:        newId,
+  const added = addLibraryEntry({
     addedAt:   Date.now(),
     title:     title || '',
     year:      year || '',
@@ -3144,6 +3178,7 @@ function addFromDiscover({ tmdbId, type, title, year, posterPath }, btn) {
     posterUrl: posterPath ? POSTER_BASE + posterPath : '',
     genre: '', director: '', country: '', notes: '', runtime: 0,
   });
+  const newId = added.id;
   save();
   updateCountryDropdown();
   btn.textContent = '✓ Added';
@@ -3156,23 +3191,25 @@ function addFromDiscover({ tmdbId, type, title, year, posterPath }, btn) {
       const details = await fetchTMDBDetails(tmdbId, fetchType);
       const m = movies.find(m => m.id === newId);
       if (!m) return;
-      if (details.title)    m.title    = details.title;
-      if (details.year)     m.year     = details.year;
-      if (details.genre)    m.genre    = details.genre;
-      if (details.director) m.director = details.director;
-      if (details.country)  m.country  = details.country;
-      if (details.runtime)  m.runtime  = details.runtime;
-      if (details.overview && !m.notes) m.notes = details.overview;
-      if (details.poster_path && !m.posterUrl) m.posterUrl = POSTER_BASE + details.poster_path;
+      const patch = {};
+      if (details.title)    patch.title    = details.title;
+      if (details.year)     patch.year     = details.year;
+      if (details.genre)    patch.genre    = details.genre;
+      if (details.director) patch.director = details.director;
+      if (details.country)  patch.country  = details.country;
+      if (details.runtime)  patch.runtime  = details.runtime;
+      if (details.overview && !m.notes) patch.notes = details.overview;
+      if (details.poster_path && !m.posterUrl) patch.posterUrl = POSTER_BASE + details.poster_path;
       if (Array.isArray(details.seasons) && details.seasons.length) {
-        m.seasons = details.seasons.map(s => ({
+        patch.seasons = details.seasons.map(s => ({
           number: s.number, total: s.total, watched: 0, name: s.name,
         }));
-        m.totalEpisodes   = m.seasons.reduce((sum, x) => sum + (x.total || 0), 0);
-        m.watchedEpisodes = 0;
+        patch.totalEpisodes = patch.seasons.reduce((sum, x) => sum + (x.total || 0), 0);
+        patch.watchedEpisodes = 0;
       } else if (details.total_episodes) {
-        m.totalEpisodes = details.total_episodes;
+        patch.totalEpisodes = details.total_episodes;
       }
+      updateLibraryEntry(newId, patch, { allowDowngrade: false });
       save();
       updateCountryDropdown();
       if (activeView === 'content') render();
@@ -3660,9 +3697,7 @@ function renderRecsCards(section, results, genreCounts, scope = 'all') {
       btn.disabled = true;
       return;
     }
-    const newId = genId();
-    movies.unshift({
-      id:        newId,
+    const added = addLibraryEntry({
       addedAt:   Date.now(),
       title:     recTitle,
       year:      recYear,
@@ -3675,6 +3710,7 @@ function renderRecsCards(section, results, genreCounts, scope = 'all') {
       posterUrl: recPoster ? externalPosterUrl(recPoster) : '',
       genre: '', director: '', country: '', notes: '', runtime: 0,
     });
+    const newId = added.id;
     save(); updateCountryDropdown();
     btn.textContent = '✓ Added';
     btn.disabled = true;
@@ -3686,7 +3722,9 @@ function renderRecsCards(section, results, genreCounts, scope = 'all') {
           : await fetchTMDBDetails(recId, recType === 'anime' ? 'tv' : (recType === 'tv' ? 'tv' : 'movie'));
         const m = movies.find(m => m.id === newId);
         if (!m) return;
+        const before = libraryModel.clone(m);
         applyMetadataRefresh(m, details);
+        updateLibraryEntry(newId, libraryModel.protectProgress(before, m), { allowDowngrade: false });
         save();
         updateCountryDropdown();
         if (activeView === 'content') render();
@@ -4787,24 +4825,24 @@ bulkSelectAll.addEventListener('click', () => { filtered().forEach(m => selected
 bulkDeselect.addEventListener('click', () => { selectedIds.clear(); render(); });
 
 bulkMarkWatched.addEventListener('click', () => {
-  movies.forEach(m => { if (selectedIds.has(m.id)) m.status = 'watched'; });
+  changeLibraryStatus(selectedIds, 'watched');
   selectedIds.clear(); save(); render();
 });
 
 bulkMarkInProgress.addEventListener('click', () => {
-  movies.forEach(m => { if (selectedIds.has(m.id)) m.status = 'in_progress'; });
+  changeLibraryStatus(selectedIds, 'in_progress');
   selectedIds.clear(); save(); render();
 });
 
 bulkMarkWatchlist.addEventListener('click', () => {
-  movies.forEach(m => { if (selectedIds.has(m.id)) { m.status = 'watchlist'; m.rating = 0; } });
+  changeLibraryStatus(selectedIds, 'watchlist');
   selectedIds.clear(); save(); render();
 });
 
 bulkDelete.addEventListener('click', () => {
   const n = selectedIds.size;
   if (!confirm(`Delete ${n} title${n !== 1 ? 's' : ''}? This cannot be undone.`)) return;
-  movies = movies.filter(m => !selectedIds.has(m.id));
+  removeLibraryEntries(selectedIds);
   selectedIds.clear();
   save(); updateCountryDropdown(); render();
 });
@@ -5097,10 +5135,9 @@ form.addEventListener('submit', e => {
   };
 
   if (editingId) {
-    const idx = movies.findIndex(m => m.id === editingId);
-    if (idx !== -1) movies[idx] = { ...movies[idx], ...data };
+    updateLibraryEntry(editingId, data, { allowDowngrade: true });
   } else {
-    movies.unshift({ id: genId(), addedAt: Date.now(), ...data });
+    addLibraryEntry({ addedAt: Date.now(), ...data });
   }
 
   save(); updateCountryDropdown(); render(); closeModal();
@@ -5189,36 +5226,41 @@ grid.addEventListener('click', e => {
   } else if (epIncId) {
     const m = movies.find(m => m.id === epIncId);
     if (!m) return;
-    if (Array.isArray(m.seasons) && m.seasons.length) {
-      const active = activeSeason(m);
-      if (active) {
-        active.watched = Math.min((active.watched || 0) + 1, active.total);
-        normaliseSeasons(m.seasons);
-        recomputeShowProgress(m);
-        m.status = m.watchedEpisodes >= m.totalEpisodes ? 'watched' : 'in_progress';
-        save(); render();
+    updateLibraryEntry(epIncId, entry => {
+      if (Array.isArray(entry.seasons) && entry.seasons.length) {
+        const active = activeSeason(entry);
+        if (active) {
+          active.watched = Math.min((active.watched || 0) + 1, active.total);
+          normaliseSeasons(entry.seasons);
+          recomputeShowProgress(entry);
+          entry.status = entry.watchedEpisodes >= entry.totalEpisodes ? 'watched' : 'in_progress';
+        }
+      } else if ((entry.totalEpisodes || 0) > 0) {
+        const next = Math.min((entry.watchedEpisodes || 0) + 1, entry.totalEpisodes);
+        entry.watchedEpisodes = next;
+        entry.status = next >= entry.totalEpisodes ? 'watched' : 'in_progress';
       }
-    } else if ((m.totalEpisodes || 0) > 0) {
-      const next = Math.min((m.watchedEpisodes || 0) + 1, m.totalEpisodes);
-      m.watchedEpisodes = next;
-      m.status = next >= m.totalEpisodes ? 'watched' : 'in_progress';
-      save(); render();
-    }
+      return entry;
+    }, { allowDowngrade: true });
+    save(); render();
   } else if (editId) {
     openModal(movies.find(m => m.id === editId));
   } else if (toggleId) {
     const m = movies.find(m => m.id === toggleId);
     if (m) {
-      m.status = m.status === 'watched' ? 'watchlist'
-               : m.status === 'in_progress' ? 'watched'
-               : m.status === 'dropped' ? 'in_progress'
-               : 'in_progress';
-      if (m.status === 'watchlist') {
-        m.rating = 0;
-        m.watchedEpisodes = 0;
-        if (Array.isArray(m.seasons)) m.seasons.forEach(s => { s.watched = 0; });
-      }
-      // 'watched' is handled by save() → syncEpisodeProgress() (fills every season)
+      updateLibraryEntry(toggleId, entry => {
+        entry.status = entry.status === 'watched' ? 'watchlist'
+                 : entry.status === 'in_progress' ? 'watched'
+                 : entry.status === 'dropped' ? 'in_progress'
+                 : 'in_progress';
+        if (entry.status === 'watchlist') {
+          entry.rating = 0;
+          entry.watchedEpisodes = 0;
+          if (Array.isArray(entry.seasons)) entry.seasons.forEach(s => { s.watched = 0; });
+        }
+        return entry;
+      }, { allowDowngrade: true });
+      // 'watched' is handled by save() -> syncEpisodeProgress() (fills every season)
       save(); render();
     }
   } else if (deleteId) {
@@ -5239,7 +5281,7 @@ grid.addEventListener('click', e => {
 
 confirmCancel.addEventListener('click', () => { confirmModal.classList.add('hidden'); pendingDeleteId = null; });
 confirmOk.addEventListener('click', () => {
-  if (pendingDeleteId) { movies = movies.filter(m => m.id !== pendingDeleteId); save(); updateCountryDropdown(); render(); }
+  if (pendingDeleteId) { removeLibraryEntry(pendingDeleteId); save(); updateCountryDropdown(); render(); }
   confirmModal.classList.add('hidden'); pendingDeleteId = null;
 });
 confirmModal.addEventListener('click', e => { if (e.target === confirmModal) { confirmModal.classList.add('hidden'); pendingDeleteId = null; } });
@@ -5247,7 +5289,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
 
 // ── Seed data ───────────────────────────────────────────
 function seedData() {
-  movies = [
+  replaceLibrary([
     { id: genId(), title: 'Inception', year: '2010', genre: 'Sci-Fi, Thriller', director: 'Christopher Nolan', country: 'United States', status: 'watched', rating: 9, runtime: 148, notes: 'Mind-bending. The spinning top...', posterUrl: 'https://image.tmdb.org/t/p/w200/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg', mediaType: 'movie', addedAt: Date.now() },
     { id: genId(), title: 'The Grand Budapest Hotel', year: '2014', genre: 'Comedy, Drama', director: 'Wes Anderson', country: 'Germany', status: 'watched', rating: 8, runtime: 99, notes: 'Gorgeous cinematography.', posterUrl: 'https://image.tmdb.org/t/p/w200/nX5XotM9yprCKarRFDtgpaKzkjr.jpg', mediaType: 'movie', addedAt: Date.now() },
     { id: genId(), title: 'Dune: Part Two', year: '2024', genre: 'Sci-Fi', director: 'Denis Villeneuve', country: 'United States', status: 'watchlist', rating: 0, runtime: 166, notes: '', posterUrl: 'https://image.tmdb.org/t/p/w200/8b8R8l88Qje9dn9OE8PY05Nxl1X.jpg', mediaType: 'movie', addedAt: Date.now() },
@@ -5258,7 +5300,7 @@ function seedData() {
     { id: genId(), title: 'Spirited Away', year: '2001', genre: 'Animation, Fantasy', director: 'Hayao Miyazaki', country: 'Japan', status: 'watched', rating: 10, runtime: 125, notes: 'A masterpiece.', posterUrl: 'https://image.tmdb.org/t/p/w200/39wmItIWsg5sZMyRUHLkWBcuVCM.jpg', mediaType: 'anime', addedAt: Date.now() },
     { id: genId(), title: 'Attack on Titan', year: '2013', genre: 'Action, Drama', director: 'Tetsuro Araki', country: 'Japan', status: 'watched', rating: 9, runtime: 4050, notes: 'Gripping from start to finish.', posterUrl: 'https://image.tmdb.org/t/p/w200/hTP1DtLGFamjfu8WqjnuQdP1n4i.jpg', mediaType: 'anime', addedAt: Date.now() },
     { id: genId(), title: 'Demon Slayer', year: '2019', genre: 'Action, Fantasy', director: 'Haruo Sotozaki', country: 'Japan', status: 'watchlist', rating: 0, runtime: 0, notes: '', posterUrl: 'https://image.tmdb.org/t/p/w200/xUfRZu2mi8jH6SzQEJGP6tjBuYj.jpg', mediaType: 'anime', addedAt: Date.now() },
-  ];
+  ]);
   save();
 }
 
@@ -5613,7 +5655,9 @@ tmdbRefreshBtn.addEventListener('click', async () => {
     progressBar.style.width = `${Math.round((i / targets.length) * 100)}%`;
     try {
       const d = await fetchDetailsForEntry(m);
+      const before = libraryModel.clone(m);
       const result = applyMetadataRefresh(m, d);
+      updateLibraryEntry(m.id, libraryModel.protectProgress(before, m), { allowDowngrade: false });
       if (result?.demoted) {
         demoted++;
         if (demotedTitles.length < 3) demotedTitles.push(m.title);
@@ -5643,17 +5687,17 @@ progressCancel.addEventListener('click', () => { cancelTmdbRefresh = true; });
 signoutBtn.addEventListener('click', async () => {
   try { if (sb) await sb.auth.signOut(); } catch {}
   stopCloudPolling();
+  writeLocalLibraryBackup('before-sign-out-clear', movies);
   currentUser     = null;
   currentUsername = null;
   sharingEnabled  = false;
-  movies          = [];
+  replaceLibrary([]);
   initialLibrarySyncPending = false;
   updateMutationLockUI();
   lastCloudUpdatedAt = null;
   lastCloudItemCount = null;
   localChangeVersion = 0;
   lastSavedLocalVersion = 0;
-  writeLocalLibraryBackup('before-sign-out-clear', movies);
   localStorage.removeItem(STORAGE_KEY);
   clearPendingSyncMarker();
   localStorage.removeItem('cinetrack_sharing');

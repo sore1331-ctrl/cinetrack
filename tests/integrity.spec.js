@@ -98,6 +98,18 @@ function loadCsvModel() {
   return sandbox.window.CineTrack.csv;
 }
 
+function loadLibraryModel() {
+  const source = fs.readFileSync(path.join(root, 'scripts', 'library-model.js'), 'utf8');
+  const sandbox = {
+    window: {
+      CineTrack: {},
+    },
+    Date,
+  };
+  vm.runInNewContext(source, sandbox);
+  return sandbox.window.CineTrack.library;
+}
+
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
   return {
@@ -533,5 +545,76 @@ test.describe('tracker data integrity', () => {
     expect(text).toContain('"Quote ""Test"""');
     expect(text).toContain('"Drama, Action"');
     expect(model.TEMPLATE_CSV).toContain('episodes_watched');
+  });
+
+  test('library model sanitizes invalid title data before persistence', () => {
+    const model = loadLibraryModel();
+    const library = model.sanitiseLibrary([{
+      title: '  Example  ',
+      mediaType: 'show',
+      status: 'in progress',
+      rating: 99,
+      totalEpisodes: 10,
+      watchedEpisodes: 15,
+      runtime: -20,
+      seasons: [{ number: 1, total: 5, watched: 7 }],
+    }], {
+      idFactory: () => 'generated-id',
+      now: () => 123,
+    });
+
+    expect(library).toEqual([expect.objectContaining({
+      id: 'generated-id',
+      addedAt: 123,
+      title: 'Example',
+      mediaType: 'tv',
+      status: 'in_progress',
+      rating: 10,
+      runtime: 0,
+      totalEpisodes: 10,
+      watchedEpisodes: 10,
+    })]);
+    expect(library[0].seasons[0]).toEqual(expect.objectContaining({ watched: 5 }));
+  });
+
+  test('library model blocks non-user progress downgrades', () => {
+    const model = loadLibraryModel();
+    const previous = {
+      id: 'show-1',
+      title: 'Safe Show',
+      mediaType: 'tv',
+      status: 'watched',
+      totalEpisodes: 8,
+      watchedEpisodes: 8,
+      seasons: [{ number: 1, total: 8, watched: 8 }],
+    };
+    const incoming = {
+      ...previous,
+      status: 'watchlist',
+      watchedEpisodes: 0,
+      seasons: [],
+    };
+
+    const protectedEntry = model.protectProgress(previous, incoming);
+
+    expect(protectedEntry).toEqual(expect.objectContaining({
+      status: 'watched',
+      watchedEpisodes: 8,
+      totalEpisodes: 8,
+    }));
+    expect(protectedEntry.seasons).toHaveLength(1);
+  });
+
+  test('library mutations are routed through the safety model', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+
+    expect(index).toContain('scripts/library-model.js');
+    expect(app).toContain('const libraryModel = window.CineTrack?.library;');
+    expect(app).toContain('function addLibraryEntry');
+    expect(app).toContain('function updateLibraryEntry');
+    expect(app).toContain('function removeLibraryEntry');
+    expect(app).toContain('movies = sanitiseLibrary();');
+    expect(app).toContain("writeLocalLibraryBackup('before-sign-out-clear', movies);");
   });
 });
