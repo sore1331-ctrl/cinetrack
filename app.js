@@ -228,7 +228,15 @@ const LOCAL_SCHEMA_KEY = 'cinetrack_library_schema_version';
 const CURRENT_LIBRARY_SCHEMA_VERSION = 1;
 const PENDING_SYNC_KEY = 'cinetrack_pending_sync';
 const LOCAL_BACKUPS_KEY = 'cinetrack_library_backups_v1';
-const MAX_LOCAL_BACKUPS = 3;
+const MAX_LOCAL_BACKUPS = 2;
+const LOCAL_STORAGE_PRESSURE_BYTES = 4_500_000;
+const LOCAL_STORAGE_TARGET_BYTES = 3_800_000;
+const VOLATILE_STORAGE_KEYS = [
+  'cinetrack_upcoming_cache_v2',
+  'cinetrack_discover_cache_v1',
+  'cinetrack_recs_cache_v2',
+  'cinetrack_notif_dedupe_v1',
+];
 const POSTER_BASE = 'https://image.tmdb.org/t/p/w200';
 const SESSION_TIMEOUT_MS = 20000;
 const CLOUD_TIMEOUT_MS = 30000;
@@ -276,8 +284,20 @@ function writeLocalLibraryBackup(reason, sourceMovies = movies) {
   });
 }
 
+function trimLocalStoragePressure() {
+  return storageModel.trimStorage?.({
+    volatileKeys: VOLATILE_STORAGE_KEYS,
+    backupKey: LOCAL_BACKUPS_KEY,
+    maxBackups: MAX_LOCAL_BACKUPS,
+    pressureBytes: LOCAL_STORAGE_PRESSURE_BYTES,
+    targetBytes: LOCAL_STORAGE_TARGET_BYTES,
+    storage: localStorage,
+  });
+}
+
 const libraryMigration = migrateStoredLibrary();
 let movies          = libraryMigration.movies;
+trimLocalStoragePressure();
 let activeType      = 'movie';   // 'movie' | 'tv' | 'anime'
 let activeView      = 'content'; // 'content' | 'stats' | 'community'
 let activeStatus    = 'all';
@@ -615,7 +635,7 @@ async function loadUserData(options = {}) {
       }
       applyingRemoteData = true;
       replaceLibrary(row.movies);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
+      persistLocalLibrary();
       applyingRemoteData = false;
       lastCloudUpdatedAt = row.updated_at || lastCloudUpdatedAt;
       lastCloudVersion = Number(row.version || lastCloudVersion || 0);
@@ -753,6 +773,28 @@ function restoreLibraryFromBackup(snapshotMovies) {
   return movies;
 }
 
+function persistLocalLibrary() {
+  const payload = JSON.stringify(movies);
+  try {
+    localStorage.setItem(STORAGE_KEY, payload);
+    return true;
+  } catch (error) {
+    const trimmed = trimLocalStoragePressure();
+    try {
+      localStorage.setItem(STORAGE_KEY, payload);
+      logAppError('storage.local', 'Local storage was full; cleared volatile caches and retried the library save.', {
+        beforeBytes: trimmed?.beforeBytes,
+        afterBytes: trimmed?.afterBytes,
+      }, 'warn');
+      return true;
+    } catch (retryError) {
+      logAppError('storage.local', retryError, { firstError: error?.message || String(error) });
+      showToast('Local storage is full. Cloud sync may still protect this change, but local save failed.', true);
+      return false;
+    }
+  }
+}
+
 function localLibraryBackups() {
   return storageModel.readArray(LOCAL_BACKUPS_KEY)
     .filter(backup => backup && Array.isArray(backup.movies));
@@ -782,7 +824,7 @@ function backupImpactLabel(compare) {
 function save() {
   movies = sanitiseLibrary();
   syncEpisodeProgress();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
+  persistLocalLibrary();
   if (!applyingRemoteData) {
     localChangeVersion++;
     markPendingSync();

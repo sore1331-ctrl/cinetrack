@@ -17,6 +17,7 @@
   }
 
   function storageBytes(storage = window.localStorage) {
+    if (root.storage?.storageBytes) return root.storage.storageBytes(storage);
     let total = 0;
     try {
       for (let index = 0; index < storage.length; index += 1) {

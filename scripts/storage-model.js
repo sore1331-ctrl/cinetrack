@@ -22,6 +22,127 @@
     }
   }
 
+  function compactEntry(entry) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return entry;
+    const keep = [
+      'id',
+      'title',
+      'year',
+      'genre',
+      'director',
+      'country',
+      'status',
+      'rating',
+      'runtime',
+      'notes',
+      'mediaType',
+      'tmdbId',
+      'externalSource',
+      'externalId',
+      'watchedEpisodes',
+      'totalEpisodes',
+      'progressOverflow',
+      'watchCount',
+      'timesWatched',
+      'addedAt',
+      'updatedAt',
+      'lastWatchedAt',
+      'seasonStatus',
+      'nextEpisodeDate',
+      'nextEpisodeName',
+      'nextEpisodeNumber',
+      'nextSeasonNumber',
+    ];
+    const compact = {};
+    keep.forEach(field => {
+      if (entry[field] !== undefined && entry[field] !== null && entry[field] !== '') compact[field] = entry[field];
+    });
+    if (Array.isArray(entry.seasons)) {
+      compact.seasons = entry.seasons.map(season => ({
+        number: season?.number,
+        total: season?.total,
+        watched: season?.watched,
+        name: season?.name,
+      })).filter(season => season.number !== undefined || season.total !== undefined || season.watched !== undefined);
+    }
+    return compact;
+  }
+
+  function compactBackup(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object' || !Array.isArray(snapshot.movies)) return snapshot;
+    return {
+      reason: snapshot.reason,
+      createdAt: snapshot.createdAt,
+      cloudUpdatedAt: snapshot.cloudUpdatedAt || null,
+      cloudVersion: Number(snapshot.cloudVersion || 0),
+      itemCount: Number(snapshot.itemCount || snapshot.movies.length),
+      compact: true,
+      movies: snapshot.movies.map(compactEntry),
+    };
+  }
+
+  function storageBytes(storage = window.localStorage) {
+    let total = 0;
+    try {
+      for (let index = 0; index < storage.length; index += 1) {
+        const key = storage.key(index);
+        const value = storage.getItem(key) || '';
+        total += (String(key).length + String(value).length) * 2;
+      }
+    } catch {}
+    return total;
+  }
+
+  function removeKeys(keys = [], storage = window.localStorage) {
+    keys.forEach(key => {
+      try { storage.removeItem(key); } catch {}
+    });
+  }
+
+  function trimStorage({
+    volatileKeys = [],
+    backupKey = '',
+    maxBackups = 2,
+    pressureBytes = 4_500_000,
+    targetBytes = 3_800_000,
+    storage = window.localStorage,
+  } = {}) {
+    const beforeBytes = storageBytes(storage);
+    let changed = false;
+
+    if (backupKey) {
+      const backups = readArray(backupKey, storage).map(compactBackup).slice(0, maxBackups);
+      try {
+        storage.setItem(backupKey, JSON.stringify(backups));
+        changed = true;
+      } catch {
+        for (let limit = Math.max(1, maxBackups - 1); limit >= 1; limit -= 1) {
+          try {
+            storage.setItem(backupKey, JSON.stringify(backups.slice(0, limit)));
+            changed = true;
+            break;
+          } catch {}
+        }
+      }
+    }
+
+    if (storageBytes(storage) > pressureBytes) {
+      for (const key of volatileKeys) {
+        try {
+          storage.removeItem(key);
+          changed = true;
+        } catch {}
+        if (storageBytes(storage) <= targetBytes) break;
+      }
+    }
+
+    return {
+      changed,
+      beforeBytes,
+      afterBytes: storageBytes(storage),
+    };
+  }
+
   function writeLibraryBackup({
     key,
     reason,
@@ -32,16 +153,16 @@
     storage = window.localStorage,
   }) {
     if (!key || !Array.isArray(movies) || !movies.length) return true;
-    const snapshot = {
+    const snapshot = compactBackup({
       reason,
       createdAt: new Date().toISOString(),
       cloudUpdatedAt,
       cloudVersion,
       itemCount: movies.length,
       movies,
-    };
+    });
     try {
-      const existing = readArray(key, storage);
+      const existing = readArray(key, storage).map(compactBackup);
       for (let limit = maxBackups; limit >= 1; limit--) {
         try {
           storage.setItem(key, JSON.stringify([snapshot, ...existing].slice(0, limit)));
@@ -133,6 +254,9 @@
   root.storage = {
     readArray,
     writeLibraryBackup,
+    storageBytes,
+    removeKeys,
+    trimStorage,
     readPendingSyncMarker,
     markPendingSync,
     clearPendingSyncMarker,

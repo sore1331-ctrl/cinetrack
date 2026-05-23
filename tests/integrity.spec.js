@@ -508,6 +508,63 @@ test.describe('tracker data integrity', () => {
     expect(saved[0].movies).toEqual([{ id: 'one', title: 'Safe Title' }]);
   });
 
+  test('storage model compacts backups and clears volatile caches under pressure', () => {
+    const storage = memoryStorage({
+      backups: JSON.stringify([
+        {
+          reason: 'old',
+          movies: [{
+            id: 'old',
+            title: 'Old',
+            posterUrl: 'https://image.example/large.jpg',
+            overview: 'x'.repeat(200),
+            watchedEpisodes: 3,
+            seasons: [{ number: 1, total: 6, watched: 3, posterUrl: 'drop-me' }],
+          }],
+        },
+      ]),
+      cacheA: 'x'.repeat(200),
+      cacheB: 'x'.repeat(200),
+    });
+    const model = loadStorageModel(storage);
+
+    expect(model.writeLibraryBackup({
+      key: 'backups',
+      reason: 'new',
+      movies: [{
+        id: 'new',
+        title: 'New',
+        posterUrl: 'https://image.example/new.jpg',
+        overview: 'y'.repeat(200),
+        watchedEpisodes: 4,
+        seasons: [{ number: 1, total: 8, watched: 4, posterUrl: 'drop-me-too' }],
+      }],
+      maxBackups: 2,
+      storage,
+    })).toBe(true);
+
+    const backups = JSON.parse(storage.getItem('backups'));
+    expect(backups).toHaveLength(2);
+    expect(backups[0].compact).toBe(true);
+    expect(backups[0].movies[0].posterUrl).toBeUndefined();
+    expect(backups[0].movies[0].overview).toBeUndefined();
+    expect(backups[0].movies[0].seasons[0].posterUrl).toBeUndefined();
+    expect(backups[0].movies[0].watchedEpisodes).toBe(4);
+
+    const trim = model.trimStorage({
+      volatileKeys: ['cacheA', 'cacheB'],
+      backupKey: 'backups',
+      maxBackups: 1,
+      pressureBytes: 100,
+      targetBytes: 80,
+      storage,
+    });
+
+    expect(trim.changed).toBe(true);
+    expect(JSON.parse(storage.getItem('backups'))).toHaveLength(1);
+    expect(storage.getItem('cacheA')).toBeNull();
+  });
+
   test('storage model records and clears pending sync markers', () => {
     const storage = memoryStorage();
     const model = loadStorageModel(storage);
