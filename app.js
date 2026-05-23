@@ -753,6 +753,32 @@ function restoreLibraryFromBackup(snapshotMovies) {
   return movies;
 }
 
+function localLibraryBackups() {
+  return storageModel.readArray(LOCAL_BACKUPS_KEY)
+    .filter(backup => backup && Array.isArray(backup.movies));
+}
+
+function formatBackupDate(value) {
+  const date = new Date(value || 0);
+  if (Number.isNaN(date.getTime())) return 'Unknown time';
+  return date.toLocaleString([], {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function backupImpactLabel(compare) {
+  if (!compare?.hasIssues) return 'No obvious loss detected';
+  const parts = [];
+  if (compare.missing?.length) parts.push(`${compare.missing.length} missing`);
+  if (compare.progressRegressed?.length) parts.push(`${compare.progressRegressed.length} progress`);
+  if (compare.statusRegressed?.length) parts.push(`${compare.statusRegressed.length} status`);
+  return parts.join(' / ');
+}
+
 function save() {
   movies = sanitiseLibrary();
   syncEpisodeProgress();
@@ -3873,6 +3899,8 @@ function openCommunityProfile(profile, userMovies) {
     const star = 10 - i;
     return [star, ratings.filter(r => r === star).length];
   }).filter(([, c]) => c > 0);
+  const backups = localLibraryBackups();
+  const health = window.CineTrack?.libraryHealth?.analyse(movies, { storage: localStorage });
 
   const recent = [...userMovies].sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0)).slice(0, 8);
 
@@ -4391,6 +4419,22 @@ function renderProfile() {
 
     ${movies.length === 0 ? '<p class="profile-empty">Add some titles to see your profile stats.</p>' : ''}
 
+    <div class="profile-section library-health-section">
+      <h3>Library Health</h3>
+      <div class="library-health-card${health?.ok ? ' healthy' : ''}">
+        <div class="library-health-status">
+          <span class="library-health-dot" aria-hidden="true"></span>
+          <span>${health?.ok ? 'No blocking issues detected' : 'Needs attention'}</span>
+        </div>
+        <div class="library-health-meta">${health ? `${health.storage.megabytes.toFixed(2)} MB stored locally` : 'Health model unavailable'}</div>
+        ${health?.issues?.length ? `
+          <div class="library-health-issues">
+            ${health.issues.map(issue => `<span class="library-health-chip ${esc(issue.level)}">${esc(issue.label)}</span>`).join('')}
+          </div>
+        ` : ''}
+      </div>
+    </div>
+
     <div class="profile-section appearance-section${localStorage.getItem('cinetrack_appearance_open') === '1' ? ' open' : ''}">
       <h3 class="appearance-toggle" role="button" tabindex="0" aria-expanded="${localStorage.getItem('cinetrack_appearance_open') === '1' ? 'true' : 'false'}">
         <span>Appearance</span>
@@ -4523,6 +4567,28 @@ function renderProfile() {
         <a id="profile-csv-template" class="csv-template-link" href="#" download="cinetrack-template.csv">Download template</a>
       </div>
     </div>
+
+    <div class="profile-section recovery-section">
+      <h3>Recovery</h3>
+      <p class="profile-csv-hint">Local safety snapshots are created before cloud loads, cloud saves, sign-out clears, and schema repairs.</p>
+      ${backups.length ? `
+        <div class="recovery-list">
+          ${backups.map((backup, index) => {
+            const compare = compareLibraryBackup(backup.movies);
+            return `
+              <div class="recovery-item">
+                <div class="recovery-copy">
+                  <div class="recovery-title">${esc(formatBackupDate(backup.createdAt))}</div>
+                  <div class="recovery-meta">${esc(backup.reason || 'snapshot')} &middot; ${Number(backup.itemCount || backup.movies.length)} titles</div>
+                  <div class="recovery-impact${compare.hasIssues ? ' has-issues' : ''}">${esc(backupImpactLabel(compare))}</div>
+                </div>
+                <button type="button" class="recovery-restore-btn" data-restore-backup="${index}">Restore</button>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      ` : '<p class="recovery-empty">No local safety snapshots yet.</p>'}
+    </div>
   `;
 
   applyTheme(document.documentElement.classList.contains('light') ? 'light' : 'dark');
@@ -4537,6 +4603,25 @@ function renderProfile() {
   panel.querySelector('#profile-export-btn')?.addEventListener('click', exportCSV);
   const tplLink = panel.querySelector('#profile-csv-template');
   if (tplLink) tplLink.href = TEMPLATE_URL;
+
+  panel.querySelectorAll('[data-restore-backup]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const backup = localLibraryBackups()[Number(btn.dataset.restoreBackup)];
+      if (!backup?.movies?.length) {
+        showToast('That recovery snapshot is no longer available.', true);
+        return;
+      }
+      const compare = compareLibraryBackup(backup.movies);
+      const label = backupImpactLabel(compare);
+      if (!confirm(`Restore from ${formatBackupDate(backup.createdAt)}?\n\nThis will merge safer progress from the snapshot and keep newer progress where it is stronger.\n\nDetected: ${label}`)) return;
+      restoreLibraryFromBackup(backup.movies);
+      save();
+      updateCountryDropdown();
+      render();
+      renderProfile();
+      showToast('Library restored from local snapshot.');
+    });
+  });
 
   panel.querySelectorAll('[data-time-spent-toggle]').forEach(el => {
     el.addEventListener('click', toggleTimeSpentFormat);

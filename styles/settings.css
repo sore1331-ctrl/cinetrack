@@ -157,6 +157,117 @@
 .pill-btn:hover { border-color: var(--accent); }
 .pill-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 
+.library-health-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+.library-health-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: .9rem;
+  font-weight: 800;
+}
+.library-health-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #f5a623;
+  box-shadow: 0 0 0 4px rgba(245, 166, 35, .12);
+}
+.library-health-card.healthy .library-health-dot {
+  background: #4caf82;
+  box-shadow: 0 0 0 4px rgba(76, 175, 130, .14);
+}
+.library-health-meta {
+  color: var(--muted);
+  font-size: .78rem;
+}
+.library-health-issues {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.library-health-chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: .76rem;
+  font-weight: 750;
+  padding: 5px 9px;
+}
+.library-health-chip.danger {
+  border-color: rgba(226, 64, 90, .45);
+  color: #ff6b82;
+}
+.library-health-chip.warn {
+  border-color: rgba(245, 166, 35, .42);
+  color: #f5a623;
+}
+
+.recovery-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.recovery-list {
+  display: grid;
+  gap: 10px;
+}
+.recovery-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 12px;
+}
+.recovery-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.recovery-title {
+  color: var(--text);
+  font-size: .9rem;
+  font-weight: 800;
+}
+.recovery-meta,
+.recovery-empty {
+  color: var(--muted);
+  font-size: .78rem;
+}
+.recovery-impact {
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 700;
+}
+.recovery-impact.has-issues { color: var(--accent); }
+.recovery-restore-btn {
+  flex: 0 0 auto;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: .82rem;
+  font-weight: 750;
+  padding: 8px 12px;
+}
+.recovery-restore-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* Accent swatches */
 .accent-picker { display: flex; gap: 8px; flex-wrap: wrap; }
 .accent-swatch {
@@ -185,4 +296,9 @@
     width: 100%;
     min-height: 66px;
   }
+  .recovery-item {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .recovery-restore-btn { width: 100%; }
 }

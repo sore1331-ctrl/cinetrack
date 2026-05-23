@@ -58,6 +58,19 @@ function loadProgressModel() {
   return sandbox.window.CineTrack.progress;
 }
 
+function loadLibraryHealthModel() {
+  const librarySource = fs.readFileSync(path.join(root, 'scripts', 'library-model.js'), 'utf8');
+  const healthSource = fs.readFileSync(path.join(root, 'scripts', 'library-health.js'), 'utf8');
+  const sandbox = {
+    window: {
+      CineTrack: {},
+      localStorage: memoryStorage(),
+    },
+  };
+  vm.runInNewContext(`${librarySource}\n${healthSource}`, sandbox);
+  return sandbox.window.CineTrack.libraryHealth;
+}
+
 function loadRecommendationModel() {
   const source = fs.readFileSync(path.join(root, 'scripts', 'recommendation-model.js'), 'utf8');
   const sandbox = {
@@ -147,6 +160,8 @@ function loadSyncModel() {
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
   return {
+    get length() { return data.size; },
+    key: index => [...data.keys()][index] || null,
     getItem: key => data.has(key) ? data.get(key) : null,
     setItem: (key, value) => { data.set(key, String(value)); },
     removeItem: key => { data.delete(key); },
@@ -427,6 +442,42 @@ test.describe('tracker data integrity', () => {
     expect(sql).toContain('REVOKE DELETE ON public.user_data FROM authenticated');
     expect(sql).toContain('REVOKE UPDATE, DELETE ON public.user_data_backups FROM authenticated');
     expect(sql).toContain('REVOKE UPDATE, DELETE ON public.progress_events FROM authenticated');
+  });
+
+  test('profile exposes local recovery snapshots', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+
+    expect(app).toContain('function localLibraryBackups()');
+    expect(app).toContain('function backupImpactLabel(compare)');
+    expect(app).toContain('data-restore-backup');
+    expect(app).toContain('restoreLibraryFromBackup(backup.movies)');
+    expect(app).toContain('Local safety snapshots are created before cloud loads');
+  });
+
+  test('library health model reports data risks without blocking metadata overflow', () => {
+    const model = loadLibraryHealthModel();
+    const storage = memoryStorage({ movies: 'x'.repeat(128) });
+
+    const health = model.analyse([
+      { title: 'Missing Id', mediaType: 'movie', tmdbId: 1, watchedEpisodes: 0 },
+      { id: 'dupe-a', title: 'Duplicate A', mediaType: 'tv', tmdbId: 2, watchedEpisodes: 8, totalEpisodes: 6 },
+      { id: 'dupe-b', title: 'Duplicate B', mediaType: 'tv', tmdbId: 2, watchedEpisodes: -1 },
+    ], { storage, quotaWarningBytes: 16 });
+
+    expect(health.ok).toBe(false);
+    expect(health.counts).toEqual(expect.objectContaining({
+      missingIds: 1,
+      duplicateKeys: 1,
+      invalidProgress: 1,
+      overflowProgress: 1,
+    }));
+    expect(health.issues.map(issue => issue.label)).toEqual(expect.arrayContaining([
+      '1 missing IDs',
+      '1 duplicate source keys',
+      '1 invalid progress values',
+      '1 titles ahead of known metadata',
+      'local storage is near quota',
+    ]));
   });
 
   test('storage model ignores corrupt arrays and trims local backups', () => {
