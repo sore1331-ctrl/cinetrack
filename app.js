@@ -249,6 +249,7 @@ const networkModel = window.CineTrack?.network;
 const csvModel = window.CineTrack?.csv;
 const libraryModel = window.CineTrack?.library;
 const profileModel = window.CineTrack?.profile;
+const calendarModel = window.CineTrack?.calendar;
 const errorLog = window.CineTrack?.errors;
 const syncModel = window.CineTrack?.sync;
 
@@ -2536,19 +2537,12 @@ async function fetchUpcoming(ids, { force = false } = {}) {
 }
 
 function calendarKeyForEntry(m) {
-  if (!m) return '';
-  const isShow = m.mediaType === 'tv' || m.mediaType === 'anime';
-  if (m.tmdbId) return `${isShow ? 'tv' : 'movie'}:${m.tmdbId}`;
-  if (m.externalSource === 'anilist' && m.externalId) {
-    return `${m.externalSource}:${m.externalId}`;
-  }
-  return '';
+  return calendarModel.keyForEntry(m);
 }
 
 async function fetchExternalUpcomingForEntries(entries) {
   const todayStr = todayDateString();
-  const tvHorizon = new Date(); tvHorizon.setHours(0,0,0,0); tvHorizon.setDate(tvHorizon.getDate() + UPCOMING_HORIZON_DAYS);
-  const tvHorizonStr = `${tvHorizon.getFullYear()}-${String(tvHorizon.getMonth()+1).padStart(2,'0')}-${String(tvHorizon.getDate()).padStart(2,'0')}`;
+  const tvHorizonStr = calendarModel.addDaysString(UPCOMING_HORIZON_DAYS);
 
   const tasks = entries.map(async m => {
     const key = calendarKeyForEntry(m);
@@ -2592,8 +2586,7 @@ async function fetchTvmazeCalendarForEntries(entries, { force = false } = {}) {
   if (!tvEntries.length) return [];
 
   const todayStr = todayDateString();
-  const tvHorizon = new Date(); tvHorizon.setHours(0,0,0,0); tvHorizon.setDate(tvHorizon.getDate() + UPCOMING_HORIZON_DAYS);
-  const tvHorizonStr = `${tvHorizon.getFullYear()}-${String(tvHorizon.getMonth()+1).padStart(2,'0')}-${String(tvHorizon.getDate()).padStart(2,'0')}`;
+  const tvHorizonStr = calendarModel.addDaysString(UPCOMING_HORIZON_DAYS);
 
   const cache = readUpcomingCache();
   const now = Date.now();
@@ -2631,57 +2624,19 @@ async function fetchTvmazeCalendarForEntries(entries, { force = false } = {}) {
 const NOTIF_DEDUPE_KEY = 'cinetrack_notified_episodes';
 
 function todayDateString() {
-  const d = new Date(); d.setHours(0,0,0,0);
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  return calendarModel.dateString();
 }
 
 function episodeOrdinalForProgress(m, episode) {
-  if (!episode) return null;
-  const seasonNo = Number(episode.season) || 1;
-  const epNo = Number(episode.episode) || 0;
-  if (!epNo) return null;
-
-  if (Array.isArray(m?.seasons) && m.seasons.length) {
-    const sorted = [...m.seasons].sort((a, b) => (a.number || 0) - (b.number || 0));
-    let before = 0;
-    for (const season of sorted) {
-      const number = Number(season.number) || 0;
-      if (number < seasonNo) before += Number(season.total) || 0;
-      if (number === seasonNo) return before + epNo;
-    }
-    return null;
-  }
-
-  return seasonNo <= 1 ? epNo : null;
+  return calendarModel.episodeOrdinalForProgress(m, episode);
 }
 
 function hasUnwatchedAiringEpisodeToday(m, episode, todayStr = todayDateString()) {
-  if (!episode || episode.airDate !== todayStr) return false;
-  const ordinal = episodeOrdinalForProgress(m, episode);
-  if (ordinal == null) return true;
-  return (m.watchedEpisodes || 0) < ordinal;
+  return calendarModel.hasUnwatchedAiringEpisodeToday(m, episode, todayStr);
 }
 
 function getAiringTodaySignal(m, todayStr = todayDateString()) {
-  if (!m?.tmdbId) return null;
-  const cache = readUpcomingCache();
-  if (!cache?.byId) return null;
-  const isShow  = m.mediaType === 'tv' || m.mediaType === 'anime';
-  const isMovie = m.mediaType === 'movie';
-
-  if (isShow && (m.status === 'in_progress' || m.status === 'watchlist')) {
-    const tmdbEpisode = cache.byId[`tv:${m.tmdbId}`]?.nextEpisode;
-    if (hasUnwatchedAiringEpisodeToday(m, tmdbEpisode, todayStr)) {
-      return { type: 'episode', episode: tmdbEpisode };
-    }
-  }
-
-  if (isMovie && m.status === 'watchlist') {
-    const releaseDate = cache.byId[`movie:${m.tmdbId}`]?.releaseDate;
-    if (releaseDate === todayStr) return { type: 'movie', releaseDate };
-  }
-
-  return null;
+  return calendarModel.airingTodaySignal(m, readUpcomingCache(), todayStr);
 }
 
 // True when the given local entry has something happening today according
@@ -2871,15 +2826,7 @@ async function setEpisodeNotifPref(value) {
 }
 
 function relativeDayLabel(dateStr) {
-  const today = new Date(); today.setHours(0,0,0,0);
-  const d = new Date(dateStr + 'T00:00:00');
-  const diff = Math.round((d - today) / 86400000);
-  if (diff === 0)  return 'Today';
-  if (diff === 1)  return 'Tomorrow';
-  if (diff === -1) return 'Yesterday';
-  const opts = { weekday: 'short', month: 'short', day: 'numeric' };
-  if (d.getFullYear() !== today.getFullYear()) opts.year = 'numeric';
-  return d.toLocaleDateString(undefined, opts);
+  return calendarModel.relativeDayLabel(dateStr);
 }
 
 async function renderCalendar({ force = false } = {}) {
@@ -2940,12 +2887,8 @@ async function renderCalendarTracked(body, { force = false } = {}) {
   body.querySelector('#calendar-refresh-btn').addEventListener('click', () => renderCalendar({ force: true }));
 
   const todayStr = todayDateString();
-  const dPlus = (n) => {
-    const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() + n);
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  };
-  const tvHorizonStr    = dPlus(UPCOMING_HORIZON_DAYS);
-  const movieHorizonStr = dPlus(MOVIE_HORIZON_DAYS);
+  const tvHorizonStr    = calendarModel.addDaysString(UPCOMING_HORIZON_DAYS);
+  const movieHorizonStr = calendarModel.addDaysString(MOVIE_HORIZON_DAYS);
 
   let upcoming;
   try {

@@ -82,6 +82,17 @@ function loadProfileModel() {
   return sandbox.window.CineTrack.profile;
 }
 
+function loadCalendarModel() {
+  const source = fs.readFileSync(path.join(root, 'scripts', 'calendar-model.js'), 'utf8');
+  const sandbox = {
+    window: {
+      CineTrack: {},
+    },
+  };
+  vm.runInNewContext(source, sandbox);
+  return sandbox.window.CineTrack.calendar;
+}
+
 function loadRecommendationModel() {
   const source = fs.readFileSync(path.join(root, 'scripts', 'recommendation-model.js'), 'utf8');
   const sandbox = {
@@ -381,6 +392,44 @@ test.describe('tracker data integrity', () => {
     expect(app).not.toContain('Between seasons / no date yet');
     expect(app).not.toContain('No date scheduled');
     expect(tvmazeApi).toContain('if (!episode) return null;');
+  });
+
+  test('calendar model formats keys, dates, and airing-today signals', () => {
+    const model = loadCalendarModel();
+    const base = new Date('2026-05-23T12:00:00Z');
+
+    expect(model.dateString(base)).toBe('2026-05-23');
+    expect(model.addDaysString(14, base)).toBe('2026-06-06');
+    expect(model.keyForEntry({ mediaType: 'anime', tmdbId: 10 })).toBe('tv:10');
+    expect(model.keyForEntry({ mediaType: 'movie', tmdbId: 20 })).toBe('movie:20');
+    expect(model.keyForEntry({ externalSource: 'anilist', externalId: '777' })).toBe('anilist:777');
+    expect(model.relativeDayLabel('2026-05-24', base)).toBe('Tomorrow');
+    expect(model.episodeOrdinalForProgress({
+      seasons: [
+        { number: 1, total: 10 },
+        { number: 2, total: 8 },
+      ],
+    }, { season: 2, episode: 3 })).toBe(13);
+
+    const cache = {
+      byId: {
+        'tv:10': { nextEpisode: { season: 2, episode: 3, airDate: '2026-05-23' } },
+        'movie:20': { releaseDate: '2026-05-23' },
+      },
+    };
+
+    expect(model.airingTodaySignal({
+      mediaType: 'anime',
+      status: 'in_progress',
+      tmdbId: 10,
+      watchedEpisodes: 12,
+      seasons: [{ number: 1, total: 10 }, { number: 2, total: 8 }],
+    }, cache, '2026-05-23')).toEqual(expect.objectContaining({ type: 'episode' }));
+    expect(model.airingTodaySignal({
+      mediaType: 'movie',
+      status: 'watchlist',
+      tmdbId: 20,
+    }, cache, '2026-05-23')).toEqual({ type: 'movie', releaseDate: '2026-05-23' });
   });
 
   test('anime recommendations prefer AniList before TMDB fallback', () => {
