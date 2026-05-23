@@ -14,6 +14,15 @@ function loadUserDataHelpers() {
   return sandbox.helpers;
 }
 
+function loadUserDataValidationHelpers() {
+  const source = fs.readFileSync(path.join(root, 'api', 'user-data.js'), 'utf8');
+  const start = source.indexOf('const VALID_MEDIA_TYPES');
+  const end = source.indexOf('function entryKey');
+  const sandbox = {};
+  vm.runInNewContext(`${source.slice(start, end)}; helpers = { validateMoviesPayload };`, sandbox);
+  return sandbox.helpers;
+}
+
 function loadStorageModel(storage) {
   const source = fs.readFileSync(path.join(root, 'scripts', 'storage-model.js'), 'utf8');
   const sandbox = {
@@ -244,6 +253,27 @@ test.describe('tracker data integrity', () => {
     }));
   });
 
+  test('cloud user data API rejects malformed library payloads', () => {
+    const { validateMoviesPayload } = loadUserDataValidationHelpers();
+
+    expect(validateMoviesPayload([
+      {
+        title: 'Safe Show',
+        mediaType: 'tv',
+        status: 'in_progress',
+        watchedEpisodes: 14,
+        totalEpisodes: 12,
+        rating: 8,
+        seasons: [{ number: 1, total: 12, watched: 12 }],
+      },
+    ])).toBeNull();
+
+    expect(validateMoviesPayload([{ title: 'Bad Type', mediaType: 'podcast' }])).toContain('mediaType');
+    expect(validateMoviesPayload([{ title: 'Bad Progress', watchedEpisodes: -1 }])).toContain('watchedEpisodes');
+    expect(validateMoviesPayload([{ title: 'Bad Seasons', seasons: [{ watched: -1 }] }])).toContain('seasons[0].watched');
+    expect(validateMoviesPayload(new Array(10001).fill({ title: 'Too Many' }))).toContain('10000');
+  });
+
   test('missing client baseline is treated as stale when cloud already exists', () => {
     const api = fs.readFileSync(path.join(root, 'api', 'user-data.js'), 'utf8');
 
@@ -383,6 +413,20 @@ test.describe('tracker data integrity', () => {
     expect(api).toContain('Date.parse(existingRow?.updated_at');
     expect(app).toContain('if (!backedUpLocal && force)');
     expect(api).toContain("await supabaseRequest('progress_events'");
+  });
+
+  test('supabase setup limits destructive cloud data access', () => {
+    const sql = fs.readFileSync(path.join(root, 'SUPABASE_SETUP.sql'), 'utf8');
+
+    expect(sql).toContain('user_data_movies_is_array');
+    expect(sql).toContain('user_data_version_positive');
+    expect(sql).toContain('user_data_backups_movies_is_array');
+    expect(sql).toContain('progress_events_type_allowed');
+    expect(sql).not.toContain('CREATE POLICY "user_data_delete_own"');
+    expect(sql).toContain('GRANT SELECT, INSERT, UPDATE ON public.user_data TO authenticated;');
+    expect(sql).toContain('REVOKE DELETE ON public.user_data FROM authenticated');
+    expect(sql).toContain('REVOKE UPDATE, DELETE ON public.user_data_backups FROM authenticated');
+    expect(sql).toContain('REVOKE UPDATE, DELETE ON public.progress_events FROM authenticated');
   });
 
   test('storage model ignores corrupt arrays and trims local backups', () => {

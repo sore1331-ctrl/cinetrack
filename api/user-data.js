@@ -66,6 +66,93 @@ async function supabaseRequest(path, { method = 'GET', token, body, signal, pref
   return data;
 }
 
+const VALID_MEDIA_TYPES = new Set(['movie', 'tv', 'anime']);
+const VALID_STATUSES = new Set(['watchlist', 'in_progress', 'watched', 'dropped']);
+const MAX_LIBRARY_ITEMS = 10000;
+const MAX_SEASONS_PER_TITLE = 500;
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function hasNonNegativeNumber(value) {
+  if (value === null || value === undefined || value === '') return true;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0;
+}
+
+function validateShortString(value, field, maxLength) {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== 'string') return `${field} must be a string.`;
+  if (value.length > maxLength) return `${field} is too long.`;
+  return null;
+}
+
+function validateSeasonPayload(season, movieIndex, seasonIndex) {
+  if (!isPlainObject(season)) return `movies[${movieIndex}].seasons[${seasonIndex}] must be an object.`;
+
+  const numberFields = ['number', 'total', 'watched'];
+  for (const field of numberFields) {
+    if (!hasNonNegativeNumber(season[field])) {
+      return `movies[${movieIndex}].seasons[${seasonIndex}].${field} must be a non-negative number.`;
+    }
+  }
+
+  return null;
+}
+
+function validateMoviePayload(movie, index) {
+  if (!isPlainObject(movie)) return `movies[${index}] must be an object.`;
+
+  const titleError = validateShortString(movie.title, `movies[${index}].title`, 500);
+  if (titleError) return titleError;
+
+  const mediaType = movie.mediaType || movie.type;
+  if (mediaType && !VALID_MEDIA_TYPES.has(mediaType)) {
+    return `movies[${index}].mediaType must be movie, tv, or anime.`;
+  }
+
+  if (movie.status && !VALID_STATUSES.has(movie.status)) {
+    return `movies[${index}].status is not supported.`;
+  }
+
+  const numberFields = ['watchedEpisodes', 'totalEpisodes', 'rating', 'runtime', 'watchCount', 'timesWatched'];
+  for (const field of numberFields) {
+    if (!hasNonNegativeNumber(movie[field])) {
+      return `movies[${index}].${field} must be a non-negative number.`;
+    }
+  }
+
+  if (movie.rating !== null && movie.rating !== undefined && movie.rating !== '' && Number(movie.rating) > 10) {
+    return `movies[${index}].rating cannot be greater than 10.`;
+  }
+
+  if (movie.seasons !== null && movie.seasons !== undefined) {
+    if (!Array.isArray(movie.seasons)) return `movies[${index}].seasons must be an array.`;
+    if (movie.seasons.length > MAX_SEASONS_PER_TITLE) {
+      return `movies[${index}].seasons cannot exceed ${MAX_SEASONS_PER_TITLE} entries.`;
+    }
+    for (let seasonIndex = 0; seasonIndex < movie.seasons.length; seasonIndex += 1) {
+      const error = validateSeasonPayload(movie.seasons[seasonIndex], index, seasonIndex);
+      if (error) return error;
+    }
+  }
+
+  return null;
+}
+
+function validateMoviesPayload(movies) {
+  if (!Array.isArray(movies)) return 'movies must be an array.';
+  if (movies.length > MAX_LIBRARY_ITEMS) return `movies cannot exceed ${MAX_LIBRARY_ITEMS} items.`;
+
+  for (let index = 0; index < movies.length; index += 1) {
+    const error = validateMoviePayload(movies[index], index);
+    if (error) return error;
+  }
+
+  return null;
+}
+
 function entryKey(movie) {
   if (!movie || typeof movie !== 'object') return '';
   const source = movie.mediaType || movie.type || '';
@@ -323,7 +410,8 @@ export default async function handler(req, res) {
 
     if (req.method === 'PUT') {
       const { movies, updated_at, base_updated_at, base_version } = req.body || {};
-      if (!Array.isArray(movies)) return json(res, 400, { error: 'movies must be an array.' });
+      const validationError = validateMoviesPayload(movies);
+      if (validationError) return json(res, 400, { error: validationError });
 
       const existingRows = await supabaseRequest(
         `user_data?select=movies,updated_at,version&user_id=eq.${encodeURIComponent(userId)}&order=updated_at.desc&limit=1`,

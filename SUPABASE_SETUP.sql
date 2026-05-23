@@ -41,6 +41,25 @@ ALTER TABLE public.user_data
 ALTER TABLE public.user_data
   ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
 
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'user_data_movies_is_array'
+  ) THEN
+    ALTER TABLE public.user_data
+      ADD CONSTRAINT user_data_movies_is_array
+      CHECK (jsonb_typeof(movies) = 'array');
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'user_data_version_positive'
+  ) THEN
+    ALTER TABLE public.user_data
+      ADD CONSTRAINT user_data_version_positive
+      CHECK (version >= 1);
+  END IF;
+END $$;
+
 -- 3. Automatic backups before the app overwrites the main user_data row.
 CREATE TABLE IF NOT EXISTS public.user_data_backups (
   id                  bigserial PRIMARY KEY,
@@ -65,6 +84,17 @@ ALTER TABLE public.user_data_backups
 
 ALTER TABLE public.user_data_backups
   ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now();
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'user_data_backups_movies_is_array'
+  ) THEN
+    ALTER TABLE public.user_data_backups
+      ADD CONSTRAINT user_data_backups_movies_is_array
+      CHECK (jsonb_typeof(movies) = 'array');
+  END IF;
+END $$;
 
 -- 4. Append-only progress event log for audit and targeted recovery.
 CREATE TABLE IF NOT EXISTS public.progress_events (
@@ -128,6 +158,26 @@ CREATE INDEX IF NOT EXISTS progress_events_user_created_idx
 
 CREATE INDEX IF NOT EXISTS progress_events_user_item_idx
   ON public.progress_events (user_id, item_key, created_at DESC);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'progress_events_type_allowed'
+  ) THEN
+    ALTER TABLE public.progress_events
+      ADD CONSTRAINT progress_events_type_allowed
+      CHECK (event_type IN (
+        'unknown',
+        'title_added',
+        'title_removed',
+        'status_changed',
+        'episodes_changed',
+        'total_episodes_changed',
+        'rating_changed',
+        'watch_count_changed'
+      ));
+  END IF;
+END $$;
 
 -- 5. Enable Row Level Security.
 ALTER TABLE public.profiles  ENABLE ROW LEVEL SECURITY;
@@ -205,10 +255,6 @@ CREATE POLICY "user_data_update_own" ON public.user_data
   USING ((select auth.uid()) = user_id)
   WITH CHECK ((select auth.uid()) = user_id);
 
-CREATE POLICY "user_data_delete_own" ON public.user_data
-  FOR DELETE TO authenticated
-  USING ((select auth.uid()) = user_id);
-
 -- Backups:
 -- Users can read and create their own immutable backup snapshots.
 CREATE POLICY "user_data_backups_select_own" ON public.user_data_backups
@@ -231,11 +277,18 @@ CREATE POLICY "progress_events_insert_own" ON public.progress_events
   WITH CHECK ((select auth.uid()) = user_id);
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.profiles TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_data TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.user_data TO authenticated;
 GRANT SELECT, INSERT ON public.user_data_backups TO authenticated;
 GRANT SELECT, INSERT ON public.progress_events TO authenticated;
 GRANT USAGE, SELECT ON SEQUENCE public.user_data_backups_id_seq TO authenticated;
 GRANT USAGE, SELECT ON SEQUENCE public.progress_events_id_seq TO authenticated;
+
+REVOKE DELETE ON public.user_data FROM authenticated;
+REVOKE UPDATE, DELETE ON public.user_data_backups FROM authenticated;
+REVOKE UPDATE, DELETE ON public.progress_events FROM authenticated;
+REVOKE ALL ON public.user_data FROM anon;
+REVOKE ALL ON public.user_data_backups FROM anon;
+REVOKE ALL ON public.progress_events FROM anon;
 
 -- This helper is not used by CineTrack at runtime and should not be callable
 -- from the API if it exists.
