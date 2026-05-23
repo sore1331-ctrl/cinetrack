@@ -82,11 +82,60 @@
     try { storage.removeItem(key); } catch {}
   }
 
+  function readNumber(key, fallback = 0, storage = window.localStorage) {
+    const value = Number(storage.getItem(key));
+    return Number.isFinite(value) ? value : fallback;
+  }
+
+  function writeJson(key, value, storage = window.localStorage) {
+    storage.setItem(key, JSON.stringify(value));
+  }
+
+  function migrateLibraryStorage({
+    storageKey,
+    schemaKey,
+    currentVersion,
+    backupKey,
+    sanitise,
+    maxBackups = 3,
+    storage = window.localStorage,
+  }) {
+    const rawMovies = readArray(storageKey, storage);
+    const storedVersion = readNumber(schemaKey, 0, storage);
+    const movies = typeof sanitise === 'function' ? sanitise(rawMovies) : rawMovies;
+    const changed = JSON.stringify(rawMovies) !== JSON.stringify(movies);
+    const needsMigration = storedVersion < currentVersion || changed;
+
+    if (needsMigration) {
+      writeLibraryBackup({
+        key: backupKey,
+        reason: `before-schema-${currentVersion}-migration`,
+        movies: rawMovies,
+        maxBackups,
+        storage,
+      });
+      try {
+        writeJson(storageKey, movies, storage);
+        storage.setItem(schemaKey, String(currentVersion));
+      } catch (error) {
+        console.warn('[cinetrack] Could not persist local schema migration:', error?.message || error);
+      }
+    }
+
+    return {
+      movies,
+      migrated: needsMigration,
+      fromVersion: storedVersion,
+      toVersion: currentVersion,
+    };
+  }
+
   root.storage = {
     readArray,
     writeLibraryBackup,
     readPendingSyncMarker,
     markPendingSync,
     clearPendingSyncMarker,
+    migrateLibraryStorage,
   };
 })();

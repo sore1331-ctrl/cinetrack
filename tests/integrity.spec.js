@@ -406,6 +406,40 @@ test.describe('tracker data integrity', () => {
     expect(model.readPendingSyncMarker('pending', storage)).toBeNull();
   });
 
+  test('storage model migrates local library schema with a backup', () => {
+    const storage = memoryStorage({
+      movies: JSON.stringify([{ title: '  Migrated  ', mediaType: 'show', status: 'in progress' }]),
+      schema: '0',
+    });
+    const storageModel = loadStorageModel(storage);
+    const libraryModel = loadLibraryModel();
+
+    const result = storageModel.migrateLibraryStorage({
+      storageKey: 'movies',
+      schemaKey: 'schema',
+      currentVersion: 1,
+      backupKey: 'backups',
+      storage,
+      sanitise: entries => libraryModel.sanitiseLibrary(entries, {
+        idFactory: () => 'migrated-id',
+        now: () => 456,
+      }),
+    });
+
+    expect(result.migrated).toBe(true);
+    expect(result.movies[0]).toEqual(expect.objectContaining({
+      id: 'migrated-id',
+      title: 'Migrated',
+      mediaType: 'tv',
+      status: 'in_progress',
+    }));
+    expect(storage.getItem('schema')).toBe('1');
+    expect(JSON.parse(storage.getItem('backups'))[0]).toEqual(expect.objectContaining({
+      reason: 'before-schema-1-migration',
+      itemCount: 1,
+    }));
+  });
+
   test('source model normalizes poster and metadata links', () => {
     const model = loadSourceModel();
 

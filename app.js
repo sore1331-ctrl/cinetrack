@@ -224,6 +224,8 @@ function applyAllAppearance() {
 
 // ── State ──────────────────────────────────────────────
 const STORAGE_KEY = 'cinetrack_movies';
+const LOCAL_SCHEMA_KEY = 'cinetrack_library_schema_version';
+const CURRENT_LIBRARY_SCHEMA_VERSION = 1;
 const PENDING_SYNC_KEY = 'cinetrack_pending_sync';
 const LOCAL_BACKUPS_KEY = 'cinetrack_library_backups_v1';
 const MAX_LOCAL_BACKUPS = 3;
@@ -243,6 +245,17 @@ function readStoredArray(key) {
   return storageModel.readArray(key);
 }
 
+function migrateStoredLibrary() {
+  return storageModel.migrateLibraryStorage({
+    storageKey: STORAGE_KEY,
+    schemaKey: LOCAL_SCHEMA_KEY,
+    currentVersion: CURRENT_LIBRARY_SCHEMA_VERSION,
+    backupKey: LOCAL_BACKUPS_KEY,
+    maxBackups: MAX_LOCAL_BACKUPS,
+    sanitise: entries => libraryModel.sanitiseLibrary(entries, { idFactory: genId, now: Date.now }),
+  });
+}
+
 function writeLocalLibraryBackup(reason, sourceMovies = movies) {
   return storageModel.writeLibraryBackup({
     key: LOCAL_BACKUPS_KEY,
@@ -254,7 +267,8 @@ function writeLocalLibraryBackup(reason, sourceMovies = movies) {
   });
 }
 
-let movies          = libraryModel.sanitiseLibrary(readStoredArray(STORAGE_KEY), { idFactory: genId, now: Date.now });
+const libraryMigration = migrateStoredLibrary();
+let movies          = libraryMigration.movies;
 let activeType      = 'movie';   // 'movie' | 'tv' | 'anime'
 let activeView      = 'content'; // 'content' | 'stats' | 'community'
 let activeStatus    = 'all';
