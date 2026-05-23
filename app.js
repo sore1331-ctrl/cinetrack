@@ -745,6 +745,15 @@ function changeLibraryStatus(ids, status) {
   syncEpisodeProgress();
 }
 
+function compareLibraryBackup(snapshotMovies) {
+  return libraryModel.compareSnapshot(movies, snapshotMovies);
+}
+
+function restoreLibraryFromBackup(snapshotMovies) {
+  replaceLibrary(libraryModel.restoreFromSnapshot(movies, snapshotMovies));
+  return movies;
+}
+
 function save() {
   movies = sanitiseLibrary();
   syncEpisodeProgress();

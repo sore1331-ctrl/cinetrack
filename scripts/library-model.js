@@ -57,6 +57,28 @@
     return { watchlist: 0, dropped: 1, in_progress: 2, watched: 3 }[normaliseStatus(status)] ?? 0;
   }
 
+  function normaliseTitle(value) {
+    return String(value || '')
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/&/g, ' and ')
+      .replace(/\([^)]*\)|\[[^\]]*\]/g, ' ')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .replace(/\b(the|a|an)\b/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function entryKey(entry) {
+    const mediaType = normaliseMediaType(entry?.mediaType);
+    if (entry?.tmdbId) return `${mediaType}:tmdb:${String(entry.tmdbId)}`;
+    if (entry?.externalSource && entry?.externalId) {
+      return `${mediaType}:${String(entry.externalSource).toLowerCase()}:${String(entry.externalId)}`;
+    }
+    return `${mediaType}:title:${normaliseTitle(entry?.title)}:${String(entry?.year || '').slice(0, 4)}`;
+  }
+
   function sanitiseEntry(entry = {}, { idFactory = null, now = null } = {}) {
     const mediaType = normaliseMediaType(entry.mediaType);
     const status = normaliseStatus(entry.status);
@@ -161,9 +183,63 @@
     });
   }
 
+  function compareSnapshot(current = [], snapshot = []) {
+    const currentSafe = sanitiseLibrary(current);
+    const snapshotSafe = sanitiseLibrary(snapshot);
+    const currentByKey = new Map(currentSafe.map(entry => [entryKey(entry), entry]));
+    const missing = [];
+    const progressRegressed = [];
+    const statusRegressed = [];
+
+    snapshotSafe.forEach(previous => {
+      const existing = currentByKey.get(entryKey(previous));
+      if (!existing) {
+        missing.push(previous);
+        return;
+      }
+      if (progressValue(previous) > progressValue(existing)) {
+        progressRegressed.push({ current: existing, snapshot: previous });
+      }
+      if (statusRank(previous.status) > statusRank(existing.status)) {
+        statusRegressed.push({ current: existing, snapshot: previous });
+      }
+    });
+
+    return {
+      missing,
+      progressRegressed,
+      statusRegressed,
+      hasIssues: Boolean(missing.length || progressRegressed.length || statusRegressed.length),
+    };
+  }
+
+  function restoreFromSnapshot(current = [], snapshot = [], options = {}) {
+    const { restoreMissing = true } = options;
+    const currentSafe = sanitiseLibrary(current);
+    const snapshotSafe = sanitiseLibrary(snapshot);
+    const snapshotByKey = new Map(snapshotSafe.map(entry => [entryKey(entry), entry]));
+    const seen = new Set();
+    const restored = currentSafe.map(entry => {
+      const key = entryKey(entry);
+      seen.add(key);
+      const previous = snapshotByKey.get(key);
+      return previous ? protectProgress(previous, entry) : entry;
+    });
+
+    if (restoreMissing) {
+      snapshotSafe.forEach(entry => {
+        const key = entryKey(entry);
+        if (!seen.has(key)) restored.push(entry);
+      });
+    }
+
+    return sanitiseLibrary(restored);
+  }
+
   root.library = {
     clone,
     isShow,
+    entryKey,
     normaliseMediaType,
     normaliseStatus,
     sanitiseEntry,
@@ -174,5 +250,7 @@
     removeEntry,
     removeEntries,
     changeStatus,
+    compareSnapshot,
+    restoreFromSnapshot,
   };
 })();

@@ -652,6 +652,54 @@ test.describe('tracker data integrity', () => {
     expect(protectedEntry.seasons).toHaveLength(1);
   });
 
+  test('library model compares and restores from backup snapshots', () => {
+    const model = loadLibraryModel();
+    const snapshot = [
+      {
+        id: 'old-safe',
+        title: 'Safe Show',
+        mediaType: 'tv',
+        tmdbId: 42,
+        status: 'watched',
+        totalEpisodes: 8,
+        watchedEpisodes: 8,
+      },
+      {
+        id: 'missing',
+        title: 'Missing Film',
+        mediaType: 'movie',
+        tmdbId: 99,
+        status: 'watched',
+        rating: 8,
+      },
+    ];
+    const current = [{
+      id: 'current-safe',
+      title: 'Safe Show',
+      mediaType: 'tv',
+      tmdbId: 42,
+      status: 'watchlist',
+      totalEpisodes: 8,
+      watchedEpisodes: 0,
+    }];
+
+    const comparison = model.compareSnapshot(current, snapshot);
+    expect(comparison.hasIssues).toBe(true);
+    expect(comparison.missing).toHaveLength(1);
+    expect(comparison.progressRegressed).toHaveLength(1);
+
+    const restored = model.restoreFromSnapshot(current, snapshot);
+    expect(restored).toHaveLength(2);
+    expect(restored.find(entry => entry.tmdbId === 42)).toEqual(expect.objectContaining({
+      status: 'watched',
+      watchedEpisodes: 8,
+    }));
+    expect(restored.find(entry => entry.tmdbId === 99)).toEqual(expect.objectContaining({
+      title: 'Missing Film',
+      status: 'watched',
+    }));
+  });
+
   test('library mutations are routed through the safety model', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
     const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
@@ -661,6 +709,8 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('function addLibraryEntry');
     expect(app).toContain('function updateLibraryEntry');
     expect(app).toContain('function removeLibraryEntry');
+    expect(app).toContain('function compareLibraryBackup');
+    expect(app).toContain('function restoreLibraryFromBackup');
     expect(app).toContain('movies = sanitiseLibrary();');
     expect(app).toContain("writeLocalLibraryBackup('before-sign-out-clear', movies);");
   });
