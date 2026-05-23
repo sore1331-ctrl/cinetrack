@@ -665,6 +665,37 @@ test.describe('tracker data integrity', () => {
     expect(protectedEntry.seasons).toHaveLength(1);
   });
 
+  test('library model preserves stronger season progress during metadata refresh', () => {
+    const model = loadLibraryModel();
+    const previous = {
+      id: 'show-1',
+      title: 'Safe Show',
+      mediaType: 'tv',
+      status: 'in_progress',
+      totalEpisodes: 8,
+      watchedEpisodes: 6,
+      seasons: [{ number: 1, total: 8, watched: 6, name: 'Season 1' }],
+    };
+    const incoming = {
+      ...previous,
+      totalEpisodes: 4,
+      watchedEpisodes: 4,
+      seasons: [{ number: 1, total: 4, watched: 4, name: 'Season 1' }],
+    };
+
+    const protectedEntry = model.protectProgress(previous, incoming);
+
+    expect(protectedEntry).toEqual(expect.objectContaining({
+      status: 'in_progress',
+      totalEpisodes: 8,
+      watchedEpisodes: 6,
+    }));
+    expect(protectedEntry.seasons[0]).toEqual(expect.objectContaining({
+      total: 8,
+      watched: 6,
+    }));
+  });
+
   test('library model compares and restores from backup snapshots', () => {
     const model = loadLibraryModel();
     const snapshot = [

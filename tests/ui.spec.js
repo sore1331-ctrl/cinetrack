@@ -168,6 +168,131 @@ test.describe('desktop regressions', () => {
     await expect(recSection).not.toContainText('Attack on Titan');
     await expect(recSection).not.toContainText('Dune: Part Two');
   });
+
+  test('episode progress persists after reload', async ({ page }) => {
+    await page.addInitScript(() => {
+      if (localStorage.getItem('cinetrack_movies')) return;
+      localStorage.setItem('cinetrack_movies', JSON.stringify([{
+        id: 'anchor-movie',
+        addedAt: 2,
+        title: 'Anchor Movie',
+        year: '2026',
+        status: 'watched',
+        rating: 7,
+        mediaType: 'movie',
+        genre: 'Drama',
+        runtime: 100,
+      }, {
+        id: 'progress-show',
+        addedAt: 1,
+        title: 'Progress Show',
+        year: '2026',
+        status: 'in_progress',
+        rating: 8,
+        mediaType: 'tv',
+        tmdbId: 12345,
+        genre: 'Drama',
+        runtime: 400,
+        totalEpisodes: 4,
+        watchedEpisodes: 2,
+        seasons: [{ number: 1, total: 4, watched: 2, name: 'Season 1' }],
+      }]));
+    });
+
+    await openApp(page);
+    await page.locator('.type-tab[data-type="tv"]').click();
+    await page.locator('[data-ep-inc="progress-show"]').click();
+
+    await expect.poll(() => page.evaluate(() => {
+      const entry = JSON.parse(localStorage.getItem('cinetrack_movies') || '[]')
+        .find(item => item.id === 'progress-show');
+      return entry?.watchedEpisodes;
+    })).toBe(3);
+
+    await page.reload();
+    await expect(page.locator('#auth-overlay')).toBeHidden();
+
+    const persisted = await page.evaluate(() => {
+      const entry = JSON.parse(localStorage.getItem('cinetrack_movies') || '[]')
+        .find(item => item.id === 'progress-show');
+      return {
+        status: entry?.status,
+        watchedEpisodes: entry?.watchedEpisodes,
+        seasonWatched: entry?.seasons?.[0]?.watched,
+      };
+    });
+
+    expect(persisted).toEqual({
+      status: 'in_progress',
+      watchedEpisodes: 3,
+      seasonWatched: 3,
+    });
+  });
+
+  test('bulk metadata refresh preserves stronger episode progress', async ({ page }) => {
+    await page.route('**/api/movie?id=777&type=tv', route => route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        title: 'Refresh Safe Show',
+        year: '2026',
+        genre: 'Drama',
+        director: 'Someone',
+        country: 'United States of America',
+        runtime: 800,
+        overview: 'Updated metadata',
+        poster_path: '',
+        total_episodes: 4,
+        seasons: [{ number: 1, total: 4, watched: 0, name: 'Season 1' }],
+        providers: null,
+      }),
+    }));
+    await page.addInitScript(() => {
+      if (localStorage.getItem('cinetrack_movies')) return;
+      localStorage.setItem('cinetrack_movies', JSON.stringify([{
+        id: 'anchor-movie',
+        addedAt: 2,
+        title: 'Anchor Movie',
+        year: '2026',
+        status: 'watched',
+        rating: 7,
+        mediaType: 'movie',
+        genre: 'Drama',
+        runtime: 100,
+      }, {
+        id: 'refresh-show',
+        addedAt: 1,
+        title: 'Refresh Safe Show',
+        year: '2026',
+        status: 'in_progress',
+        rating: 9,
+        mediaType: 'tv',
+        tmdbId: 777,
+        genre: 'Drama',
+        runtime: 800,
+        totalEpisodes: 8,
+        watchedEpisodes: 6,
+        seasons: [{ number: 1, total: 8, watched: 6, name: 'Season 1' }],
+      }]));
+    });
+
+    await openApp(page);
+    await page.locator('.type-tab[data-type="tv"]').click();
+    await page.locator('#tmdb-refresh-btn').evaluate(button => button.click());
+
+    await expect.poll(() => page.evaluate(() => {
+      const entry = JSON.parse(localStorage.getItem('cinetrack_movies') || '[]')
+        .find(item => item.id === 'refresh-show');
+      return {
+        totalEpisodes: entry?.totalEpisodes,
+        watchedEpisodes: entry?.watchedEpisodes,
+        status: entry?.status,
+      };
+    })).toEqual({
+      totalEpisodes: 8,
+      watchedEpisodes: 6,
+      status: 'in_progress',
+    });
+  });
 });
 
 test.describe('mobile regressions', () => {

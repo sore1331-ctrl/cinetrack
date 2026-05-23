@@ -53,6 +53,12 @@
     return total > 0 ? watched / total : watched;
   }
 
+  function seasonSum(entry, field) {
+    return Array.isArray(entry?.seasons)
+      ? entry.seasons.reduce((sum, season) => sum + Math.max(0, toInt(season?.[field], 0)), 0)
+      : 0;
+  }
+
   function statusRank(status) {
     return { watchlist: 0, dropped: 1, in_progress: 2, watched: 3 }[normaliseStatus(status)] ?? 0;
   }
@@ -141,7 +147,20 @@
       if ((prev.totalEpisodes || 0) > (next.totalEpisodes || 0)) {
         next.totalEpisodes = prev.totalEpisodes || 0;
       }
-      if (Array.isArray(prev.seasons) && prev.seasons.length && (!Array.isArray(next.seasons) || !next.seasons.length)) {
+      const prevSeasonTotal = seasonSum(prev, 'total');
+      const nextSeasonTotal = seasonSum(next, 'total');
+      const prevSeasonWatched = seasonSum(prev, 'watched');
+      const nextSeasonWatched = seasonSum(next, 'watched');
+      if (
+        Array.isArray(prev.seasons) &&
+        prev.seasons.length &&
+        (
+          !Array.isArray(next.seasons) ||
+          !next.seasons.length ||
+          prevSeasonTotal > nextSeasonTotal ||
+          prevSeasonWatched > nextSeasonWatched
+        )
+      ) {
         next.seasons = clone(prev.seasons);
       }
     }
