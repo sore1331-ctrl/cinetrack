@@ -241,6 +241,7 @@ const networkModel = window.CineTrack?.network;
 const csvModel = window.CineTrack?.csv;
 const libraryModel = window.CineTrack?.library;
 const errorLog = window.CineTrack?.errors;
+const syncModel = window.CineTrack?.sync;
 
 function logAppError(area, error, meta = {}, severity = 'error') {
   const entry = errorLog?.record({ area, error, meta, severity });
@@ -451,7 +452,12 @@ async function saveProfile(updates) {
 
 // ── User data load / save ───────────────────────────────
 function hasUnsyncedLocalChanges() {
-  return Boolean(cloudSyncTimer) || localChangeVersion > lastSavedLocalVersion || Boolean(readPendingSyncMarker());
+  return syncModel.hasUnsyncedLocalChanges({
+    cloudSyncTimer,
+    localChangeVersion,
+    lastSavedLocalVersion,
+    pendingSync: readPendingSyncMarker(),
+  });
 }
 
 function readPendingSyncMarker() {
@@ -581,13 +587,13 @@ async function loadUserData(options = {}) {
   const initialChangeVersion = localChangeVersion;
   const initialTimerSet      = Boolean(cloudSyncTimer);
   try {
-    if (!force && hasUnsyncedLocalChanges()) {
+    if (syncModel.shouldSkipCloudLoad({ force, hasLocalChanges: hasUnsyncedLocalChanges() })) {
       return { ok: false, pendingLocal: true, error: 'Skipped cloud load because this device has pending local changes.' };
     }
     const row = await loadUserDataWithFallback();
 
     if (onlyIfNewer) {
-      if (!row?.updated_at || (lastCloudUpdatedAt && row.updated_at <= lastCloudUpdatedAt)) {
+      if (!syncModel.shouldUseLoadedRow({ row, onlyIfNewer, lastCloudUpdatedAt })) {
         if (!silent) setSyncState('saved');
         return { ok: true, changed: false };
       }
@@ -598,8 +604,12 @@ async function loadUserData(options = {}) {
     // at entry so force: true (Reload from cloud) still works as intended:
     // the user explicitly chose to discard their existing pending edits,
     // and only brand-new edits made during the load should preserve.
-    const newEditsMidFlight = localChangeVersion > initialChangeVersion
-                            || (Boolean(cloudSyncTimer) && !initialTimerSet);
+    const newEditsMidFlight = syncModel.didEditDuringLoad({
+      initialChangeVersion,
+      currentChangeVersion: localChangeVersion,
+      initialTimerSet,
+      currentTimerSet: Boolean(cloudSyncTimer),
+    });
     if (newEditsMidFlight) {
       if (!silent) setSyncState('saved');
       return { ok: false, pendingLocal: true, error: 'Skipped cloud load because new local changes appeared during the load.' };
@@ -651,13 +661,12 @@ async function saveUserData() {
   const saveVersion = localChangeVersion;
   try {
     writeLocalLibraryBackup('before-cloud-save', movies);
-    const payload = {
+    const payload = syncModel.buildSavePayload({
       userId: currentUser.id,
       movies,
-      updated_at: new Date().toISOString(),
-      base_updated_at: lastCloudUpdatedAt,
-      base_version: lastCloudVersion,
-    };
+      lastCloudUpdatedAt,
+      lastCloudVersion,
+    });
     const result = await saveUserDataWithFallback(payload);
 
     lastCloudUpdatedAt = result.updated_at || payload.updated_at;

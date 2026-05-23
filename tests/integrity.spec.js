@@ -123,6 +123,18 @@ function loadErrorLog(storage) {
   return sandbox.window.CineTrack.errors;
 }
 
+function loadSyncModel() {
+  const source = fs.readFileSync(path.join(root, 'scripts', 'sync-model.js'), 'utf8');
+  const sandbox = {
+    window: {
+      CineTrack: {},
+    },
+    Date,
+  };
+  vm.runInNewContext(source, sandbox);
+  return sandbox.window.CineTrack.sync;
+}
+
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
   return {
@@ -248,7 +260,8 @@ test.describe('tracker data integrity', () => {
     expect(api).toContain('versionMismatch');
     expect(api).toContain('&version=eq.${encodeURIComponent(existingVersion)}');
     expect(api).toContain("return json(res, 409");
-    expect(app).toContain('base_version: lastCloudVersion');
+    expect(app).toContain('syncModel.buildSavePayload');
+    expect(app).toContain('lastCloudVersion,');
     expect(app).toContain('lastCloudVersion = Number(result.version');
   });
 
@@ -739,5 +752,43 @@ test.describe('tracker data integrity', () => {
       meta: { attempt: 3 },
     }));
     expect(entries[0].error).toEqual(expect.objectContaining({ name: 'Error' }));
+  });
+
+  test('sync model preserves local-change guards and save payload shape', () => {
+    const model = loadSyncModel();
+
+    expect(model.hasUnsyncedLocalChanges({
+      cloudSyncTimer: null,
+      localChangeVersion: 3,
+      lastSavedLocalVersion: 2,
+      pendingSync: null,
+    })).toBe(true);
+    expect(model.shouldSkipCloudLoad({ force: false, hasLocalChanges: true })).toBe(true);
+    expect(model.shouldSkipCloudLoad({ force: true, hasLocalChanges: true })).toBe(false);
+    expect(model.didEditDuringLoad({
+      initialChangeVersion: 1,
+      currentChangeVersion: 1,
+      initialTimerSet: false,
+      currentTimerSet: true,
+    })).toBe(true);
+    expect(model.shouldUseLoadedRow({
+      onlyIfNewer: true,
+      lastCloudUpdatedAt: '2026-05-23T10:00:00.000Z',
+      row: { updated_at: '2026-05-23T09:00:00.000Z' },
+    })).toBe(false);
+
+    expect(model.buildSavePayload({
+      userId: 'user-1',
+      movies: [{ id: 'a' }],
+      updatedAt: '2026-05-23T11:00:00.000Z',
+      lastCloudUpdatedAt: '2026-05-22T10:00:00.000Z',
+      lastCloudVersion: 4,
+    })).toEqual({
+      userId: 'user-1',
+      movies: [{ id: 'a' }],
+      updated_at: '2026-05-23T11:00:00.000Z',
+      base_updated_at: '2026-05-22T10:00:00.000Z',
+      base_version: 4,
+    });
   });
 });
