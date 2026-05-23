@@ -254,6 +254,7 @@ const statsModel = window.CineTrack?.stats;
 const cardModel = window.CineTrack?.cards;
 const filterModel = window.CineTrack?.filters;
 const paginationModel = window.CineTrack?.pagination;
+const randomPickerModel = window.CineTrack?.randomPicker;
 const errorLog = window.CineTrack?.errors;
 const syncModel = window.CineTrack?.sync;
 
@@ -1355,25 +1356,23 @@ function showRandomPick() {
   // surface titles you haven't started yet. We respect the rest of the
   // active filters (type tab, search, genre, country, year, rating) but
   // always restrict to status === 'watchlist'.
-  const pool = filtered().filter(m => m.status === 'watchlist');
-  if (!pool.length) {
+  const randomPick = randomPickerModel.view(filtered());
+  if (randomPick.empty) {
     randomPickBody.innerHTML = '<p class="random-pick-empty">Nothing on your watchlist matches the current filters.</p>';
     randomPickModal.classList.remove('hidden');
     return;
   }
-  const pick = pool[Math.floor(Math.random() * pool.length)];
-  const isTV = pick.mediaType === 'tv' || pick.mediaType === 'anime';
-  const emoji = pick.mediaType === 'anime' ? '🎌' : isTV ? '📺' : '🎬';
+  const pickMeta = randomPick.meta;
   randomPickBody.innerHTML = `
     <h2>🎲 How about…</h2>
-    ${pick.posterUrl
-      ? `<img class="random-pick-poster" src="${esc(pick.posterUrl)}" alt="${esc(pick.title)}" />`
-      : `<div class="random-pick-poster-emoji">${emoji}</div>`}
-    <div class="random-pick-title">${esc(pick.title)}</div>
-    <div class="random-pick-meta">${pick.year || ''}${pick.year && pick.genre ? ' · ' : ''}${esc(pick.genre || '')}</div>
+    ${pickMeta.posterUrl
+      ? `<img class="random-pick-poster" src="${esc(pickMeta.posterUrl)}" alt="${esc(pickMeta.title)}" />`
+      : `<div class="random-pick-poster-emoji">${pickMeta.fallbackEmoji}</div>`}
+    <div class="random-pick-title">${esc(pickMeta.title)}</div>
+    <div class="random-pick-meta">${esc(pickMeta.metaText)}</div>
     <div class="random-pick-actions">
       <button type="button" data-pick-action="another">🎲 Pick another</button>
-      <button type="button" data-pick-action="open" data-id="${pick.id}" class="primary">Open</button>
+      <button type="button" data-pick-action="open" data-id="${pickMeta.id}" class="primary">Open</button>
     </div>
   `;
   randomPickModal.classList.remove('hidden');

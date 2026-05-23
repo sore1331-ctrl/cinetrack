@@ -137,6 +137,17 @@ function loadPaginationModel() {
   return sandbox.window.CineTrack.pagination;
 }
 
+function loadRandomPickerModel() {
+  const source = fs.readFileSync(path.join(root, 'scripts', 'random-picker-model.js'), 'utf8');
+  const sandbox = {
+    window: {
+      CineTrack: {},
+    },
+  };
+  vm.runInNewContext(source, sandbox);
+  return sandbox.window.CineTrack.randomPicker;
+}
+
 function loadRecommendationModel() {
   const source = fs.readFileSync(path.join(root, 'scripts', 'recommendation-model.js'), 'utf8');
   const sandbox = {
@@ -649,6 +660,37 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('paginationModel.view(totalItems, currentPage, pageSize)');
     expect(app).toContain('paginationModel.clampPage(currentPage, list.length, pageSize)');
     expect(app).toContain('paginationModel.slicePage(list, currentPage, pageSize)');
+  });
+
+  test('random picker model selects watchlist titles and metadata', () => {
+    const model = loadRandomPickerModel();
+    const entries = [
+      { id: 'watched', mediaType: 'movie', title: 'Already Seen', status: 'watched' },
+      { id: 'anime', mediaType: 'anime', title: 'Anime Pick', status: 'watchlist', year: '2026', genre: 'Action' },
+      { id: 'tv', mediaType: 'tv', title: 'TV Pick', status: 'watchlist', posterUrl: '/poster.jpg' },
+    ];
+
+    expect(model.eligible(entries).map(entry => entry.id)).toEqual(['anime', 'tv']);
+    expect(model.pick(entries, () => 0).id).toBe('anime');
+    expect(model.pick(entries, () => 0.99).id).toBe('tv');
+    expect(model.fallbackEmoji({ mediaType: 'tv' })).toBe('📺');
+    expect(model.meta(entries[1])).toEqual(expect.objectContaining({
+      id: 'anime',
+      title: 'Anime Pick',
+      metaText: '2026 · Action',
+      fallbackEmoji: '🎌',
+    }));
+    expect(model.view([{ id: 'done', status: 'watched' }], () => 0).empty).toBe(true);
+  });
+
+  test('random picker rendering is routed through the random picker model', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+
+    expect(index).toContain('scripts/random-picker-model.js');
+    expect(app).toContain('const randomPickerModel = window.CineTrack?.randomPicker;');
+    expect(app).toContain('const randomPick = randomPickerModel.view(filtered())');
+    expect(app).toContain('const pickMeta = randomPick.meta;');
   });
 
   test('anime recommendations prefer AniList before TMDB fallback', () => {
