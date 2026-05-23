@@ -138,6 +138,17 @@ test.describe('desktop regressions', () => {
     await expect(page.locator('#empty-msg')).not.toContainText('Welcome to Cinetrack');
   });
 
+  test('profile opens with health and recovery sections', async ({ page }) => {
+    await openApp(page);
+
+    await page.locator('#logo').click();
+
+    await expect(page.locator('#profile-panel')).toBeVisible();
+    await expect(page.locator('#profile-panel')).toContainText('Library Health');
+    await expect(page.locator('#profile-panel')).toContainText('Recovery');
+    await expect(page.locator('#movie-grid')).toBeHidden();
+  });
+
   test('recommendations hide titles already tracked across compatible media types', async ({ page }) => {
     await page.route('**/api/recommend?**', route => route.fulfill({
       contentType: 'application/json',

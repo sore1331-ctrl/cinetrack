@@ -3899,8 +3899,6 @@ function openCommunityProfile(profile, userMovies) {
     const star = 10 - i;
     return [star, ratings.filter(r => r === star).length];
   }).filter(([, c]) => c > 0);
-  const backups = localLibraryBackups();
-  const health = window.CineTrack?.libraryHealth?.analyse(movies, { storage: localStorage });
 
   const recent = [...userMovies].sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0)).slice(0, 8);
 
@@ -4316,6 +4314,8 @@ function renderProfile() {
     const star = 10 - i;
     return [star, ratings.filter(r => r === star).length];
   }).filter(([, c]) => c > 0);
+  const backups = localLibraryBackups();
+  const health = window.CineTrack?.libraryHealth?.analyse(movies, { storage: localStorage });
 
   // Recently added (last 8 across all types)
   const recent = [...movies]
