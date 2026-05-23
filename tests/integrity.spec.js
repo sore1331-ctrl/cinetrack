@@ -790,5 +790,24 @@ test.describe('tracker data integrity', () => {
       base_updated_at: '2026-05-22T10:00:00.000Z',
       base_version: 4,
     });
+
+    expect(model.normaliseUserDataRow({
+      movies: [{ id: 'one' }],
+      updated_at: '2026-05-23T12:00:00.000Z',
+      version: '7',
+    })).toEqual({
+      movies: [{ id: 'one' }],
+      updated_at: '2026-05-23T12:00:00.000Z',
+      version: 7,
+      item_count: 1,
+      exists: true,
+    });
+
+    expect(model.assertApiLoadResponse({ ok: true }, { movies: [] })).toEqual(expect.objectContaining({
+      movies: [],
+      exists: true,
+    }));
+    expect(() => model.assertApiSaveResponse({ ok: false, status: 409 }, { error: 'Conflict' }, { movies: [] }))
+      .toThrow('Conflict');
   });
 });

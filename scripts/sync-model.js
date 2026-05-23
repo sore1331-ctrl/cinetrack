@@ -52,11 +52,37 @@
     };
   }
 
+  function normaliseUserDataRow(row) {
+    return {
+      movies: Array.isArray(row?.movies) ? row.movies : [],
+      updated_at: row?.updated_at || null,
+      version: Number(row?.version || 0),
+      item_count: Array.isArray(row?.movies) ? row.movies.length : Number(row?.item_count || 0),
+      exists: Boolean(row?.exists || row),
+    };
+  }
+
+  function assertApiLoadResponse(response, row) {
+    if (!response?.ok) throw new Error(row?.error || `User data load failed (${response?.status || 'unknown'})`);
+    return normaliseUserDataRow(row);
+  }
+
+  function assertApiSaveResponse(response, result, payload) {
+    if (!response?.ok || !result?.ok) {
+      throw new Error(result?.error || `User data save failed (${response?.status || 'unknown'})`);
+    }
+    if (result && result.item_count == null) result.item_count = Array.isArray(payload?.movies) ? payload.movies.length : 0;
+    return result;
+  }
+
   root.sync = {
     hasUnsyncedLocalChanges,
     shouldSkipCloudLoad,
     didEditDuringLoad,
     shouldUseLoadedRow,
     buildSavePayload,
+    normaliseUserDataRow,
+    assertApiLoadResponse,
+    assertApiSaveResponse,
   };
 })();

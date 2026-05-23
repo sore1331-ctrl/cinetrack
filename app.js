@@ -498,13 +498,7 @@ async function loadUserDataDirect() {
     CLOUD_TIMEOUT_MS
   );
   if (error) throw error;
-  return {
-    movies: Array.isArray(data?.movies) ? data.movies : [],
-    updated_at: data?.updated_at || null,
-    version: Number(data?.version || 0),
-    item_count: Array.isArray(data?.movies) ? data.movies.length : 0,
-    exists: Boolean(data),
-  };
+  return syncModel.normaliseUserDataRow(data);
 }
 
 async function loadUserDataViaApi() {
@@ -519,9 +513,7 @@ async function loadUserDataViaApi() {
     },
     'Cloud load'
   );
-  if (!r.ok) throw new Error(row?.error || `User data load failed (${r.status})`);
-  if (row && row.item_count == null && Array.isArray(row.movies)) row.item_count = row.movies.length;
-  return row;
+  return syncModel.assertApiLoadResponse(r, row);
 }
 
 async function saveUserDataDirect(payload) {
@@ -545,9 +537,7 @@ async function saveUserDataViaApi(payload) {
     },
     'Cloud save'
   );
-  if (!r.ok || !result?.ok) throw new Error(result?.error || `User data save failed (${r.status})`);
-  if (result && result.item_count == null) result.item_count = payload.movies.length;
-  return result;
+  return syncModel.assertApiSaveResponse(r, result, payload);
 }
 
 async function loadUserDataWithFallback() {
