@@ -110,6 +110,19 @@ function loadLibraryModel() {
   return sandbox.window.CineTrack.library;
 }
 
+function loadErrorLog(storage) {
+  const source = fs.readFileSync(path.join(root, 'scripts', 'error-log.js'), 'utf8');
+  const sandbox = {
+    window: {
+      CineTrack: {},
+      localStorage: storage,
+    },
+    Date,
+  };
+  vm.runInNewContext(source, sandbox);
+  return sandbox.window.CineTrack.errors;
+}
+
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
   return {
@@ -650,5 +663,31 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('function removeLibraryEntry');
     expect(app).toContain('movies = sanitiseLibrary();');
     expect(app).toContain("writeLocalLibraryBackup('before-sign-out-clear', movies);");
+  });
+
+  test('error log stores bounded structured diagnostics', () => {
+    const storage = memoryStorage();
+    const model = loadErrorLog(storage);
+
+    for (let i = 0; i < 4; i++) {
+      model.record({
+        area: 'sync.save',
+        severity: 'warn',
+        error: new Error(`Failure ${i}`),
+        meta: { attempt: i },
+        limit: 3,
+        storage,
+      });
+    }
+
+    const entries = model.read(model.DEFAULT_KEY, storage);
+    expect(entries).toHaveLength(3);
+    expect(entries[0]).toEqual(expect.objectContaining({
+      area: 'sync.save',
+      severity: 'warn',
+      message: 'Failure 3',
+      meta: { attempt: 3 },
+    }));
+    expect(entries[0].error).toEqual(expect.objectContaining({ name: 'Error' }));
   });
 });

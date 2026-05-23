@@ -206,7 +206,7 @@ async function loadPreferences() {
     applyAllAppearance();
     refreshCurrentView();
   } catch (e) {
-    console.warn('[cinetrack] Could not load preferences:', e?.message || e);
+    logAppError('preferences.load', e, {}, 'warn');
   }
 }
 
@@ -240,6 +240,14 @@ const formatModel = window.CineTrack?.format;
 const networkModel = window.CineTrack?.network;
 const csvModel = window.CineTrack?.csv;
 const libraryModel = window.CineTrack?.library;
+const errorLog = window.CineTrack?.errors;
+
+function logAppError(area, error, meta = {}, severity = 'error') {
+  const entry = errorLog?.record({ area, error, meta, severity });
+  const method = severity === 'warn' ? 'warn' : 'error';
+  console[method](`[cinetrack] ${area}:`, error?.message || error || entry?.message || 'Unknown error');
+  return entry;
+}
 
 function readStoredArray(key) {
   return storageModel.readArray(key);
@@ -409,7 +417,7 @@ async function loadProfile() {
     updateUserMenu();
     if (activeView === 'profile') renderProfile();
   } catch (e) {
-    console.warn('[cinetrack] loadProfile failed:', e);
+    logAppError('profile.load', e, {}, 'warn');
   }
 }
 
@@ -436,7 +444,7 @@ async function saveProfile(updates) {
     }
     return { ok: true, data };
   } catch (e) {
-    console.error('[cinetrack] saveProfile failed:', e);
+    logAppError('profile.save', e);
     return { ok: false, error: e?.message || String(e) };
   }
 }
@@ -540,13 +548,13 @@ async function loadUserDataWithFallback() {
   try {
     return currentAccessToken ? await loadUserDataViaApi() : await loadUserDataDirect();
   } catch (firstError) {
-    console.warn('[cinetrack] Primary cloud load failed, trying fallback:', firstError?.message || firstError);
+    logAppError('sync.load.primary', firstError, { fallback: true }, 'warn');
     if (currentAccessToken) {
       currentAccessToken = '';
       try {
         return await loadUserDataDirect();
       } catch (directError) {
-        console.warn('[cinetrack] Direct cloud load fallback failed, retrying API with fresh session:', directError?.message || directError);
+        logAppError('sync.load.direct_fallback', directError, { fallback: true }, 'warn');
       }
     }
     return loadUserDataViaApi();
@@ -557,7 +565,7 @@ async function saveUserDataWithFallback(payload) {
   try {
     return await saveUserDataViaApi(payload);
   } catch (firstError) {
-    console.warn('[cinetrack] Cloud save failed, retrying API with fresh session:', firstError?.message || firstError);
+    logAppError('sync.save.primary', firstError, { fallback: true }, 'warn');
     currentAccessToken = '';
     return saveUserDataViaApi(payload);
   }
@@ -603,7 +611,7 @@ async function loadUserData(options = {}) {
         throw new Error('Could not create a local safety backup before applying cloud data.');
       }
       if (!backedUpLocal) {
-        console.warn('[cinetrack] Local safety backup could not be written; continuing with cloud refresh.');
+        logAppError('backup.local', 'Local safety backup could not be written; continuing with cloud refresh.', { force }, 'warn');
       }
       applyingRemoteData = true;
       replaceLibrary(row.movies);
@@ -624,7 +632,7 @@ async function loadUserData(options = {}) {
     return { ok: true, changed: Boolean(row?.exists) };
   } catch (e) {
     applyingRemoteData = false;
-    console.error('Failed to load data from cloud:', e);
+    logAppError('sync.load', e);
     if (!silent) {
       setSyncState('error', e.message);
       showToast('Could not load your data from the cloud: ' + e.message, true);
@@ -660,7 +668,7 @@ async function saveUserData() {
     setSyncState('saved');
     return { ok: true };
   } catch (e) {
-    console.error('Failed to save data to cloud:', e);
+    logAppError('sync.save', e);
     setSyncState('error', e.message);
     showToast('Cloud sync failed — your changes are saved locally only. (' + e.message + ')', true);
     return { ok: false, error: e?.message || String(e) };
@@ -1600,6 +1608,7 @@ async function runSearch(q) {
     tmdbSearching.classList.add('hidden');
     renderDropdown(data.results || []);
   } catch (err) {
+    logAppError('search.external', err, { query: q, type: activeMediaType }, 'warn');
     tmdbSearching.classList.add('hidden');
     tmdbError.textContent = err.message;
     tmdbError.classList.remove('hidden');
@@ -1652,6 +1661,7 @@ tmdbDropdown.addEventListener('click', async e => {
     tmdbSearching.classList.add('hidden');
     applyTMDBSelection(details);
   } catch (err) {
+    logAppError('metadata.selection', err, { id, type: fetchType }, 'warn');
     tmdbSearching.classList.add('hidden');
     tmdbError.textContent = err.message;
     tmdbError.classList.remove('hidden');
@@ -2747,7 +2757,7 @@ async function refreshTrackedCalendarSources({ force = false } = {}) {
   try {
     tvmazeUpcoming = await fetchTvmazeCalendarForEntries(tracked, { force });
   } catch (e) {
-    console.warn('[cinetrack] TVMaze calendar lookup failed:', e?.message || e);
+    logAppError('calendar.tvmaze', e, { force }, 'warn');
   }
   return { tracked, upcoming: [...tmdbUpcoming, ...externalUpcoming, ...tvmazeUpcoming] };
 }
@@ -2762,7 +2772,7 @@ async function maybeRefreshCalendarOncePerAccountToday() {
   try {
     prefs = await readProfilePreferences();
   } catch (e) {
-    console.warn('[cinetrack] Daily calendar refresh marker unavailable:', e?.message || e);
+    logAppError('calendar.daily_marker', e, {}, 'warn');
   }
   if (prefs?.[CALENDAR_DAILY_REFRESH_PREF] === today) {
     localStorage.setItem(CALENDAR_DAILY_REFRESH_PREF, today);
@@ -2776,7 +2786,7 @@ async function maybeRefreshCalendarOncePerAccountToday() {
     updateCalendarAiringBadge();
     if (activeView === 'calendar') renderCalendar();
   } catch (e) {
-    console.warn('[cinetrack] Daily calendar refresh failed:', e?.message || e);
+    logAppError('calendar.daily_refresh', e, {}, 'warn');
   }
 }
 
@@ -4196,7 +4206,7 @@ REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM authenticated;`;
     };
 
   } catch (e) {
-    console.error('Community load error:', e);
+    logAppError('community.load', e);
     let diagnosis = '';
     try {
       const hr = await fetch('/api/supabase-health', { cache: 'no-store' });
@@ -5033,6 +5043,7 @@ modalTmdbRefreshBtn.addEventListener('click', async () => {
     const details = await fetchDetailsForEntry(movie);
     applyTMDBSelection(details);
   } catch (err) {
+    logAppError('metadata.single_refresh', err, { id: movie.id, title: movie.title }, 'warn');
     const tmdbErr = document.getElementById('tmdb-error');
     tmdbErr.textContent = 'Metadata refresh failed: ' + err.message;
     tmdbErr.classList.remove('hidden');
@@ -5643,6 +5654,7 @@ syncNowBtn.addEventListener('click', async () => {
     if (!loadResult?.ok) throw new Error(loadResult?.error || 'Cloud reload failed');
     showToast('Synced ✓');
   } catch (e) {
+    logAppError('sync.manual', e);
     showToast('Sync failed: ' + (e?.message || 'unknown error'), true);
   }
   syncNowBtn.disabled = false;
@@ -5677,7 +5689,10 @@ tmdbRefreshBtn.addEventListener('click', async () => {
         if (demotedTitles.length < 3) demotedTitles.push(m.title);
       }
       updated++;
-    } catch { failed++; }
+    } catch (e) {
+      failed++;
+      logAppError('metadata.bulk_refresh', e, { title: m.title, id: m.id }, 'warn');
+    }
   }
   progressBar.style.width = '100%';
   importProgress.classList.add('hidden');
@@ -5821,10 +5836,10 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
 
     // Profile + preferences fire-and-forget — neither blocks UI.
     withTimeout(loadProfile(), 'Profile load', 15000).catch(e => {
-      console.warn('[cinetrack] Profile load skipped:', e?.message || e);
+      logAppError('profile.initial_load', e, {}, 'warn');
     });
     withTimeout(loadPreferences(), 'Preference load', 15000).catch(e => {
-      console.warn('[cinetrack] Preference load skipped:', e?.message || e);
+      logAppError('preferences.initial_load', e, {}, 'warn');
     });
 
     // User data: still runs in the background, but we capture the local
@@ -5892,7 +5907,7 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
       showAuthOverlay('form');
     }
   } catch (e) {
-    console.warn('[cinetrack] Initial session load failed:', e?.message || e);
+    logAppError('auth.initial_session', e, {}, 'warn');
     if (currentUser) {
       hideAuthOverlay();
       updateCountryDropdown();
