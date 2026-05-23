@@ -365,6 +365,15 @@ function setStoredUsername(value) {
   else localStorage.removeItem(key);
 }
 
+function currentUserDisplayName() {
+  return currentUsername || currentUser?.email?.split('@')[0] || 'You';
+}
+
+function userInitial(name = currentUserDisplayName()) {
+  const first = String(name || 'You').trim()[0] || 'Y';
+  return first.toUpperCase();
+}
+
 // ── Sync indicator ──────────────────────────────────────
 let currentSyncState = 'loading';
 let currentSyncTitle = 'Loading…';
@@ -4220,8 +4229,8 @@ function renderProfile() {
     .sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0))
     .slice(0, 8);
 
-  const displayName = currentUsername || currentUser?.email?.split('@')[0] || 'You';
-  const initial     = displayName[0].toUpperCase();
+  const displayName = currentUserDisplayName();
+  const initial     = userInitial(displayName);
 
   const maxGenre   = topGenres[0]?.[1]   || 1;
   const maxCountry = topCountries[0]?.[1] || 1;
@@ -4230,7 +4239,7 @@ function renderProfile() {
   panel.innerHTML = `
     <div class="profile-hero">
       <div class="profile-hero-orbit">
-        <img class="profile-control-img account-control-img theme-aware-img" src="assets/account-control.png?v=actual-controls-20260516" data-dark-src="assets/account-control.png?v=actual-controls-20260516" data-light-src="assets/account-control-light.png?v=theme-aware-20260516" alt="Account" />
+        <div class="profile-avatar-lg">${esc(initial)}</div>
       </div>
       <div class="profile-hero-info">
         <span class="profile-kicker">Profile</span>
@@ -5486,8 +5495,8 @@ function hideAuthOverlay() {
 function updateUserMenu() {
   if (!currentUser) { userMenu.classList.add('hidden'); return; }
   userMenu.classList.remove('hidden');
-  const displayName = currentUsername || currentUser.email.split('@')[0];
-  userAvatar.textContent  = displayName[0].toUpperCase();
+  const displayName = currentUserDisplayName();
+  userAvatar.textContent  = userInitial(displayName);
   userEmailEl.textContent = currentUser.email;
   const usernameDisplay = document.getElementById('username-display');
   if (usernameDisplay) {
@@ -5548,6 +5557,7 @@ document.getElementById('username-save-btn').addEventListener('click', async e =
   currentUsername = savedUsername;
   setStoredUsername(savedUsername);
   updateUserMenu();
+  if (activeView === 'profile') renderProfile();
   showToast('Username saved');
 });
 
@@ -5584,6 +5594,7 @@ document.getElementById('sharing-toggle').addEventListener('change', async e => 
     localStorage.setItem('cinetrack_sharing', sharingEnabled);
     showToast('Could not update sharing: ' + (result.error || 'unknown error'), true);
   }
+  if (activeView === 'profile') renderProfile();
 });
 
 // ── Reload from cloud ───────────────────────────────────

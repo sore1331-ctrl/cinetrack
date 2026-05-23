@@ -768,13 +768,24 @@ test.describe('tracker data integrity', () => {
   test('profile exposes local recovery snapshots', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
     const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+    const profileCss = fs.readFileSync(path.join(root, 'styles', 'profile.css'), 'utf8');
+    const skinCss = fs.readFileSync(path.join(root, 'styles', 'skin.css'), 'utf8');
 
     expect(app).toContain('function localLibraryBackups()');
     expect(app).toContain('profileModel.backupImpactLabel(compare)');
     expect(app).toContain('data-restore-backup');
     expect(app).toContain('restoreLibraryFromBackup(backup.movies)');
     expect(app).toContain('Local safety snapshots are created before cloud loads');
+    expect(app).toContain('function currentUserDisplayName()');
+    expect(app).toContain('function userInitial');
+    expect(app).toContain('<div class="profile-avatar-lg">${esc(initial)}</div>');
+    expect(app).toContain('userAvatar.textContent  = userInitial(displayName);');
     expect(index).toContain('scripts/profile-model.js');
+    expect(index).toContain('<span id="user-avatar">?</span>');
+    expect(index).not.toContain('account-control.png');
+    expect(profileCss).toContain('.profile-sharing-badge');
+    expect(profileCss).toContain('border: 0;');
+    expect(skinCss).not.toContain('.profile-sharing-badge {\n  background:');
   });
 
   test('profile model formats recovery metadata', () => {

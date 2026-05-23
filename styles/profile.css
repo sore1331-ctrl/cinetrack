@@ -34,9 +34,9 @@
   display: inline-block;
   font-size: .75rem;
   color: var(--accent);
-  border: 1px solid var(--accent);
-  border-radius: 99px;
-  padding: 2px 10px;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
   margin-top: 2px;
 }
 

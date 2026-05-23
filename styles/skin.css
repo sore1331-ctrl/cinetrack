@@ -123,8 +123,7 @@ header {
 .cal-kind,
 .community-avatar,
 .compat-badge,
-.community-compat,
-.profile-sharing-badge {
+.community-compat {
   background: color-mix(in srgb, var(--glass-bg) 58%, transparent);
   border-color: var(--glass-border);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
@@ -833,6 +832,40 @@ main {
   clip-path: circle(44.6% at 50% 50%);
 }
 
+.user-avatar-btn {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--cinema-ring) 88%, transparent);
+  background:
+    radial-gradient(circle at 50% 36%, rgba(255,255,255,.05), transparent 46%),
+    #05070c;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.035), 0 12px 26px rgba(0,0,0,.26);
+}
+
+.user-avatar-btn span {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+  color: #fff;
+}
+
+:root.light .user-avatar-btn {
+  background:
+    radial-gradient(circle at 50% 36%, rgba(255,255,255,.92), transparent 46%),
+    #f7f8fb;
+  border-color: rgba(32,35,48,.14);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.72), 0 10px 24px rgba(29,33,48,.14);
+}
+
+:root.light .user-avatar-btn span {
+  color: #171923;
+}
+
 .profile-hero-orbit {
   padding: 0;
   border: 0;
@@ -844,6 +877,30 @@ main {
   width: 150px;
   height: 150px;
   min-width: 150px;
+}
+
+.profile-avatar-lg {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 34%, rgba(255,255,255,.055), transparent 48%),
+    #05070c;
+  color: #fff;
+  border: 1px solid color-mix(in srgb, var(--cinema-ring) 88%, transparent);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.035), 0 18px 34px rgba(0,0,0,.24);
+  text-shadow: 0 6px 20px rgba(255,255,255,.18);
+}
+
+:root.light .profile-avatar-lg {
+  background:
+    radial-gradient(circle at 50% 34%, rgba(255,255,255,.92), transparent 48%),
+    #f7f8fb;
+  color: #171923;
+  border-color: rgba(32,35,48,.14);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.72), 0 18px 34px rgba(29,33,48,.14);
 }
 
 @media (max-width: 900px) {
