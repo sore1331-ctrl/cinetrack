@@ -248,6 +248,7 @@ const formatModel = window.CineTrack?.format;
 const networkModel = window.CineTrack?.network;
 const csvModel = window.CineTrack?.csv;
 const libraryModel = window.CineTrack?.library;
+const profileModel = window.CineTrack?.profile;
 const errorLog = window.CineTrack?.errors;
 const syncModel = window.CineTrack?.sync;
 
@@ -796,29 +797,7 @@ function persistLocalLibrary() {
 }
 
 function localLibraryBackups() {
-  return storageModel.readArray(LOCAL_BACKUPS_KEY)
-    .filter(backup => backup && Array.isArray(backup.movies));
-}
-
-function formatBackupDate(value) {
-  const date = new Date(value || 0);
-  if (Number.isNaN(date.getTime())) return 'Unknown time';
-  return date.toLocaleString([], {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function backupImpactLabel(compare) {
-  if (!compare?.hasIssues) return 'No obvious loss detected';
-  const parts = [];
-  if (compare.missing?.length) parts.push(`${compare.missing.length} missing`);
-  if (compare.progressRegressed?.length) parts.push(`${compare.progressRegressed.length} progress`);
-  if (compare.statusRegressed?.length) parts.push(`${compare.statusRegressed.length} status`);
-  return parts.join(' / ');
+  return profileModel.localLibraryBackups(storageModel, LOCAL_BACKUPS_KEY);
 }
 
 function save() {
@@ -4620,9 +4599,9 @@ function renderProfile() {
             return `
               <div class="recovery-item">
                 <div class="recovery-copy">
-                  <div class="recovery-title">${esc(formatBackupDate(backup.createdAt))}</div>
+                  <div class="recovery-title">${esc(profileModel.formatBackupDate(backup.createdAt))}</div>
                   <div class="recovery-meta">${esc(backup.reason || 'snapshot')} &middot; ${Number(backup.itemCount || backup.movies.length)} titles</div>
-                  <div class="recovery-impact${compare.hasIssues ? ' has-issues' : ''}">${esc(backupImpactLabel(compare))}</div>
+                  <div class="recovery-impact${compare.hasIssues ? ' has-issues' : ''}">${esc(profileModel.backupImpactLabel(compare))}</div>
                 </div>
                 <button type="button" class="recovery-restore-btn" data-restore-backup="${index}">Restore</button>
               </div>
@@ -4654,8 +4633,8 @@ function renderProfile() {
         return;
       }
       const compare = compareLibraryBackup(backup.movies);
-      const label = backupImpactLabel(compare);
-      if (!confirm(`Restore from ${formatBackupDate(backup.createdAt)}?\n\nThis will merge safer progress from the snapshot and keep newer progress where it is stronger.\n\nDetected: ${label}`)) return;
+      const label = profileModel.backupImpactLabel(compare);
+      if (!confirm(`Restore from ${profileModel.formatBackupDate(backup.createdAt)}?\n\nThis will merge safer progress from the snapshot and keep newer progress where it is stronger.\n\nDetected: ${label}`)) return;
       restoreLibraryFromBackup(backup.movies);
       save();
       updateCountryDropdown();

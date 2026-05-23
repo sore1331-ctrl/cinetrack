@@ -71,6 +71,17 @@ function loadLibraryHealthModel() {
   return sandbox.window.CineTrack.libraryHealth;
 }
 
+function loadProfileModel() {
+  const source = fs.readFileSync(path.join(root, 'scripts', 'profile-model.js'), 'utf8');
+  const sandbox = {
+    window: {
+      CineTrack: {},
+    },
+  };
+  vm.runInNewContext(source, sandbox);
+  return sandbox.window.CineTrack.profile;
+}
+
 function loadRecommendationModel() {
   const source = fs.readFileSync(path.join(root, 'scripts', 'recommendation-model.js'), 'utf8');
   const sandbox = {
@@ -446,12 +457,34 @@ test.describe('tracker data integrity', () => {
 
   test('profile exposes local recovery snapshots', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 
     expect(app).toContain('function localLibraryBackups()');
-    expect(app).toContain('function backupImpactLabel(compare)');
+    expect(app).toContain('profileModel.backupImpactLabel(compare)');
     expect(app).toContain('data-restore-backup');
     expect(app).toContain('restoreLibraryFromBackup(backup.movies)');
     expect(app).toContain('Local safety snapshots are created before cloud loads');
+    expect(index).toContain('scripts/profile-model.js');
+  });
+
+  test('profile model formats recovery metadata', () => {
+    const model = loadProfileModel();
+    const storageModel = {
+      readArray: () => [
+        { reason: 'valid', movies: [{ id: 'one' }] },
+        { reason: 'invalid', movies: null },
+      ],
+    };
+
+    expect(model.localLibraryBackups(storageModel, 'backups')).toHaveLength(1);
+    expect(model.formatBackupDate('not-a-date')).toBe('Unknown time');
+    expect(model.backupImpactLabel({ hasIssues: false })).toBe('No obvious loss detected');
+    expect(model.backupImpactLabel({
+      hasIssues: true,
+      missing: [{}],
+      progressRegressed: [{}, {}],
+      statusRegressed: [{}],
+    })).toBe('1 missing / 2 progress / 1 status');
   });
 
   test('library health model reports data risks without blocking metadata overflow', () => {
