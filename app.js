@@ -251,6 +251,7 @@ const libraryModel = window.CineTrack?.library;
 const profileModel = window.CineTrack?.profile;
 const calendarModel = window.CineTrack?.calendar;
 const statsModel = window.CineTrack?.stats;
+const cardModel = window.CineTrack?.cards;
 const errorLog = window.CineTrack?.errors;
 const syncModel = window.CineTrack?.sync;
 
@@ -4756,53 +4757,36 @@ function render() {
       + (checked ? ' selected' : '')
       + (airingToday ? ' card-airing-today' : '');
     card.dataset.id = m.id;
-    const isTV    = m.mediaType === 'tv';
-    const isShow  = isTV || m.mediaType === 'anime';
-    const fallbackPosterHTML = `<div class="card-poster-emoji">${m.mediaType === 'anime' ? '🎌' : isTV ? '📺' : posterEmoji(m.title)}</div>`;
+    const cardView = cardModel.view(m, { activeSeason, posterEmoji, formatRuntime, infoUrlForEntry });
+    const isTV    = cardView.isTV;
+    const isShow  = cardView.isShow;
+    const fallbackPosterHTML = `<div class="card-poster-emoji">${cardView.fallbackPosterLabel}</div>`;
     const posterHTML = m.posterUrl
       ? `${fallbackPosterHTML}<img class="card-poster-img" src="${esc(m.posterUrl)}" alt="${esc(m.title)}" loading="lazy" onerror="this.remove()" />`
       : fallbackPosterHTML;
-    const runtimeStr = formatRuntime(m.runtime);
-    // For shows with seasons[], the card focuses on the active season.
-    // For legacy entries (or manual flat tracking), fall back to the
-    // show-level total / watched counts.
-    const seasonsArr  = Array.isArray(m.seasons) ? m.seasons : [];
-    const hasSeasons  = isShow && seasonsArr.length > 0;
-    const active      = hasSeasons ? activeSeason(m) : null;
-    const fallbackTotal   = m.totalEpisodes   || 0;
-    const fallbackWatched = Math.min(m.watchedEpisodes || 0, fallbackTotal);
+    const runtimeStr = cardView.runtime;
+    const episodeState = cardView.episode;
 
-    const epTotal   = hasSeasons ? (active ? active.total   : 0) : fallbackTotal;
-    const epWatched = hasSeasons ? (active ? active.watched : 0) : fallbackWatched;
-    const epPct     = epTotal > 0 ? Math.round((epWatched / epTotal) * 100) : 0;
-
-    const epLabelText = hasSeasons && active && seasonsArr.length > 1
-      ? `▶ S${active.number} ${epWatched}/${epTotal} eps`
-      : `▶ ${epWatched}/${epTotal} eps`;
-    const epTitleText = hasSeasons && active
-      ? `${active.name || 'Season ' + active.number}: ${epWatched} of ${epTotal} episodes watched`
-      : `${epWatched} of ${epTotal} episodes watched`;
-
-    const epHTML = (isShow && epTotal > 0)
-      ? `<div class="ep-progress" title="${esc(epTitleText)}">
-           <div class="ep-progress-bar"><div class="ep-progress-fill" style="width:${epPct}%"></div></div>
-           <div class="ep-progress-label">${epLabelText}</div>
+    const epHTML = (isShow && episodeState.total > 0)
+      ? `<div class="ep-progress" title="${esc(episodeState.title)}">
+           <div class="ep-progress-bar"><div class="ep-progress-fill" style="width:${episodeState.pct}%"></div></div>
+           <div class="ep-progress-label">${episodeState.label}</div>
          </div>`
       : '';
-    const epIncBtn = (isShow && epTotal > 0 && epWatched < epTotal)
-      ? `<button class="btn-sm btn-ep-inc" data-ep-inc="${m.id}" title="Mark next episode watched"${mutationDisabled}>
-           <span class="lbl-md lbl-lg">+1 ep</span><span class="lbl-sm">+1</span>
+    const epIncBtn = cardView.primaryAction?.type === 'episode'
+      ? `<button class="btn-sm btn-ep-inc" data-ep-inc="${m.id}" title="${cardView.primaryAction.title}"${mutationDisabled}>
+           <span class="lbl-md lbl-lg">${cardView.primaryAction.labelMd}</span><span class="lbl-sm">${cardView.primaryAction.labelSm}</span>
          </button>`
       : '';
 
     const titleLabel = esc(m.title);
-    const infoUrl = infoUrlForEntry(m);
-    const toggleActionLabel = m.status === 'in_progress' ? 'Mark watched' : 'Mark in progress';
-    const primaryActionHTML = epIncBtn || ((m.status !== 'watched') ? `
+    const infoUrl = cardView.infoUrl;
+    const toggleActionLabel = cardView.primaryAction?.title || '';
+    const primaryActionHTML = epIncBtn || ((cardView.primaryAction?.type === 'toggle') ? `
         <button class="btn-sm btn-primary-action" data-toggle="${m.id}" title="${toggleActionLabel} ${titleLabel}" aria-label="${toggleActionLabel} ${titleLabel}"${mutationDisabled}>
-          <span class="lbl-lg">${m.status === 'in_progress' ? '✓ Watched' : '▶ In Progress'}</span>
-          <span class="lbl-md">${m.status === 'in_progress' ? 'Watched' : 'In Prog'}</span>
-          <span class="lbl-sm">${m.status === 'in_progress' ? '✓' : '▶'}</span>
+          <span class="lbl-lg">${cardView.primaryAction.labelLg}</span>
+          <span class="lbl-md">${cardView.primaryAction.labelMd}</span>
+          <span class="lbl-sm">${cardView.primaryAction.labelSm}</span>
         </button>` : '');
     const actionRowClass = primaryActionHTML ? 'card-actions' : 'card-actions card-actions-compact';
     const hoverInfoParts = [
@@ -4824,7 +4808,7 @@ function render() {
         </label>
       </div>
       <span class="badge badge-${m.status} card-status-badge">
-        ${m.status === 'watched' ? `✓ Watched${(m.watchCount || 0) > 1 ? ` ×${m.watchCount}` : ''}` : m.status === 'in_progress' ? '▶ In Progress' : m.status === 'dropped' ? '📛 Dropped' : '⏳ Watchlist'}
+        ${cardView.statusLabel}
       </span>
       ${airingToday ? `<span class="card-airing-pill" title="${m.mediaType === 'movie' ? 'Theatrical release today' : 'New episode airs today'}">● Today</span>` : ''}
       ${infoUrl

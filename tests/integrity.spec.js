@@ -104,6 +104,17 @@ function loadStatsModel() {
   return sandbox.window.CineTrack.stats;
 }
 
+function loadCardModel() {
+  const source = fs.readFileSync(path.join(root, 'scripts', 'card-model.js'), 'utf8');
+  const sandbox = {
+    window: {
+      CineTrack: {},
+    },
+  };
+  vm.runInNewContext(source, sandbox);
+  return sandbox.window.CineTrack.cards;
+}
+
 function loadRecommendationModel() {
   const source = fs.readFileSync(path.join(root, 'scripts', 'recommendation-model.js'), 'utf8');
   const sandbox = {
@@ -464,6 +475,48 @@ test.describe('tracker data integrity', () => {
     expect(summary.topGenres[0]).toEqual(['Drama', 1]);
     expect(summary.topCountries[0]).toEqual(['US', 1]);
     expect(summary.ratingDist).toEqual([[8, 1]]);
+  });
+
+  test('card model builds reusable card state', () => {
+    const model = loadCardModel();
+    const view = model.view({
+      id: 'show',
+      mediaType: 'tv',
+      title: 'Tracked Show',
+      status: 'in_progress',
+      runtime: 45,
+      seasons: [
+        { number: 1, total: 8, watched: 8 },
+        { number: 2, name: 'Second Season', total: 10, watched: 4 },
+      ],
+    }, {
+      activeSeason: item => item.seasons[1],
+      posterEmoji: title => title[0],
+      formatRuntime: minutes => `${minutes}m`,
+      infoUrlForEntry: item => `/title/${item.id}`,
+    });
+
+    expect(model.fallbackPosterLabel({ mediaType: 'movie', title: 'Movie' }, title => title[0])).toBe('M');
+    expect(view.isShow).toBe(true);
+    expect(view.isTV).toBe(true);
+    expect(view.runtime).toBe('45m');
+    expect(view.infoUrl).toBe('/title/show');
+    expect(view.episode.total).toBe(10);
+    expect(view.episode.watched).toBe(4);
+    expect(view.episode.pct).toBe(40);
+    expect(view.episode.label).toContain('S2 4/10 eps');
+    expect(view.primaryAction.type).toBe('episode');
+    expect(model.statusLabel({ status: 'watched', watchCount: 2 })).toContain('2');
+  });
+
+  test('card rendering uses the card model helper', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+
+    expect(index).toContain('scripts/card-model.js');
+    expect(app).toContain('const cardModel = window.CineTrack?.cards;');
+    expect(app).toContain('const cardView = cardModel.view');
+    expect(app).toContain('const infoUrl = cardView.infoUrl;');
   });
 
   test('anime recommendations prefer AniList before TMDB fallback', () => {
