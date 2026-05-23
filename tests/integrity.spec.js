@@ -521,8 +521,12 @@ test.describe('tracker data integrity', () => {
 
   test('split stylesheets load directly without the CSS import hub', () => {
     const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+    const vercel = fs.readFileSync(path.join(root, 'vercel.json'), 'utf8');
 
     expect(index).not.toContain('href="style.css');
+    expect(fs.existsSync(path.join(root, 'style.css'))).toBe(false);
+    expect(vercel).not.toContain('/style.css');
+    expect(vercel).toContain('/styles/(.*).css');
     [
       'theme',
       'layout',
