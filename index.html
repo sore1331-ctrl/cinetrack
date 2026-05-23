@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="dark light" />
   <title>CineTrack</title>
   <!-- Pre-CSS dark paint so the page doesn't flash white before
-       style.css loads. The light-theme override below kicks in
+       the split stylesheets load. The light-theme override below kicks in
        synchronously when the saved theme is 'light'. -->
   <style>
     html, body { background: #0f0f13; color: #e8e8f0; margin: 0; }
@@ -14,14 +14,27 @@
   </style>
   <script>
     // Apply the saved theme as early as possible so the inline style
-    // above paints the right colour. Runs before style.css is parsed.
+    // above paints the right colour. Runs before the CSS is parsed.
     try {
       if (localStorage.getItem('cinetrack_theme') === 'light') {
         document.documentElement.classList.add('light');
       }
     } catch {}
   </script>
-  <link rel="stylesheet" href="style.css?v=animated-orbs-20260517-1" />
+  <link rel="stylesheet" href="styles/theme.css?v=split-20260523-2" />
+  <link rel="stylesheet" href="styles/layout.css?v=split-20260523-2" />
+  <link rel="stylesheet" href="styles/cards.css?v=split-20260523-2" />
+  <link rel="stylesheet" href="styles/settings.css?v=split-20260523-2" />
+  <link rel="stylesheet" href="styles/mobile.css?v=split-20260523-2" />
+  <link rel="stylesheet" href="styles/stats.css?v=split-20260523-2" />
+  <link rel="stylesheet" href="styles/profile.css?v=split-20260523-2" />
+  <link rel="stylesheet" href="styles/community.css?v=split-20260523-2" />
+  <link rel="stylesheet" href="styles/calendar.css?v=split-20260523-2" />
+  <link rel="stylesheet" href="styles/overlays.css?v=split-20260523-2" />
+  <link rel="stylesheet" href="styles/controls.css?v=split-20260523-2" />
+  <link rel="stylesheet" href="styles/account.css?v=split-20260523-2" />
+  <link rel="stylesheet" href="styles/glass.css?v=split-20260523-2" />
+  <link rel="stylesheet" href="styles/skin.css?v=split-20260523-2" />
 </head>
 <body>
 

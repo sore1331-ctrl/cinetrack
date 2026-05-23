@@ -519,6 +519,30 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('const infoUrl = cardView.infoUrl;');
   });
 
+  test('split stylesheets load directly without the CSS import hub', () => {
+    const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+
+    expect(index).not.toContain('href="style.css');
+    [
+      'theme',
+      'layout',
+      'cards',
+      'settings',
+      'mobile',
+      'stats',
+      'profile',
+      'community',
+      'calendar',
+      'overlays',
+      'controls',
+      'account',
+      'glass',
+      'skin',
+    ].forEach(name => {
+      expect(index).toContain(`href="styles/${name}.css`);
+    });
+  });
+
   test('anime recommendations prefer AniList before TMDB fallback', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
     const externalApi = fs.readFileSync(path.join(root, 'api', 'external.js'), 'utf8');
