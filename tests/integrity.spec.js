@@ -1014,6 +1014,76 @@ test.describe('tracker data integrity', () => {
       progressRegressed: [{}, {}],
       statusRegressed: [{}],
     })).toBe('1 missing / 2 progress / 1 status');
+    expect(model.usernameSaveStart({ value: '  Nova  ', currentUsername: 'Equinox' })).toEqual({
+      canSave: true,
+      previousUsername: 'Equinox',
+      optimisticUsername: 'Nova',
+      updates: { username: 'Nova' },
+      closeForm: true,
+      updateUserMenu: true,
+    });
+    expect(model.usernameSaveStart({ value: '   ', currentUsername: 'Equinox' })).toEqual({ canSave: false });
+    expect(model.usernameSaveResult({
+      result: { ok: true, data: { username: 'ServerNova' } },
+      previousUsername: 'Equinox',
+      optimisticUsername: 'Nova',
+    })).toEqual({
+      ok: true,
+      username: 'ServerNova',
+      updateUserMenu: true,
+      renderProfile: true,
+      toast: { message: 'Username saved', isError: false },
+    });
+    expect(model.usernameSaveResult({
+      result: { ok: false, error: 'Nope' },
+      previousUsername: 'Equinox',
+      optimisticUsername: 'Nova',
+    })).toEqual({
+      ok: false,
+      username: 'Equinox',
+      updateUserMenu: true,
+      toast: { message: 'Could not save username: Nope', isError: true },
+    });
+    expect(model.sharingToggleStart({ checked: true })).toEqual({
+      sharingEnabled: true,
+      storageValue: true,
+      updates: { sharing_enabled: true },
+    });
+    expect(model.sharingToggleResult({
+      result: { ok: false, error: 'Nope' },
+      previousSharing: false,
+      optimisticSharing: true,
+    })).toEqual({
+      ok: false,
+      sharingEnabled: false,
+      checkboxChecked: false,
+      storageValue: false,
+      renderProfile: true,
+      toast: { message: 'Could not update sharing: Nope', isError: true },
+    });
+    expect(model.sharingToggleResult({
+      result: { ok: true },
+      previousSharing: false,
+      optimisticSharing: true,
+    })).toEqual({
+      ok: true,
+      sharingEnabled: true,
+      storageValue: true,
+      renderProfile: true,
+    });
+  });
+
+  test('profile preference saves are routed through the profile model', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+
+    expect(app).toContain('const saveStart = profileModel.usernameSaveStart({');
+    expect(app).toContain('const result = await saveProfile(saveStart.updates);');
+    expect(app).toContain('const saveResult = profileModel.usernameSaveResult({');
+    expect(app).toContain('showToast(saveResult.toast.message, saveResult.toast.isError);');
+    expect(app).toContain('const toggleStart = profileModel.sharingToggleStart({ checked: e.target.checked });');
+    expect(app).toContain('const result = await saveProfile(toggleStart.updates);');
+    expect(app).toContain('const toggleResult = profileModel.sharingToggleResult({');
+    expect(app).toContain('e.target.checked = toggleResult.checkboxChecked;');
   });
 
   test('library health model reports data risks without blocking metadata overflow', () => {

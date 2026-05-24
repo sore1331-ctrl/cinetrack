@@ -5435,27 +5435,30 @@ document.getElementById('username-edit-btn').addEventListener('click', e => {
 
 document.getElementById('username-save-btn').addEventListener('click', async e => {
   e.stopPropagation();
-  const val = document.getElementById('username-input').value.trim();
-  if (!val) return;
-  const previous = currentUsername;
-  currentUsername = val;
-  setStoredUsername(val);
-  updateUserMenu();
-  closeUsernameForm();
-  const result = await saveProfile({ username: val });
-  if (!result.ok) {
-    currentUsername = previous;
-    setStoredUsername(previous);
-    updateUserMenu();
-    showToast('Could not save username: ' + (result.error || 'unknown error'), true);
+  const saveStart = profileModel.usernameSaveStart({
+    value: document.getElementById('username-input').value,
+    currentUsername,
+  });
+  if (!saveStart.canSave) return;
+  currentUsername = saveStart.optimisticUsername;
+  setStoredUsername(saveStart.optimisticUsername);
+  if (saveStart.updateUserMenu) updateUserMenu();
+  if (saveStart.closeForm) closeUsernameForm();
+  const result = await saveProfile(saveStart.updates);
+  const saveResult = profileModel.usernameSaveResult({
+    result,
+    previousUsername: saveStart.previousUsername,
+    optimisticUsername: saveStart.optimisticUsername,
+  });
+  currentUsername = saveResult.username;
+  setStoredUsername(saveResult.username);
+  if (saveResult.updateUserMenu) updateUserMenu();
+  if (!saveResult.ok) {
+    showToast(saveResult.toast.message, saveResult.toast.isError);
     return;
   }
-  const savedUsername = result.data?.username || val;
-  currentUsername = savedUsername;
-  setStoredUsername(savedUsername);
-  updateUserMenu();
-  if (activeView === 'profile') renderProfile();
-  showToast('Username saved');
+  if (saveResult.renderProfile && activeView === 'profile') renderProfile();
+  showToast(saveResult.toast.message, saveResult.toast.isError);
 });
 
 document.querySelectorAll('.mobile-nav-btn').forEach(btn => {
@@ -5482,16 +5485,23 @@ document.getElementById('username-input').addEventListener('keydown', async e =>
 
 // ── Sharing toggle ──────────────────────────────────────
 document.getElementById('sharing-toggle').addEventListener('change', async e => {
-  sharingEnabled = e.target.checked;
-  localStorage.setItem('cinetrack_sharing', sharingEnabled);
-  const result = await saveProfile({ sharing_enabled: sharingEnabled });
-  if (!result.ok) {
-    sharingEnabled = !sharingEnabled;
-    e.target.checked = sharingEnabled;
-    localStorage.setItem('cinetrack_sharing', sharingEnabled);
-    showToast('Could not update sharing: ' + (result.error || 'unknown error'), true);
+  const previousSharing = sharingEnabled;
+  const toggleStart = profileModel.sharingToggleStart({ checked: e.target.checked });
+  sharingEnabled = toggleStart.sharingEnabled;
+  localStorage.setItem('cinetrack_sharing', toggleStart.storageValue);
+  const result = await saveProfile(toggleStart.updates);
+  const toggleResult = profileModel.sharingToggleResult({
+    result,
+    previousSharing,
+    optimisticSharing: toggleStart.sharingEnabled,
+  });
+  sharingEnabled = toggleResult.sharingEnabled;
+  localStorage.setItem('cinetrack_sharing', toggleResult.storageValue);
+  if (!toggleResult.ok) {
+    e.target.checked = toggleResult.checkboxChecked;
+    showToast(toggleResult.toast.message, toggleResult.toast.isError);
   }
-  if (activeView === 'profile') renderProfile();
+  if (toggleResult.renderProfile && activeView === 'profile') renderProfile();
 });
 
 // ── Reload from cloud ───────────────────────────────────

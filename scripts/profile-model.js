@@ -29,9 +29,82 @@
     return parts.join(' / ');
   }
 
+  function usernameSaveStart({
+    value = '',
+    currentUsername = null,
+  } = {}) {
+    const username = String(value || '').trim();
+    if (!username) return { canSave: false };
+    return {
+      canSave: true,
+      previousUsername: currentUsername,
+      optimisticUsername: username,
+      updates: { username },
+      closeForm: true,
+      updateUserMenu: true,
+    };
+  }
+
+  function usernameSaveResult({
+    result = {},
+    previousUsername = null,
+    optimisticUsername = '',
+  } = {}) {
+    if (!result?.ok) {
+      return {
+        ok: false,
+        username: previousUsername,
+        updateUserMenu: true,
+        toast: { message: 'Could not save username: ' + (result?.error || 'unknown error'), isError: true },
+      };
+    }
+    return {
+      ok: true,
+      username: result?.data?.username || optimisticUsername,
+      updateUserMenu: true,
+      renderProfile: true,
+      toast: { message: 'Username saved', isError: false },
+    };
+  }
+
+  function sharingToggleStart({ checked = false } = {}) {
+    return {
+      sharingEnabled: Boolean(checked),
+      storageValue: Boolean(checked),
+      updates: { sharing_enabled: Boolean(checked) },
+    };
+  }
+
+  function sharingToggleResult({
+    result = {},
+    previousSharing = false,
+    optimisticSharing = false,
+  } = {}) {
+    if (!result?.ok) {
+      return {
+        ok: false,
+        sharingEnabled: Boolean(previousSharing),
+        checkboxChecked: Boolean(previousSharing),
+        storageValue: Boolean(previousSharing),
+        renderProfile: true,
+        toast: { message: 'Could not update sharing: ' + (result?.error || 'unknown error'), isError: true },
+      };
+    }
+    return {
+      ok: true,
+      sharingEnabled: Boolean(optimisticSharing),
+      storageValue: Boolean(optimisticSharing),
+      renderProfile: true,
+    };
+  }
+
   root.profile = {
     localLibraryBackups,
     formatBackupDate,
     backupImpactLabel,
+    usernameSaveStart,
+    usernameSaveResult,
+    sharingToggleStart,
+    sharingToggleResult,
   };
 })();
