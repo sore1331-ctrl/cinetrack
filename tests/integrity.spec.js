@@ -1094,7 +1094,8 @@ test.describe('tracker data integrity', () => {
 
   test('csv model exports safe spreadsheet text and template data', () => {
     const model = loadCsvModel();
-    const text = model.exportText([{
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const rows = [{
       title: 'Quote "Test"',
       year: 2026,
       genre: 'Drama, Action',
@@ -1105,12 +1106,26 @@ test.describe('tracker data integrity', () => {
       runtime: 120,
       notes: null,
       mediaType: 'movie',
-    }]);
+    }, {
+      title: 'Dropped Show',
+      status: 'dropped',
+      mediaType: 'tv',
+    }];
+    const text = model.exportText([rows[0]]);
 
     expect(text).toContain('title,year,genre,director,country,status,rating,runtime,notes,type');
     expect(text).toContain('"Quote ""Test"""');
     expect(text).toContain('"Drama, Action"');
     expect(model.TEMPLATE_CSV).toContain('episodes_watched');
+    expect(model.exportList(rows, 'movie').map(row => row.title)).toEqual(['Quote "Test"']);
+    expect(model.exportList(rows, 'dropped').map(row => row.title)).toEqual(['Dropped Show']);
+    expect(model.exportFilename('anime', new Date('2026-05-24T12:00:00Z'))).toBe('cinetrack-anime-2026-05-24.csv');
+    expect(model.exportPayload(rows, 'movie', new Date('2026-05-24T12:00:00Z'))).toEqual(expect.objectContaining({
+      filename: 'cinetrack-movie-2026-05-24.csv',
+      list: [rows[0]],
+    }));
+    expect(app).toContain('const payload = csvModel.exportPayload(movies, activeType);');
+    expect(app).toContain('a.download = payload.filename;');
   });
 
   test('library model sanitizes invalid title data before persistence', () => {

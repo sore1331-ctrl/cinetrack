@@ -4620,20 +4620,17 @@ function renderProfile() {
 
 // ── Export CSV ──────────────────────────────────────────
 function exportCSV() {
-  const list = activeType === 'dropped'
-    ? movies.filter(m => m.status === 'dropped')
-    : movies.filter(m => m.mediaType === activeType && m.status !== 'dropped');
-  if (!list.length) { showToast('No titles to export for this tab.', true); return; }
+  const payload = csvModel.exportPayload(movies, activeType);
+  if (!payload.list.length) { showToast('No titles to export for this tab.', true); return; }
 
-  const csv  = csvModel.exportText(list);
-  const blob = new Blob([csv], { type: 'text/csv' });
+  const blob = new Blob([payload.text], { type: 'text/csv' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href     = url;
-  a.download = `cinetrack-${activeType}-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = payload.filename;
   a.click();
   URL.revokeObjectURL(url);
-  showToast(`Exported ${list.length} title${list.length !== 1 ? 's' : ''}.`);
+  showToast(`Exported ${payload.list.length} title${payload.list.length !== 1 ? 's' : ''}.`);
 }
 
 

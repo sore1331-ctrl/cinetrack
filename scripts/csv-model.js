@@ -150,6 +150,28 @@
     return [EXPORT_HEADERS.join(','), ...rows].join('\n');
   }
 
+  function exportList(entries = [], activeType = 'movie') {
+    return activeType === 'dropped'
+      ? entries.filter(entry => entry.status === 'dropped')
+      : entries.filter(entry => entry.mediaType === activeType && entry.status !== 'dropped');
+  }
+
+  function exportFilename(activeType = 'movie', date = new Date()) {
+    const day = typeof date?.toISOString === 'function'
+      ? date.toISOString().slice(0, 10)
+      : String(date || '').slice(0, 10);
+    return `cinetrack-${activeType}-${day}.csv`;
+  }
+
+  function exportPayload(entries = [], activeType = 'movie', date = new Date()) {
+    const list = exportList(entries, activeType);
+    return {
+      list,
+      text: list.length ? exportText(list) : '',
+      filename: exportFilename(activeType, date),
+    };
+  }
+
   root.csv = {
     COLUMN_MAP,
     EXPORT_HEADERS,
@@ -158,5 +180,8 @@
     normaliseRow,
     escapeCell,
     exportText,
+    exportList,
+    exportFilename,
+    exportPayload,
   };
 })();
