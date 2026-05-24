@@ -75,6 +75,31 @@
     return result;
   }
 
+  function cloudRefreshDecision({
+    hasClient = false,
+    hasUser = false,
+    offlineMode = false,
+    documentHidden = false,
+    hasLocalChanges = false,
+    inFlight = false,
+    now = Date.now(),
+    lastAttempt = 0,
+    minInterval = 2500,
+    reason = 'entry',
+  } = {}) {
+    if (!hasClient || !hasUser || offlineMode || documentHidden || hasLocalChanges) {
+      return { shouldRefresh: false, delay: 0, nextLastAttempt: lastAttempt };
+    }
+    if (inFlight || Number(now || 0) - Number(lastAttempt || 0) < minInterval) {
+      return { shouldRefresh: false, delay: 0, nextLastAttempt: lastAttempt };
+    }
+    return {
+      shouldRefresh: true,
+      delay: reason === 'pageshow' ? 250 : 0,
+      nextLastAttempt: Number(now || 0),
+    };
+  }
+
   root.sync = {
     hasUnsyncedLocalChanges,
     shouldSkipCloudLoad,
@@ -84,5 +109,6 @@
     normaliseUserDataRow,
     assertApiLoadResponse,
     assertApiSaveResponse,
+    cloudRefreshDecision,
   };
 })();

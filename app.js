@@ -5622,12 +5622,20 @@ async function refreshFromCloudIfNewer() {
 }
 
 function scheduleEntryCloudRefresh(reason = 'entry') {
-  if (!sb || !currentUser || offlineMode || document.hidden) return;
-  if (hasUnsyncedLocalChanges()) return;
-
   const now = Date.now();
-  if (cloudRefreshInFlight || now - lastCloudRefreshAttempt < 2500) return;
-  lastCloudRefreshAttempt = now;
+  const decision = syncModel.cloudRefreshDecision({
+    hasClient: Boolean(sb),
+    hasUser: Boolean(currentUser),
+    offlineMode,
+    documentHidden: document.hidden,
+    hasLocalChanges: hasUnsyncedLocalChanges(),
+    inFlight: cloudRefreshInFlight,
+    now,
+    lastAttempt: lastCloudRefreshAttempt,
+    reason,
+  });
+  if (!decision.shouldRefresh) return;
+  lastCloudRefreshAttempt = decision.nextLastAttempt;
   cloudRefreshInFlight = true;
 
   setTimeout(async () => {
@@ -5636,7 +5644,7 @@ function scheduleEntryCloudRefresh(reason = 'entry') {
     } finally {
       cloudRefreshInFlight = false;
     }
-  }, reason === 'pageshow' ? 250 : 0);
+  }, decision.delay);
 }
 
 function startCloudPolling() {

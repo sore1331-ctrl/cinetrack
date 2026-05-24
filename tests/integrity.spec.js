@@ -1640,6 +1640,26 @@ test.describe('tracker data integrity', () => {
       lastCloudUpdatedAt: '2026-05-23T10:00:00.000Z',
       row: { updated_at: '2026-05-23T09:00:00.000Z' },
     })).toBe(false);
+    expect(model.cloudRefreshDecision({
+      hasClient: true,
+      hasUser: true,
+      now: 5000,
+      lastAttempt: 1000,
+      reason: 'pageshow',
+    })).toEqual({ shouldRefresh: true, delay: 250, nextLastAttempt: 5000 });
+    expect(model.cloudRefreshDecision({
+      hasClient: true,
+      hasUser: true,
+      now: 3000,
+      lastAttempt: 1000,
+    }).shouldRefresh).toBe(false);
+    expect(model.cloudRefreshDecision({
+      hasClient: true,
+      hasUser: true,
+      hasLocalChanges: true,
+      now: 5000,
+      lastAttempt: 0,
+    }).shouldRefresh).toBe(false);
 
     expect(model.buildSavePayload({
       userId: 'user-1',
@@ -1673,5 +1693,15 @@ test.describe('tracker data integrity', () => {
     }));
     expect(() => model.assertApiSaveResponse({ ok: false, status: 409 }, { error: 'Conflict' }, { movies: [] }))
       .toThrow('Conflict');
+  });
+
+  test('cloud refresh scheduling is routed through the sync model', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+
+    expect(app).toContain('const decision = syncModel.cloudRefreshDecision({');
+    expect(app).toContain('hasLocalChanges: hasUnsyncedLocalChanges()');
+    expect(app).toContain('if (!decision.shouldRefresh) return;');
+    expect(app).toContain('lastCloudRefreshAttempt = decision.nextLastAttempt;');
+    expect(app).toContain('}, decision.delay);');
   });
 });
