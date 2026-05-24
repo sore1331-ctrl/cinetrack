@@ -255,6 +255,7 @@ const cardModel = window.CineTrack?.cards;
 const filterModel = window.CineTrack?.filters;
 const paginationModel = window.CineTrack?.pagination;
 const randomPickerModel = window.CineTrack?.randomPicker;
+const modalModel = window.CineTrack?.modal;
 const errorLog = window.CineTrack?.errors;
 const syncModel = window.CineTrack?.sync;
 
@@ -4911,7 +4912,7 @@ function openModal(movie = null) {
   const droppedOpt = document.getElementById('f-status-dropped-opt');
   if (droppedOpt) droppedOpt.hidden = !editingId;
 
-  activeMediaType = movie?.mediaType || (activeType === 'dropped' ? 'movie' : activeType);
+  activeMediaType = modalModel.mediaTypeForOpen(movie, activeType);
   document.querySelectorAll('.type-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.type === activeMediaType)
   );
@@ -4923,22 +4924,20 @@ function openModal(movie = null) {
     ? `Re-fetch metadata from ${sourceForEntry(movie) === 'tmdb' ? 'TMDB' : sourceForEntry(movie) === 'anilist' ? 'AniList' : 'TMDB when available'} while preserving watch progress`
     : 'Re-fetch metadata from this title source while preserving watch progress';
 
-  document.getElementById('f-title').value    = movie?.title    || '';
-  populateYearSelect(movie?.year || '');
-  document.getElementById('f-genre').value    = movie?.genre    || '';
-  document.getElementById('f-director').value = movie?.director || '';
-  document.getElementById('f-country').value  = movie?.country  || '';
-  document.getElementById('f-status').value   = movie?.status   || 'watchlist';
-  document.getElementById('f-runtime').value  = movie?.runtime  || '';
-  document.getElementById('f-notes').value    = movie?.notes    || '';
+  const values = modalModel.formValues(movie);
+  document.getElementById('f-title').value    = values.title;
+  populateYearSelect(values.year);
+  document.getElementById('f-genre').value    = values.genre;
+  document.getElementById('f-director').value = values.director;
+  document.getElementById('f-country').value  = values.country;
+  document.getElementById('f-status').value   = values.status;
+  document.getElementById('f-runtime').value  = values.runtime;
+  document.getElementById('f-notes').value    = values.notes;
 
   // Initialise the season buffer from the entry (deep copy)
-  editingSeasons = Array.isArray(movie?.seasons)
-    ? movie.seasons.map(s => ({ number: s.number, total: s.total, watched: s.watched || 0, name: s.name }))
-    : [];
+  editingSeasons = modalModel.cloneSeasons(movie);
   // Default to lowest unfinished season, or first if all caught up
-  const unfinished = editingSeasons.findIndex(s => (s.watched || 0) < (s.total || 0));
-  editingSeasonIdx = unfinished === -1 ? 0 : unfinished;
+  editingSeasonIdx = modalModel.initialSeasonIndex(editingSeasons);
   rebuildSeasonDropdown();
 
   if (editingSeasons.length) {
@@ -4947,12 +4946,10 @@ function openModal(movie = null) {
     epWatchedInput.value = movie?.watchedEpisodes || '';
     epTotalInput.value   = movie?.totalEpisodes   || '';
   }
-  selectedRating = movie?.rating || 0;
+  selectedRating = values.rating;
 
   // Re-watch count: default to 1 when status is watched, otherwise 0
-  editingWatchCount = movie?.watchCount != null
-    ? movie.watchCount
-    : (movie?.status === 'watched' ? 1 : 0);
+  editingWatchCount = modalModel.initialWatchCount(movie);
   updateRewatchUI();
 
   toggleRatingLabel();
@@ -4969,10 +4966,10 @@ function updateRewatchUI() {
   const row = document.getElementById('rewatch-row');
   if (!row) return;
   const status = document.getElementById('f-status').value;
-  const visible = status === 'watched' && !!editingId;
-  row.classList.toggle('hidden', !visible);
-  document.getElementById('rewatch-count').textContent = String(Math.max(1, editingWatchCount));
-  document.getElementById('rewatch-plural').textContent = (editingWatchCount === 1) ? '' : 's';
+  const state = modalModel.rewatchState(status, editingId, editingWatchCount);
+  row.classList.toggle('hidden', !state.visible);
+  document.getElementById('rewatch-count').textContent = String(state.count);
+  document.getElementById('rewatch-plural').textContent = state.plural;
 }
 
 document.getElementById('rewatch-inc-btn')?.addEventListener('click', () => {
@@ -5029,7 +5026,7 @@ modalTmdbRefreshBtn.addEventListener('click', async () => {
 
 function toggleRatingLabel() {
   const s = document.getElementById('f-status').value;
-  ratingLabel.classList.toggle('hidden', s !== 'watched' && s !== 'in_progress' && s !== 'dropped');
+  ratingLabel.classList.toggle('hidden', !modalModel.showsRating(s));
 }
 
 // ── Form submit ─────────────────────────────────────────
@@ -5097,13 +5094,7 @@ form.addEventListener('submit', e => {
   // editor value when status is watched; otherwise preserve the existing
   // count so downgrading and re-promoting doesn't lose the history.
   let watchCount;
-  if (status === 'watched') {
-    watchCount = Math.max(1, editingWatchCount || 1);
-  } else if (existing?.watchCount != null) {
-    watchCount = existing.watchCount;
-  } else {
-    watchCount = 0;
-  }
+  watchCount = modalModel.finalWatchCount(status, editingWatchCount, existing);
 
   const data = {
     title,

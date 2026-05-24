@@ -148,6 +148,17 @@ function loadRandomPickerModel() {
   return sandbox.window.CineTrack.randomPicker;
 }
 
+function loadModalModel() {
+  const source = fs.readFileSync(path.join(root, 'scripts', 'modal-model.js'), 'utf8');
+  const sandbox = {
+    window: {
+      CineTrack: {},
+    },
+  };
+  vm.runInNewContext(source, sandbox);
+  return sandbox.window.CineTrack.modal;
+}
+
 function loadRecommendationModel() {
   const source = fs.readFileSync(path.join(root, 'scripts', 'recommendation-model.js'), 'utf8');
   const sandbox = {
@@ -691,6 +702,49 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('const randomPickerModel = window.CineTrack?.randomPicker;');
     expect(app).toContain('const randomPick = randomPickerModel.view(filtered())');
     expect(app).toContain('const pickMeta = randomPick.meta;');
+  });
+
+  test('modal model derives form defaults and watch-count state', () => {
+    const model = loadModalModel();
+    const entry = {
+      title: 'Show',
+      year: '2026',
+      mediaType: 'tv',
+      status: 'watched',
+      rating: 9,
+      watchCount: 3,
+      seasons: [
+        { number: 1, total: 8, watched: 8, name: 'One' },
+        { number: 2, total: 10, watched: 4, name: 'Two' },
+      ],
+    };
+
+    expect(model.mediaTypeForOpen(null, 'dropped')).toBe('movie');
+    expect(model.mediaTypeForOpen(entry, 'movie')).toBe('tv');
+    expect(model.formValues(entry)).toEqual(expect.objectContaining({ title: 'Show', year: '2026', status: 'watched', rating: 9 }));
+    expect(model.cloneSeasons(entry)).toEqual(entry.seasons);
+    expect(model.cloneSeasons(entry)).not.toBe(entry.seasons);
+    expect(model.initialSeasonIndex(entry.seasons)).toBe(1);
+    expect(model.initialWatchCount(entry)).toBe(3);
+    expect(model.initialWatchCount({ status: 'watched' })).toBe(1);
+    expect(model.showsRating('dropped')).toBe(true);
+    expect(model.showsRating('watchlist')).toBe(false);
+    expect(model.rewatchState('watched', 'id', 2)).toEqual({ visible: true, count: 2, plural: 's' });
+    expect(model.finalWatchCount('watchlist', 4, { watchCount: 7 })).toBe(7);
+    expect(model.finalWatchCount('watched', 0, {})).toBe(1);
+  });
+
+  test('modal UI state is routed through the modal model', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+
+    expect(index).toContain('scripts/modal-model.js');
+    expect(app).toContain('const modalModel = window.CineTrack?.modal;');
+    expect(app).toContain('modalModel.mediaTypeForOpen(movie, activeType)');
+    expect(app).toContain('modalModel.formValues(movie)');
+    expect(app).toContain('modalModel.cloneSeasons(movie)');
+    expect(app).toContain('modalModel.rewatchState(status, editingId, editingWatchCount)');
+    expect(app).toContain('modalModel.finalWatchCount(status, editingWatchCount, existing)');
   });
 
   test('anime recommendations prefer AniList before TMDB fallback', () => {
