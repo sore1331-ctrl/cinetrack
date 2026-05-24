@@ -159,6 +159,17 @@ function loadModalModel() {
   return sandbox.window.CineTrack.modal;
 }
 
+function loadDuplicateModel() {
+  const source = fs.readFileSync(path.join(root, 'scripts', 'duplicate-model.js'), 'utf8');
+  const sandbox = {
+    window: {
+      CineTrack: {},
+    },
+  };
+  vm.runInNewContext(source, sandbox);
+  return sandbox.window.CineTrack.duplicates;
+}
+
 function loadRecommendationModel() {
   const source = fs.readFileSync(path.join(root, 'scripts', 'recommendation-model.js'), 'utf8');
   const sandbox = {
@@ -779,6 +790,44 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('modalModel.rewatchState(status, editingId, editingWatchCount)');
     expect(app).toContain('modalModel.episodeState({');
     expect(app).toContain('const data = modalModel.entryPayload({');
+  });
+
+  test('duplicate model matches source ids and conservative title fallbacks', () => {
+    const model = loadDuplicateModel();
+    const library = [
+      { id: 'a', title: 'The Same Show', year: '2024', mediaType: 'tv', tmdbId: 11 },
+      { id: 'b', title: 'Manual Long Title', year: '', mediaType: 'movie', externalSource: 'manual', externalId: 'local-1' },
+      { id: 'c', title: 'Edit Me', year: '2026', mediaType: 'movie' },
+    ];
+    const normaliseTitle = value => String(value || '').trim().toLowerCase();
+    const normaliseYear = value => String(value || '').match(/\d{4}/)?.[0] || '';
+
+    expect(model.findDuplicate(library, {
+      title: 'Other',
+      mediaType: 'tv',
+      source: 'tmdb',
+      externalId: '11',
+    })).toBe(library[0]);
+    expect(model.findDuplicate(library, {
+      title: 'Manual Long Title',
+      mediaType: 'movie',
+      source: 'manual',
+      externalId: '',
+    }, { normaliseTitle, normaliseYear })).toBe(library[1]);
+    expect(model.findDuplicate(library, {
+      title: 'Edit Me',
+      year: '2026',
+      mediaType: 'movie',
+    }, { editingId: 'c', normaliseTitle, normaliseYear })).toBeNull();
+  });
+
+  test('duplicate detection is routed through the duplicate model', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+
+    expect(index).toContain('scripts/duplicate-model.js');
+    expect(app).toContain('const duplicateModel = window.CineTrack?.duplicates;');
+    expect(app).toContain('return duplicateModel.findDuplicate(movies, {');
   });
 
   test('anime recommendations prefer AniList before TMDB fallback', () => {

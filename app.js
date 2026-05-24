@@ -256,6 +256,7 @@ const filterModel = window.CineTrack?.filters;
 const paginationModel = window.CineTrack?.pagination;
 const randomPickerModel = window.CineTrack?.randomPicker;
 const modalModel = window.CineTrack?.modal;
+const duplicateModel = window.CineTrack?.duplicates;
 const errorLog = window.CineTrack?.errors;
 const syncModel = window.CineTrack?.sync;
 
@@ -1802,29 +1803,16 @@ function normaliseDuplicateYear(value) {
 }
 
 function findDuplicateTitle({ title, year, mediaType, source, externalId }) {
-  const selectedSource = source || 'tmdb';
-  const selectedExternalId = String(externalId || '');
-  const wantedType = mediaType || activeMediaType;
-  const wantedTitle = normaliseDuplicateTitle(title);
-  const wantedYear = normaliseDuplicateYear(year);
-
-  return movies.find(m => {
-    if (m.id === editingId) return false;
-
-    if (selectedExternalId) {
-      if (selectedSource === 'tmdb' && Number(m.tmdbId) === Number(selectedExternalId)) return true;
-      if (m.externalSource === selectedSource && String(m.externalId || '') === selectedExternalId) return true;
-    }
-
-    if (!wantedTitle || m.mediaType !== wantedType) return false;
-    const existingTitle = normaliseDuplicateTitle(m.title);
-    if (existingTitle !== wantedTitle) return false;
-
-    const existingYear = normaliseDuplicateYear(m.year);
-    if (wantedYear && existingYear) return wantedYear === existingYear;
-
-    // If one side is missing a year, only trust longer exact-normalised titles.
-    return wantedTitle.length >= 8;
+  return duplicateModel.findDuplicate(movies, {
+    title,
+    year,
+    mediaType: mediaType || activeMediaType,
+    source,
+    externalId,
+  }, {
+    editingId,
+    normaliseTitle: normaliseDuplicateTitle,
+    normaliseYear: normaliseDuplicateYear,
   });
 }
 
