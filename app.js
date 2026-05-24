@@ -3365,6 +3365,18 @@ function rotateForcedRecommendations(results, refreshIndex, force) {
   return recommendationModel.rotateForced(results, refreshIndex, force, RECS_VISIBLE_LIMIT);
 }
 
+function recommendationActionFromButton(btn) {
+  return recommendationModel.actionFromDataset(btn?.dataset || {});
+}
+
+function recommendationWatchlistEntry(action) {
+  return recommendationModel.watchlistEntryFromAction(action, externalPosterUrl);
+}
+
+function recommendationDetailsFetchTarget(action) {
+  return recommendationModel.detailsFetchTarget(action);
+}
+
 function visibleRecommendationCount(results, scope) {
   const dismissed = getDismissedRecs();
   const seen = new Set();
@@ -3630,31 +3642,13 @@ function renderRecsCards(section, results, genreCounts, scope = 'all') {
 
     const btn = e.target.closest('.rec-add-btn');
     if (!btn) return;
-    const recId     = btn.dataset.recId;
-    const recSource = btn.dataset.recSource || 'tmdb';
-    const recType   = btn.dataset.recType;
-    const recTitle  = btn.dataset.recTitle;
-    const recYear   = btn.dataset.recYear;
-    const recPoster = btn.dataset.recPoster;
-    const recCandidate = { id: recId, source: recSource, externalId: recId, media_type: recType, title: recTitle, year: recYear };
-    if (findTrackedRecommendationMatch(recCandidate)) {
+    const recAction = recommendationActionFromButton(btn);
+    if (findTrackedRecommendationMatch(recAction.candidate)) {
       btn.textContent = '✓ Added';
       btn.disabled = true;
       return;
     }
-    const added = addLibraryEntry({
-      addedAt:   Date.now(),
-      title:     recTitle,
-      year:      recYear,
-      status:    'watchlist',
-      rating:    0,
-      mediaType: recType === 'anime' ? 'anime' : (recType === 'tv' ? 'tv' : 'movie'),
-      tmdbId:    recSource === 'tmdb' ? Number(recId) : null,
-      externalSource: recSource,
-      externalId: recSource === 'tmdb' ? String(recId) : recId,
-      posterUrl: recPoster ? externalPosterUrl(recPoster) : '',
-      genre: '', director: '', country: '', notes: '', runtime: 0,
-    });
+    const added = addLibraryEntry({ addedAt: Date.now(), ...recommendationWatchlistEntry(recAction) });
     const newId = added.id;
     save(); updateCountryDropdown();
     btn.textContent = '✓ Added';
@@ -3662,9 +3656,10 @@ function renderRecsCards(section, results, genreCounts, scope = 'all') {
     // Enrich with full metadata in the background.
     (async () => {
       try {
-        const details = recSource === 'anilist'
-          ? await fetchExternalDetails(recId, 'anime')
-          : await fetchTMDBDetails(recId, recType === 'anime' ? 'tv' : (recType === 'tv' ? 'tv' : 'movie'));
+        const target = recommendationDetailsFetchTarget(recAction);
+        const details = target.source === 'anilist'
+          ? await fetchExternalDetails(target.id, target.type)
+          : await fetchTMDBDetails(target.id, target.type);
         const m = movies.find(m => m.id === newId);
         if (!m) return;
         const before = libraryModel.clone(m);

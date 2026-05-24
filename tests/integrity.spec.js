@@ -1213,6 +1213,50 @@ test.describe('tracker data integrity', () => {
     expect(model.rotateForced([1, 2, 3, 4], 1, true, 2)).toEqual([3, 4, 1, 2]);
   });
 
+  test('recommendation model builds watchlist actions and enrichment targets', () => {
+    const model = loadRecommendationModel();
+    const action = model.actionFromDataset({
+      recId: '877',
+      recSource: 'anilist',
+      recType: 'anime',
+      recTitle: 'NANA',
+      recYear: '2006',
+      recPoster: 'https://img.example/nana.jpg',
+    });
+
+    expect(action.candidate).toEqual({
+      id: '877',
+      source: 'anilist',
+      externalId: '877',
+      media_type: 'anime',
+      title: 'NANA',
+      year: '2006',
+    });
+    expect(model.watchlistEntryFromAction(action, path => `poster:${path}`)).toEqual(expect.objectContaining({
+      title: 'NANA',
+      year: '2006',
+      status: 'watchlist',
+      mediaType: 'anime',
+      tmdbId: null,
+      externalSource: 'anilist',
+      externalId: '877',
+      posterUrl: 'poster:https://img.example/nana.jpg',
+    }));
+    expect(model.detailsFetchTarget(action)).toEqual({ source: 'anilist', id: '877', type: 'anime' });
+    expect(model.detailsFetchTarget({ id: '22', source: 'tmdb', type: 'anime' })).toEqual({ source: 'tmdb', id: '22', type: 'tv' });
+  });
+
+  test('recommendation add actions are routed through the recommendation model', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+
+    expect(app).toContain('function recommendationActionFromButton');
+    expect(app).toContain('return recommendationModel.actionFromDataset(btn?.dataset || {});');
+    expect(app).toContain('return recommendationModel.watchlistEntryFromAction(action, externalPosterUrl);');
+    expect(app).toContain('return recommendationModel.detailsFetchTarget(action);');
+    expect(app).toContain('const recAction = recommendationActionFromButton(btn);');
+    expect(app).toContain('recommendationWatchlistEntry(recAction)');
+  });
+
   test('format model normalizes duplicate titles and durations', () => {
     const model = loadFormatModel();
 

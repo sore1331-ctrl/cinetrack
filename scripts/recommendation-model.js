@@ -98,6 +98,57 @@
     return rotateList(results, refreshIndex * visibleLimit);
   }
 
+  function actionFromDataset(dataset = {}) {
+    const id = dataset.recId || '';
+    const source = dataset.recSource || 'tmdb';
+    const type = dataset.recType || '';
+    return {
+      id,
+      source,
+      type,
+      title: dataset.recTitle || '',
+      year: dataset.recYear || '',
+      posterPath: dataset.recPoster || '',
+      candidate: {
+        id,
+        source,
+        externalId: id,
+        media_type: type,
+        title: dataset.recTitle || '',
+        year: dataset.recYear || '',
+      },
+    };
+  }
+
+  function watchlistEntryFromAction(action = {}, posterUrl = path => path || '') {
+    const type = action.type === 'anime' ? 'anime' : (action.type === 'tv' ? 'tv' : 'movie');
+    return {
+      title: action.title || '',
+      year: action.year || '',
+      status: 'watchlist',
+      rating: 0,
+      mediaType: type,
+      tmdbId: action.source === 'tmdb' ? Number(action.id) : null,
+      externalSource: action.source || 'tmdb',
+      externalId: action.source === 'tmdb' ? String(action.id) : action.id,
+      posterUrl: action.posterPath ? posterUrl(action.posterPath) : '',
+      genre: '',
+      director: '',
+      country: '',
+      notes: '',
+      runtime: 0,
+    };
+  }
+
+  function detailsFetchTarget(action = {}) {
+    if (action.source === 'anilist') return { source: 'anilist', id: action.id, type: 'anime' };
+    return {
+      source: 'tmdb',
+      id: action.id,
+      type: action.type === 'anime' ? 'tv' : (action.type === 'tv' ? 'tv' : 'movie'),
+    };
+  }
+
   root.recommendations = {
     mediaType,
     compatibleTypes,
@@ -111,5 +162,8 @@
     score,
     rank,
     rotateForced,
+    actionFromDataset,
+    watchlistEntryFromAction,
+    detailsFetchTarget,
   };
 })();
