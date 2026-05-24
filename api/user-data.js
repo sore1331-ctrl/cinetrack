@@ -409,7 +409,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'PUT') {
-      const { movies, updated_at, base_updated_at, base_version } = req.body || {};
+      const { movies, base_updated_at, base_version } = req.body || {};
       const validationError = validateMoviesPayload(movies);
       if (validationError) return json(res, 400, { error: validationError });
 
@@ -450,7 +450,7 @@ export default async function handler(req, res) {
       const payload = {
         user_id: userId,
         movies: mergedMovies,
-        updated_at: updated_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
         version: nextVersion,
       };
 

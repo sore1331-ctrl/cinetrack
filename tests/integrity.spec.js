@@ -404,6 +404,8 @@ test.describe('tracker data integrity', () => {
     expect(api).toContain('versionMismatch');
     expect(api).toContain('&version=eq.${encodeURIComponent(existingVersion)}');
     expect(api).toContain("return json(res, 409");
+    expect(api).toContain('updated_at: new Date().toISOString()');
+    expect(api).not.toContain('updated_at: updated_at ||');
     expect(app).toContain('syncModel.buildSavePayload');
     expect(app).toContain('lastCloudVersion,');
     expect(app).toContain('lastCloudVersion = Number(result.version');
