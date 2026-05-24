@@ -119,31 +119,6 @@
     };
   }
 
-  function discoverMetadataPatch(details = {}, current = {}, posterUrl = path => path || '') {
-    const patch = {};
-    if (details.title) patch.title = details.title;
-    if (details.year) patch.year = details.year;
-    if (details.genre) patch.genre = details.genre;
-    if (details.director) patch.director = details.director;
-    if (details.country) patch.country = details.country;
-    if (details.runtime) patch.runtime = details.runtime;
-    if (details.overview && !current.notes) patch.notes = details.overview;
-    if (details.poster_path && !current.posterUrl) patch.posterUrl = posterUrl(details.poster_path);
-    if (Array.isArray(details.seasons) && details.seasons.length) {
-      patch.seasons = details.seasons.map(season => ({
-        number: season.number,
-        total: season.total,
-        watched: 0,
-        name: season.name,
-      }));
-      patch.totalEpisodes = patch.seasons.reduce((sum, season) => sum + (season.total || 0), 0);
-      patch.watchedEpisodes = 0;
-    } else if (details.total_episodes) {
-      patch.totalEpisodes = details.total_episodes;
-    }
-    return patch;
-  }
-
   root.calendar = {
     dateString,
     addDaysString,
@@ -156,6 +131,5 @@
     discoverMediaType,
     discoverFetchType,
     discoverWatchlistEntry,
-    discoverMetadataPatch,
   };
 })();

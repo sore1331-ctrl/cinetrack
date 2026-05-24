@@ -202,6 +202,32 @@
     });
   }
 
+  function metadataEnrichmentPatch(details = {}, current = {}, posterUrl = path => path || '') {
+    const patch = {};
+    if (details.title) patch.title = details.title;
+    if (details.year) patch.year = details.year;
+    if (details.genre) patch.genre = details.genre;
+    if (details.director) patch.director = details.director;
+    if (details.country) patch.country = details.country;
+    if (details.runtime) patch.runtime = details.runtime;
+    if (details.source_status != null) patch.sourceStatus = details.source_status || '';
+    if (details.overview && !current.notes) patch.notes = details.overview;
+    if (details.poster_path && !current.posterUrl) patch.posterUrl = posterUrl(details.poster_path);
+    if (Array.isArray(details.seasons) && details.seasons.length) {
+      patch.seasons = details.seasons.map((season, index) => ({
+        number: toInt(season?.number, index + 1) || index + 1,
+        total: Math.max(0, toInt(season?.total, 0)),
+        watched: 0,
+        name: season?.name || '',
+      }));
+      patch.totalEpisodes = patch.seasons.reduce((sum, season) => sum + (season.total || 0), 0);
+      patch.watchedEpisodes = 0;
+    } else if (details.total_episodes) {
+      patch.totalEpisodes = Math.max(0, toInt(details.total_episodes, 0));
+    }
+    return patch;
+  }
+
   function compareSnapshot(current = [], snapshot = []) {
     const currentSafe = sanitiseLibrary(current);
     const snapshotSafe = sanitiseLibrary(snapshot);
@@ -269,6 +295,7 @@
     removeEntry,
     removeEntries,
     changeStatus,
+    metadataEnrichmentPatch,
     compareSnapshot,
     restoreFromSnapshot,
   };

@@ -3139,7 +3139,7 @@ function addFromDiscover({ tmdbId, type, title, year, posterPath }, btn) {
       const details = await fetchTMDBDetails(tmdbId, fetchType);
       const m = movies.find(m => m.id === newId);
       if (!m) return;
-      const patch = calendarModel.discoverMetadataPatch(details, m, externalPosterUrl);
+      const patch = libraryModel.metadataEnrichmentPatch(details, m, externalPosterUrl);
       updateLibraryEntry(newId, patch, { allowDowngrade: false });
       save();
       updateCountryDropdown();
@@ -3632,9 +3632,8 @@ function renderRecsCards(section, results, genreCounts, scope = 'all') {
           : await fetchTMDBDetails(target.id, target.type);
         const m = movies.find(m => m.id === newId);
         if (!m) return;
-        const before = libraryModel.clone(m);
-        applyMetadataRefresh(m, details);
-        updateLibraryEntry(newId, libraryModel.protectProgress(before, m), { allowDowngrade: false });
+        const patch = libraryModel.metadataEnrichmentPatch(details, m, externalPosterUrl);
+        updateLibraryEntry(newId, patch, { allowDowngrade: false });
         save();
         updateCountryDropdown();
         if (activeView === 'content') render();

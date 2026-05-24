@@ -509,7 +509,7 @@ test.describe('tracker data integrity', () => {
     }, cache, '2026-05-23')).toEqual({ type: 'movie', releaseDate: '2026-05-23' });
   });
 
-  test('calendar model builds discover watchlist entries and metadata patches', () => {
+  test('calendar model builds discover watchlist entries', () => {
     const model = loadCalendarModel();
     const action = model.discoverActionFromDataset({
       addId: '123',
@@ -535,19 +535,6 @@ test.describe('tracker data integrity', () => {
       tmdbId: 123,
       posterUrl: 'poster:/poster.jpg',
     }));
-    expect(model.discoverMetadataPatch({
-      title: 'Full Title',
-      overview: 'Summary',
-      poster_path: '/full.jpg',
-      seasons: [{ number: 1, total: 12, name: 'Season 1' }],
-    }, {}, path => `poster:${path}`)).toEqual(expect.objectContaining({
-      title: 'Full Title',
-      notes: 'Summary',
-      posterUrl: 'poster:/full.jpg',
-      totalEpisodes: 12,
-      watchedEpisodes: 0,
-      seasons: [{ number: 1, total: 12, watched: 0, name: 'Season 1' }],
-    }));
   });
 
   test('discover add payload is routed through the calendar model', () => {
@@ -556,7 +543,7 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('calendarModel.discoverActionFromDataset(btn.dataset)');
     expect(app).toContain('calendarModel.discoverFetchType(action.type)');
     expect(app).toContain('calendarModel.discoverWatchlistEntry(action, externalPosterUrl)');
-    expect(app).toContain('calendarModel.discoverMetadataPatch(details, m, externalPosterUrl)');
+    expect(app).toContain('libraryModel.metadataEnrichmentPatch(details, m, externalPosterUrl)');
   });
 
   test('stats model builds reusable profile summaries', () => {
@@ -1305,6 +1292,7 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('return recommendationModel.detailsFetchTarget(action);');
     expect(app).toContain('const recAction = recommendationActionFromButton(btn);');
     expect(app).toContain('recommendationWatchlistEntry(recAction)');
+    expect(app).toContain('libraryModel.metadataEnrichmentPatch(details, m, externalPosterUrl)');
   });
 
   test('format model normalizes duplicate titles and durations', () => {
@@ -1480,6 +1468,38 @@ test.describe('tracker data integrity', () => {
       total: 8,
       watched: 6,
     }));
+  });
+
+  test('library model builds shared metadata enrichment patches', () => {
+    const model = loadLibraryModel();
+    const patch = model.metadataEnrichmentPatch({
+      title: 'Full Title',
+      year: '2026',
+      genre: 'Drama',
+      director: 'Creator',
+      country: 'Japan',
+      runtime: 24,
+      source_status: 'Running',
+      overview: 'Summary',
+      poster_path: '/full.jpg',
+      seasons: [{ number: 1, total: 12, name: 'Season 1' }],
+    }, {}, path => `poster:${path}`);
+
+    expect(patch).toEqual(expect.objectContaining({
+      title: 'Full Title',
+      year: '2026',
+      genre: 'Drama',
+      director: 'Creator',
+      country: 'Japan',
+      runtime: 24,
+      sourceStatus: 'Running',
+      notes: 'Summary',
+      posterUrl: 'poster:/full.jpg',
+      totalEpisodes: 12,
+      watchedEpisodes: 0,
+      seasons: [{ number: 1, total: 12, watched: 0, name: 'Season 1' }],
+    }));
+    expect(model.metadataEnrichmentPatch({ overview: 'New' }, { notes: 'Keep' })).not.toHaveProperty('notes');
   });
 
   test('library model compares and restores from backup snapshots', () => {
