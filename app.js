@@ -3108,13 +3108,7 @@ async function renderCalendarDiscover(body, { force = false } = {}) {
   grid.addEventListener('click', e => {
     const btn = e.target.closest('.discover-add-btn[data-add-id]');
     if (!btn || btn.disabled) return;
-    addFromDiscover({
-      tmdbId: btn.dataset.addId,
-      type:   btn.dataset.addType,
-      title:  btn.dataset.addTitle,
-      year:   btn.dataset.addYear,
-      posterPath: btn.dataset.addPoster,
-    }, btn);
+    addFromDiscover(calendarModel.discoverActionFromDataset(btn.dataset), btn);
   });
 }
 
@@ -3126,18 +3120,11 @@ function addFromDiscover({ tmdbId, type, title, year, posterPath }, btn) {
     btn.disabled = true;
     return;
   }
-  const safeMediaType = type === 'anime' ? 'anime' : (type === 'tv' ? 'tv' : 'movie');
-  const fetchType     = safeMediaType === 'movie' ? 'movie' : 'tv';
+  const action = { tmdbId, type, title, year, posterPath };
+  const fetchType = calendarModel.discoverFetchType(action.type);
   const added = addLibraryEntry({
-    addedAt:   Date.now(),
-    title:     title || '',
-    year:      year || '',
-    status:    'watchlist',
-    rating:    0,
-    mediaType: safeMediaType,
-    tmdbId:    Number(tmdbId),
-    posterUrl: posterPath ? POSTER_BASE + posterPath : '',
-    genre: '', director: '', country: '', notes: '', runtime: 0,
+    addedAt: Date.now(),
+    ...calendarModel.discoverWatchlistEntry(action, externalPosterUrl),
   });
   const newId = added.id;
   save();
@@ -3152,24 +3139,7 @@ function addFromDiscover({ tmdbId, type, title, year, posterPath }, btn) {
       const details = await fetchTMDBDetails(tmdbId, fetchType);
       const m = movies.find(m => m.id === newId);
       if (!m) return;
-      const patch = {};
-      if (details.title)    patch.title    = details.title;
-      if (details.year)     patch.year     = details.year;
-      if (details.genre)    patch.genre    = details.genre;
-      if (details.director) patch.director = details.director;
-      if (details.country)  patch.country  = details.country;
-      if (details.runtime)  patch.runtime  = details.runtime;
-      if (details.overview && !m.notes) patch.notes = details.overview;
-      if (details.poster_path && !m.posterUrl) patch.posterUrl = POSTER_BASE + details.poster_path;
-      if (Array.isArray(details.seasons) && details.seasons.length) {
-        patch.seasons = details.seasons.map(s => ({
-          number: s.number, total: s.total, watched: 0, name: s.name,
-        }));
-        patch.totalEpisodes = patch.seasons.reduce((sum, x) => sum + (x.total || 0), 0);
-        patch.watchedEpisodes = 0;
-      } else if (details.total_episodes) {
-        patch.totalEpisodes = details.total_episodes;
-      }
+      const patch = calendarModel.discoverMetadataPatch(details, m, externalPosterUrl);
       updateLibraryEntry(newId, patch, { allowDowngrade: false });
       save();
       updateCountryDropdown();

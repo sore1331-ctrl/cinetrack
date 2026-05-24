@@ -509,6 +509,56 @@ test.describe('tracker data integrity', () => {
     }, cache, '2026-05-23')).toEqual({ type: 'movie', releaseDate: '2026-05-23' });
   });
 
+  test('calendar model builds discover watchlist entries and metadata patches', () => {
+    const model = loadCalendarModel();
+    const action = model.discoverActionFromDataset({
+      addId: '123',
+      addType: 'anime',
+      addTitle: 'Upcoming Show',
+      addYear: '2026',
+      addPoster: '/poster.jpg',
+    });
+
+    expect(action).toEqual({
+      tmdbId: '123',
+      type: 'anime',
+      title: 'Upcoming Show',
+      year: '2026',
+      posterPath: '/poster.jpg',
+    });
+    expect(model.discoverFetchType(action.type)).toBe('tv');
+    expect(model.discoverWatchlistEntry(action, path => `poster:${path}`)).toEqual(expect.objectContaining({
+      title: 'Upcoming Show',
+      year: '2026',
+      status: 'watchlist',
+      mediaType: 'anime',
+      tmdbId: 123,
+      posterUrl: 'poster:/poster.jpg',
+    }));
+    expect(model.discoverMetadataPatch({
+      title: 'Full Title',
+      overview: 'Summary',
+      poster_path: '/full.jpg',
+      seasons: [{ number: 1, total: 12, name: 'Season 1' }],
+    }, {}, path => `poster:${path}`)).toEqual(expect.objectContaining({
+      title: 'Full Title',
+      notes: 'Summary',
+      posterUrl: 'poster:/full.jpg',
+      totalEpisodes: 12,
+      watchedEpisodes: 0,
+      seasons: [{ number: 1, total: 12, watched: 0, name: 'Season 1' }],
+    }));
+  });
+
+  test('discover add payload is routed through the calendar model', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+
+    expect(app).toContain('calendarModel.discoverActionFromDataset(btn.dataset)');
+    expect(app).toContain('calendarModel.discoverFetchType(action.type)');
+    expect(app).toContain('calendarModel.discoverWatchlistEntry(action, externalPosterUrl)');
+    expect(app).toContain('calendarModel.discoverMetadataPatch(details, m, externalPosterUrl)');
+  });
+
   test('stats model builds reusable profile summaries', () => {
     const model = loadStatsModel();
     const summary = model.profileSummary([

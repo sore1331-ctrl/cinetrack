@@ -84,6 +84,66 @@
     return null;
   }
 
+  function discoverActionFromDataset(dataset = {}) {
+    return {
+      tmdbId: dataset.addId || dataset.tmdbId || '',
+      type: dataset.addType || dataset.type || 'movie',
+      title: dataset.addTitle || dataset.title || '',
+      year: dataset.addYear || dataset.year || '',
+      posterPath: dataset.addPoster || dataset.posterPath || '',
+    };
+  }
+
+  function discoverMediaType(type) {
+    return type === 'anime' ? 'anime' : (type === 'tv' ? 'tv' : 'movie');
+  }
+
+  function discoverFetchType(type) {
+    return discoverMediaType(type) === 'movie' ? 'movie' : 'tv';
+  }
+
+  function discoverWatchlistEntry(action = {}, posterUrl = path => path || '') {
+    return {
+      title: action.title || '',
+      year: action.year || '',
+      status: 'watchlist',
+      rating: 0,
+      mediaType: discoverMediaType(action.type),
+      tmdbId: Number(action.tmdbId),
+      posterUrl: action.posterPath ? posterUrl(action.posterPath) : '',
+      genre: '',
+      director: '',
+      country: '',
+      notes: '',
+      runtime: 0,
+    };
+  }
+
+  function discoverMetadataPatch(details = {}, current = {}, posterUrl = path => path || '') {
+    const patch = {};
+    if (details.title) patch.title = details.title;
+    if (details.year) patch.year = details.year;
+    if (details.genre) patch.genre = details.genre;
+    if (details.director) patch.director = details.director;
+    if (details.country) patch.country = details.country;
+    if (details.runtime) patch.runtime = details.runtime;
+    if (details.overview && !current.notes) patch.notes = details.overview;
+    if (details.poster_path && !current.posterUrl) patch.posterUrl = posterUrl(details.poster_path);
+    if (Array.isArray(details.seasons) && details.seasons.length) {
+      patch.seasons = details.seasons.map(season => ({
+        number: season.number,
+        total: season.total,
+        watched: 0,
+        name: season.name,
+      }));
+      patch.totalEpisodes = patch.seasons.reduce((sum, season) => sum + (season.total || 0), 0);
+      patch.watchedEpisodes = 0;
+    } else if (details.total_episodes) {
+      patch.totalEpisodes = details.total_episodes;
+    }
+    return patch;
+  }
+
   root.calendar = {
     dateString,
     addDaysString,
@@ -92,5 +152,10 @@
     episodeOrdinalForProgress,
     hasUnwatchedAiringEpisodeToday,
     airingTodaySignal,
+    discoverActionFromDataset,
+    discoverMediaType,
+    discoverFetchType,
+    discoverWatchlistEntry,
+    discoverMetadataPatch,
   };
 })();
