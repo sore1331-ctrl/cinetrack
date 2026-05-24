@@ -1589,7 +1589,7 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('function compareLibraryBackup');
     expect(app).toContain('function restoreLibraryFromBackup');
     expect(app).toContain('movies = sanitiseLibrary();');
-    expect(app).toContain("writeLocalLibraryBackup('before-sign-out-clear', movies);");
+    expect(app).toContain('writeLocalLibraryBackup(signOutPlan.backupReason, movies);');
   });
 
   test('error log stores bounded structured diagnostics', () => {
@@ -1676,6 +1676,21 @@ test.describe('tracker data integrity', () => {
       savingMessage: '',
     });
     expect(model.failedSaveLoadResult({ error: 'Nope' })).toEqual({ ok: false, error: 'Nope' });
+    expect(model.signOutCleanupPlan({ storageKey: 'cinetrack_movies' })).toEqual({
+      backupReason: 'before-sign-out-clear',
+      reset: {
+        currentUser: null,
+        currentUsername: null,
+        sharingEnabled: false,
+        initialLibrarySyncPending: false,
+        lastCloudUpdatedAt: null,
+        lastCloudItemCount: null,
+        localChangeVersion: 0,
+        lastSavedLocalVersion: 0,
+      },
+      clearStorageKeys: ['cinetrack_movies', 'cinetrack_sharing'],
+      nextAuthMode: 'form',
+    });
 
     expect(model.buildSavePayload({
       userId: 'user-1',
@@ -1737,5 +1752,15 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('setSyncState(\'saving\', loadPlan.savingMessage);');
     expect(app).toContain('loaded = syncModel.failedSaveLoadResult(saved);');
     expect(app).toContain('loaded = await loadUserData(loadPlan.loadOptions);');
+  });
+
+  test('sign-out cleanup is routed through the sync model', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+
+    expect(app).toContain('const signOutPlan = syncModel.signOutCleanupPlan({ storageKey: STORAGE_KEY });');
+    expect(app).toContain('writeLocalLibraryBackup(signOutPlan.backupReason, movies);');
+    expect(app).toContain('currentUser = signOutPlan.reset.currentUser;');
+    expect(app).toContain('signOutPlan.clearStorageKeys.forEach(key => localStorage.removeItem(key));');
+    expect(app).toContain('showAuthOverlay(signOutPlan.nextAuthMode);');
   });
 });

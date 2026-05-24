@@ -122,6 +122,27 @@
     return { ok: false, error: saved?.error || 'Cloud save failed' };
   }
 
+  function signOutCleanupPlan({
+    storageKey = '',
+    sharingKey = 'cinetrack_sharing',
+  } = {}) {
+    return {
+      backupReason: 'before-sign-out-clear',
+      reset: {
+        currentUser: null,
+        currentUsername: null,
+        sharingEnabled: false,
+        initialLibrarySyncPending: false,
+        lastCloudUpdatedAt: null,
+        lastCloudItemCount: null,
+        localChangeVersion: 0,
+        lastSavedLocalVersion: 0,
+      },
+      clearStorageKeys: [storageKey, sharingKey].filter(Boolean),
+      nextAuthMode: 'form',
+    };
+  }
+
   root.sync = {
     hasUnsyncedLocalChanges,
     shouldSkipCloudLoad,
@@ -135,5 +156,6 @@
     signInSyncToast,
     signInLoadPlan,
     failedSaveLoadResult,
+    signOutCleanupPlan,
   };
 })();

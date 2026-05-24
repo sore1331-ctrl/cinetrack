@@ -5576,24 +5576,24 @@ progressCancel.addEventListener('click', () => { cancelTmdbRefresh = true; });
 // ── Sign out ────────────────────────────────────────────
 signoutBtn.addEventListener('click', async () => {
   try { if (sb) await sb.auth.signOut(); } catch {}
+  const signOutPlan = syncModel.signOutCleanupPlan({ storageKey: STORAGE_KEY });
   stopCloudPolling();
-  writeLocalLibraryBackup('before-sign-out-clear', movies);
-  currentUser     = null;
-  currentUsername = null;
-  sharingEnabled  = false;
+  writeLocalLibraryBackup(signOutPlan.backupReason, movies);
+  currentUser = signOutPlan.reset.currentUser;
+  currentUsername = signOutPlan.reset.currentUsername;
+  sharingEnabled = signOutPlan.reset.sharingEnabled;
   replaceLibrary([]);
-  initialLibrarySyncPending = false;
+  initialLibrarySyncPending = signOutPlan.reset.initialLibrarySyncPending;
   updateMutationLockUI();
-  lastCloudUpdatedAt = null;
-  lastCloudItemCount = null;
-  localChangeVersion = 0;
-  lastSavedLocalVersion = 0;
-  localStorage.removeItem(STORAGE_KEY);
+  lastCloudUpdatedAt = signOutPlan.reset.lastCloudUpdatedAt;
+  lastCloudItemCount = signOutPlan.reset.lastCloudItemCount;
+  localChangeVersion = signOutPlan.reset.localChangeVersion;
+  lastSavedLocalVersion = signOutPlan.reset.lastSavedLocalVersion;
+  signOutPlan.clearStorageKeys.forEach(key => localStorage.removeItem(key));
   clearPendingSyncMarker();
-  localStorage.removeItem('cinetrack_sharing');
   document.getElementById('user-dropdown').classList.add('hidden');
   updateUserMenu();
-  showAuthOverlay('form');
+  showAuthOverlay(signOutPlan.nextAuthMode);
 });
 
 // ── Flush pending save when tab is hidden/closed ────────
