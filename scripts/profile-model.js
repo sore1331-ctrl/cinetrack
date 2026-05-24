@@ -98,6 +98,88 @@
     };
   }
 
+  function profileLoadLocalPlan({
+    localUsername = null,
+    currentUsername = null,
+  } = {}) {
+    if (localUsername && !currentUsername) {
+      return { apply: true, username: localUsername, updateUserMenu: true };
+    }
+    return { apply: false };
+  }
+
+  function profileLoadDataPlan({
+    data = null,
+    localUsername = null,
+  } = {}) {
+    if (!data) return { apply: false, updateUserMenu: true, renderProfile: true };
+    return {
+      apply: true,
+      username: data.username || localUsername || null,
+      sharingEnabled: Boolean(data.sharing_enabled),
+      sharingStorageValue: Boolean(data.sharing_enabled),
+      updateUserMenu: true,
+      renderProfile: true,
+    };
+  }
+
+  function profileSaveApplyPlan({
+    updates = {},
+    data = null,
+  } = {}) {
+    const plan = {};
+    if (Object.prototype.hasOwnProperty.call(updates, 'username')) {
+      plan.username = data?.username || updates.username || null;
+      plan.storeUsername = true;
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'sharing_enabled') && data) {
+      plan.sharingEnabled = Boolean(data.sharing_enabled);
+      plan.sharingStorageValue = Boolean(data.sharing_enabled);
+      plan.storeSharing = true;
+    }
+    return plan;
+  }
+
+  function isMissingPreferencesColumn(error = {}) {
+    const msg = String(error?.message || '').toLowerCase();
+    return msg.includes('preferences') || msg.includes('column') || error?.code === 'PGRST204' || error?.code === '42703';
+  }
+
+  function preferencesApplyPlan({
+    prefs = null,
+    syncKeys = [],
+    calendarDailyRefreshKey = '',
+  } = {}) {
+    if (!prefs || typeof prefs !== 'object') return { apply: false };
+    const storageWrites = [];
+    syncKeys.forEach(key => {
+      if (prefs[key] != null) storageWrites.push([key, String(prefs[key])]);
+    });
+    if (calendarDailyRefreshKey && prefs[calendarDailyRefreshKey] != null) {
+      storageWrites.push([calendarDailyRefreshKey, String(prefs[calendarDailyRefreshKey])]);
+    }
+    return {
+      apply: true,
+      storageWrites,
+      applyAppearance: true,
+      refreshCurrentView: true,
+    };
+  }
+
+  function preferenceSaveErrorPlan({
+    error = {},
+    alreadyWarned = false,
+  } = {}) {
+    if (isMissingPreferencesColumn(error) && !alreadyWarned) {
+      return {
+        warn: true,
+        nextWarned: true,
+        toast: { message: 'Cross-device sync needs a one-line SQL update \u2014 see console.', isError: true },
+      };
+    }
+    return { warn: false, nextWarned: alreadyWarned };
+  }
+
   root.profile = {
     localLibraryBackups,
     formatBackupDate,
@@ -106,5 +188,11 @@
     usernameSaveResult,
     sharingToggleStart,
     sharingToggleResult,
+    profileLoadLocalPlan,
+    profileLoadDataPlan,
+    profileSaveApplyPlan,
+    isMissingPreferencesColumn,
+    preferencesApplyPlan,
+    preferenceSaveErrorPlan,
   };
 })();

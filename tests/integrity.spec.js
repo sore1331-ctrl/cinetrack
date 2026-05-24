@@ -1071,6 +1071,52 @@ test.describe('tracker data integrity', () => {
       storageValue: true,
       renderProfile: true,
     });
+    expect(model.profileLoadLocalPlan({ localUsername: 'Local', currentUsername: null })).toEqual({
+      apply: true,
+      username: 'Local',
+      updateUserMenu: true,
+    });
+    expect(model.profileLoadLocalPlan({ localUsername: 'Local', currentUsername: 'Current' })).toEqual({ apply: false });
+    expect(model.profileLoadDataPlan({
+      data: { username: '', sharing_enabled: 1 },
+      localUsername: 'Local',
+    })).toEqual({
+      apply: true,
+      username: 'Local',
+      sharingEnabled: true,
+      sharingStorageValue: true,
+      updateUserMenu: true,
+      renderProfile: true,
+    });
+    expect(model.profileSaveApplyPlan({
+      updates: { username: 'Nova', sharing_enabled: false },
+      data: { username: 'ServerNova', sharing_enabled: true },
+    })).toEqual({
+      username: 'ServerNova',
+      storeUsername: true,
+      sharingEnabled: true,
+      sharingStorageValue: true,
+      storeSharing: true,
+    });
+    expect(model.isMissingPreferencesColumn({ code: '42703' })).toBe(true);
+    expect(model.preferencesApplyPlan({
+      prefs: { a: 1, b: null, daily: 'off' },
+      syncKeys: ['a', 'b'],
+      calendarDailyRefreshKey: 'daily',
+    })).toEqual({
+      apply: true,
+      storageWrites: [['a', '1'], ['daily', 'off']],
+      applyAppearance: true,
+      refreshCurrentView: true,
+    });
+    expect(model.preferenceSaveErrorPlan({
+      error: { code: 'PGRST204' },
+      alreadyWarned: false,
+    })).toEqual({
+      warn: true,
+      nextWarned: true,
+      toast: { message: 'Cross-device sync needs a one-line SQL update \u2014 see console.', isError: true },
+    });
   });
 
   test('profile preference saves are routed through the profile model', () => {
@@ -1084,6 +1130,18 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('const result = await saveProfile(toggleStart.updates);');
     expect(app).toContain('const toggleResult = profileModel.sharingToggleResult({');
     expect(app).toContain('e.target.checked = toggleResult.checkboxChecked;');
+  });
+
+  test('profile load and preference helpers are routed through the profile model', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+
+    expect(app).toContain('const errorPlan = profileModel.preferenceSaveErrorPlan({ error: e, alreadyWarned: prefMigrationWarned });');
+    expect(app).toContain('if (profileModel.isMissingPreferencesColumn(error)) {');
+    expect(app).toContain('const prefsPlan = profileModel.preferencesApplyPlan({');
+    expect(app).toContain('prefsPlan.storageWrites.forEach(([key, value]) => localStorage.setItem(key, value));');
+    expect(app).toContain('const localPlan = profileModel.profileLoadLocalPlan({ localUsername, currentUsername });');
+    expect(app).toContain('const dataPlan = profileModel.profileLoadDataPlan({ data, localUsername });');
+    expect(app).toContain('const applyPlan = profileModel.profileSaveApplyPlan({ updates, data });');
   });
 
   test('library health model reports data risks without blocking metadata overflow', () => {

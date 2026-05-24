@@ -166,16 +166,14 @@ async function savePreferences() {
   try {
     await mergeProfilePreferences(prefs);
   } catch (e) {
-    const msg = (e?.message || '').toLowerCase();
-    const looksLikeMissingColumn = msg.includes('preferences') ||
-      msg.includes('column') || e?.code === 'PGRST204' || e?.code === '42703';
-    if (looksLikeMissingColumn && !prefMigrationWarned) {
-      prefMigrationWarned = true;
+    const errorPlan = profileModel.preferenceSaveErrorPlan({ error: e, alreadyWarned: prefMigrationWarned });
+    prefMigrationWarned = errorPlan.nextWarned;
+    if (errorPlan.warn) {
       console.warn(
         "[cinetrack] To sync appearance settings across devices, run this in your Supabase SQL editor:\n" +
         "ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS preferences jsonb DEFAULT '{}'::jsonb;"
       );
-      try { showToast("Cross-device sync needs a one-line SQL update — see console.", true); } catch {}
+      try { showToast(errorPlan.toast.message, errorPlan.toast.isError); } catch {}
     }
   }
 }
@@ -187,24 +185,22 @@ async function loadPreferences() {
     try {
       prefs = await readProfilePreferences();
     } catch (error) {
-      const msg = (error?.message || '').toLowerCase();
-      if (msg.includes('preferences') || msg.includes('column') || error?.code === '42703') {
+      if (profileModel.isMissingPreferencesColumn(error)) {
         // Column missing — first-time setup. Silent here; will warn on save.
         return;
       }
       throw error;
     }
-    if (!prefs || typeof prefs !== 'object') return;
-
-    for (const k of SYNC_PREF_KEYS) {
-      if (prefs[k] != null) localStorage.setItem(k, String(prefs[k]));
-    }
-    if (prefs[CALENDAR_DAILY_REFRESH_PREF] != null) {
-      localStorage.setItem(CALENDAR_DAILY_REFRESH_PREF, String(prefs[CALENDAR_DAILY_REFRESH_PREF]));
-    }
+    const prefsPlan = profileModel.preferencesApplyPlan({
+      prefs,
+      syncKeys: SYNC_PREF_KEYS,
+      calendarDailyRefreshKey: CALENDAR_DAILY_REFRESH_PREF,
+    });
+    if (!prefsPlan.apply) return;
+    prefsPlan.storageWrites.forEach(([key, value]) => localStorage.setItem(key, value));
     timeSpentFormat = localStorage.getItem('cinetrack_time_spent_format') === 'calendar' ? 'calendar' : 'runtime';
-    applyAllAppearance();
-    refreshCurrentView();
+    if (prefsPlan.applyAppearance) applyAllAppearance();
+    if (prefsPlan.refreshCurrentView) refreshCurrentView();
   } catch (e) {
     logAppError('preferences.load', e, {}, 'warn');
   }
@@ -435,9 +431,10 @@ async function loadProfile() {
   if (!sb || !currentUser) return;
   const userId = currentUser.id;
   const localUsername = getStoredUsername();
-  if (localUsername && !currentUsername) {
-    currentUsername = localUsername;
-    updateUserMenu();
+  const localPlan = profileModel.profileLoadLocalPlan({ localUsername, currentUsername });
+  if (localPlan.apply) {
+    currentUsername = localPlan.username;
+    if (localPlan.updateUserMenu) updateUserMenu();
   }
   try {
     const { data, error } = await sb
@@ -447,14 +444,15 @@ async function loadProfile() {
       .maybeSingle();
     if (error) throw error;
     if (!currentUser || currentUser.id !== userId) return;
-    if (data) {
-      currentUsername = data.username || localUsername || null;
-      setStoredUsername(currentUsername);
-      sharingEnabled  = !!data.sharing_enabled;
-      localStorage.setItem('cinetrack_sharing', sharingEnabled);
+    const dataPlan = profileModel.profileLoadDataPlan({ data, localUsername });
+    if (dataPlan.apply) {
+      currentUsername = dataPlan.username;
+      setStoredUsername(dataPlan.username);
+      sharingEnabled = dataPlan.sharingEnabled;
+      localStorage.setItem('cinetrack_sharing', dataPlan.sharingStorageValue);
     }
-    updateUserMenu();
-    if (activeView === 'profile') renderProfile();
+    if (dataPlan.updateUserMenu) updateUserMenu();
+    if (dataPlan.renderProfile && activeView === 'profile') renderProfile();
   } catch (e) {
     logAppError('profile.load', e, {}, 'warn');
   }
@@ -472,14 +470,14 @@ async function saveProfile(updates) {
       .select('username, sharing_enabled')
       .single();
     if (error) throw error;
-    if (Object.prototype.hasOwnProperty.call(updates, 'username')) {
-      const savedUsername = data?.username || updates.username || null;
-      currentUsername = savedUsername;
-      setStoredUsername(savedUsername);
+    const applyPlan = profileModel.profileSaveApplyPlan({ updates, data });
+    if (applyPlan.storeUsername) {
+      currentUsername = applyPlan.username;
+      setStoredUsername(applyPlan.username);
     }
-    if (Object.prototype.hasOwnProperty.call(updates, 'sharing_enabled') && data) {
-      sharingEnabled = !!data.sharing_enabled;
-      localStorage.setItem('cinetrack_sharing', sharingEnabled);
+    if (applyPlan.storeSharing) {
+      sharingEnabled = applyPlan.sharingEnabled;
+      localStorage.setItem('cinetrack_sharing', applyPlan.sharingStorageValue);
     }
     return { ok: true, data };
   } catch (e) {
