@@ -1645,15 +1645,12 @@ document.querySelectorAll('.type-btn').forEach(btn => {
 });
 
 function updateModalForType() {
-  const isTV    = activeMediaType === 'tv';
-  const isAnime = activeMediaType === 'anime';
-  const labels  = { movie: 'Search TMDB', tv: 'Search TMDB (TV)', anime: 'Search AniList' };
-  const placeholders = { movie: 'Type a movie title...', tv: 'Type a show title...', anime: 'Type an anime title...' };
-  tmdbSearchLabel.childNodes[0].textContent = labels[activeMediaType] || 'Search TMDB';
-  tmdbQuery.placeholder = placeholders[activeMediaType] || 'Type a title...';
-  directorLabel.childNodes[0].textContent = (isTV || isAnime) ? 'Creator / Director' : 'Director';
-  document.getElementById('f-director').placeholder = isAnime ? 'e.g. Hayao Miyazaki' : isTV ? 'e.g. Vince Gilligan' : 'e.g. Christopher Nolan';
-  document.getElementById('ep-fields').classList.toggle('hidden', !(isTV || isAnime));
+  const state = modalModel.typeUiState(activeMediaType);
+  tmdbSearchLabel.childNodes[0].textContent = state.searchLabel;
+  tmdbQuery.placeholder = state.searchPlaceholder;
+  directorLabel.childNodes[0].textContent = state.directorLabel;
+  document.getElementById('f-director').placeholder = state.directorPlaceholder;
+  document.getElementById('ep-fields').classList.toggle('hidden', !state.isShow);
 }
 
 // ── TMDB search UI ──────────────────────────────────────
@@ -1713,9 +1710,10 @@ tmdbDropdown.addEventListener('click', async e => {
   if (!row) return;
   const id = row.dataset.id;
   const rowData = row._result || null;
-  const fetchType = activeMediaType === 'anime' && row.dataset.source === 'tmdb'
-    ? (row.dataset.mediaType || 'tv')
-    : activeMediaType;
+  const fetchType = modalModel.detailsFetchType(activeMediaType, {
+    source: row.dataset.source,
+    mediaType: row.dataset.mediaType,
+  });
   hideDropdown();
   tmdbSearching.textContent = 'Loading details…';
   tmdbSearching.classList.remove('hidden');
@@ -1750,40 +1748,20 @@ function applyTMDBSelection(details) {
   document.getElementById('f-country').value  = details.country  || '';
   if (details.runtime) document.getElementById('f-runtime').value = details.runtime;
 
-  // If TMDB returned per-season data, populate the season buffer (preserving
-  // any watched counts the user already had, even if season numbers changed).
-  if (Array.isArray(details.seasons) && details.seasons.length) {
-    const previousTotal = Math.max(0, seasonTotal(editingSeasons, 'total'), parseInt(epTotalInput.value) || 0);
-    const detailsTotal = seasonTotal(details.seasons, 'total');
-    const selectedStatus = document.getElementById('f-status')?.value || '';
-    const previousWatched = Math.max(
-      0,
-      seasonTotal(editingSeasons, 'watched'),
-      parseInt(epWatchedInput.value) || 0,
-      selectedStatus === 'watched' ? previousTotal : 0,
-      selectedStatus === 'watched' ? detailsTotal : 0
-    );
-    editingSeasons = details.seasons.map(s => ({
-      number:  s.number,
-      total:   s.total,
-      watched: 0,
-      name:    s.name,
-    }));
-    let remaining = previousWatched;
-    editingSeasons
-      .slice()
-      .sort((a, b) => (a.number || 0) - (b.number || 0))
-      .forEach(season => {
-        const total = Math.max(0, Number(season.total) || 0);
-        season.watched = Math.max(season.watched || 0, Math.min(total, remaining));
-        remaining -= Math.min(total, remaining);
-      });
-    const unfinished = editingSeasons.findIndex(s => (s.watched || 0) < (s.total || 0));
-    editingSeasonIdx = unfinished === -1 ? 0 : unfinished;
+  const seasonState = modalModel.selectionSeasonState({
+    details,
+    seasons: editingSeasons,
+    totalInput: epTotalInput.value,
+    watchedInput: epWatchedInput.value,
+    status: document.getElementById('f-status')?.value || '',
+  });
+  if (seasonState.hasSeasons) {
+    editingSeasons = seasonState.seasons;
+    editingSeasonIdx = seasonState.seasonIndex;
     rebuildSeasonDropdown();
     loadSeasonIntoInputs(editingSeasonIdx);
-  } else if (details.total_episodes && !epTotalInput.value) {
-    epTotalInput.value = details.total_episodes;
+  } else if (seasonState.totalInput && !epTotalInput.value) {
+    epTotalInput.value = seasonState.totalInput;
   }
   if (!document.getElementById('f-notes').value)
     document.getElementById('f-notes').value  = details.overview || '';
@@ -5086,8 +5064,7 @@ form.addEventListener('submit', e => {
   const posterUrl = tmdbSelection?.poster_path
     ? externalPosterUrl(tmdbSelection.poster_path)
     : existing?.posterUrl || '';
-  const selectedSource = tmdbSelection ? (tmdbSelection.source || 'tmdb') : null;
-  const selectedExternalId = tmdbSelection ? String(tmdbSelection.externalId || tmdbSelection.id || '') : '';
+  const { selectedSource, selectedExternalId } = modalModel.selectedExternal(tmdbSelection);
   if (!editingId) {
     const duplicate = findDuplicateTitle({
       title,

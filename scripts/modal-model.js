@@ -19,6 +19,20 @@
     };
   }
 
+  function typeUiState(mediaType = 'movie') {
+    const isTV = mediaType === 'tv';
+    const isAnime = mediaType === 'anime';
+    return {
+      isTV,
+      isAnime,
+      isShow: isTV || isAnime,
+      searchLabel: ({ movie: 'Search TMDB', tv: 'Search TMDB (TV)', anime: 'Search AniList' })[mediaType] || 'Search TMDB',
+      searchPlaceholder: ({ movie: 'Type a movie title...', tv: 'Type a show title...', anime: 'Type an anime title...' })[mediaType] || 'Type a title...',
+      directorLabel: isTV || isAnime ? 'Creator / Director' : 'Director',
+      directorPlaceholder: isAnime ? 'e.g. Hayao Miyazaki' : isTV ? 'e.g. Vince Gilligan' : 'e.g. Christopher Nolan',
+    };
+  }
+
   function cloneSeasons(entry = {}) {
     return Array.isArray(entry?.seasons)
       ? entry.seasons.map(season => ({
@@ -34,6 +48,72 @@
     if (!seasons.length) return 0;
     const unfinished = seasons.findIndex(season => (season.watched || 0) < (season.total || 0));
     return unfinished === -1 ? 0 : unfinished;
+  }
+
+  function selectionSeasonState({
+    details = {},
+    seasons = [],
+    totalInput = '',
+    watchedInput = '',
+    status = '',
+  } = {}) {
+    if (!Array.isArray(details?.seasons) || !details.seasons.length) {
+      return {
+        hasSeasons: false,
+        seasons,
+        seasonIndex: initialSeasonIndex(seasons),
+        totalInput: details?.total_episodes && !totalInput ? details.total_episodes : totalInput,
+      };
+    }
+
+    const seasonTotal = (items, key) => (items || []).reduce((sum, season) => sum + (Number(season?.[key]) || 0), 0);
+    const previousTotal = Math.max(0, seasonTotal(seasons, 'total'), numberValue(totalInput));
+    const detailsTotal = seasonTotal(details.seasons, 'total');
+    const previousWatched = Math.max(
+      0,
+      seasonTotal(seasons, 'watched'),
+      numberValue(watchedInput),
+      status === 'watched' ? previousTotal : 0,
+      status === 'watched' ? detailsTotal : 0
+    );
+
+    const nextSeasons = details.seasons.map(season => ({
+      number: season.number,
+      total: numberValue(season.total),
+      watched: 0,
+      name: season.name,
+    }));
+
+    let remaining = previousWatched;
+    nextSeasons
+      .slice()
+      .sort((a, b) => (a.number || 0) - (b.number || 0))
+      .forEach(season => {
+        const total = numberValue(season.total);
+        const watched = Math.min(total, remaining);
+        season.watched = Math.max(season.watched || 0, watched);
+        remaining -= watched;
+      });
+
+    return {
+      hasSeasons: true,
+      seasons: nextSeasons,
+      seasonIndex: initialSeasonIndex(nextSeasons),
+      totalInput,
+    };
+  }
+
+  function detailsFetchType(activeMediaType = 'movie', { source = '', mediaType = '' } = {}) {
+    return activeMediaType === 'anime' && source === 'tmdb'
+      ? (mediaType || 'tv')
+      : activeMediaType;
+  }
+
+  function selectedExternal(selection = null) {
+    return {
+      selectedSource: selection ? (selection.source || 'tmdb') : null,
+      selectedExternalId: selection ? String(selection.externalId || selection.id || '') : '',
+    };
   }
 
   function initialWatchCount(entry = {}) {
@@ -145,8 +225,12 @@
   root.modal = {
     mediaTypeForOpen,
     formValues,
+    typeUiState,
     cloneSeasons,
     initialSeasonIndex,
+    selectionSeasonState,
+    detailsFetchType,
+    selectedExternal,
     initialWatchCount,
     showsRating,
     rewatchState,

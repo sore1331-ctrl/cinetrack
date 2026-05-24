@@ -825,6 +825,11 @@ test.describe('tracker data integrity', () => {
     expect(model.mediaTypeForOpen(null, 'dropped')).toBe('movie');
     expect(model.mediaTypeForOpen(entry, 'movie')).toBe('tv');
     expect(model.formValues(entry)).toEqual(expect.objectContaining({ title: 'Show', year: '2026', status: 'watched', rating: 9 }));
+    expect(model.typeUiState('anime')).toEqual(expect.objectContaining({
+      isShow: true,
+      searchLabel: 'Search AniList',
+      directorPlaceholder: 'e.g. Hayao Miyazaki',
+    }));
     expect(model.cloneSeasons(entry)).toEqual(entry.seasons);
     expect(model.cloneSeasons(entry)).not.toBe(entry.seasons);
     expect(model.initialSeasonIndex(entry.seasons)).toBe(1);
@@ -852,6 +857,21 @@ test.describe('tracker data integrity', () => {
     });
     expect(model.derivedStatus('watchlist', { isShow: true, totalEpisodes: 10, watchedEpisodes: 3 })).toBe('in_progress');
     expect(model.derivedStatus('dropped', { isShow: true, totalEpisodes: 10, watchedEpisodes: 10 })).toBe('dropped');
+    expect(model.detailsFetchType('anime', { source: 'tmdb', mediaType: 'tv' })).toBe('tv');
+    expect(model.selectedExternal({ id: 42, source: 'tmdb' })).toEqual({ selectedSource: 'tmdb', selectedExternalId: '42' });
+    expect(model.selectionSeasonState({
+      details: { seasons: [{ number: 1, total: 8, name: 'One' }, { number: 2, total: 8, name: 'Two' }] },
+      seasons: [{ number: 1, total: 6, watched: 6 }],
+      watchedInput: '2',
+      status: 'in_progress',
+    })).toEqual(expect.objectContaining({
+      hasSeasons: true,
+      seasonIndex: 0,
+      seasons: [
+        { number: 1, total: 8, watched: 6, name: 'One' },
+        { number: 2, total: 8, watched: 0, name: 'Two' },
+      ],
+    }));
     expect(model.entryPayload({
       fields: { title: 'Show', status: 'watchlist', runtime: '45' },
       mediaType: 'tv',
@@ -878,7 +898,11 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('const modalModel = window.CineTrack?.modal;');
     expect(app).toContain('modalModel.mediaTypeForOpen(movie, activeType)');
     expect(app).toContain('modalModel.formValues(movie)');
+    expect(app).toContain('modalModel.typeUiState(activeMediaType)');
     expect(app).toContain('modalModel.cloneSeasons(movie)');
+    expect(app).toContain('modalModel.selectionSeasonState({');
+    expect(app).toContain('modalModel.detailsFetchType(activeMediaType');
+    expect(app).toContain('modalModel.selectedExternal(tmdbSelection)');
     expect(app).toContain('modalModel.rewatchState(status, editingId, editingWatchCount)');
     expect(app).toContain('modalModel.episodeState({');
     expect(app).toContain('const data = modalModel.entryPayload({');
