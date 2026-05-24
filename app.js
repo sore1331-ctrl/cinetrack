@@ -5753,17 +5753,17 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
   }
 
   sb.auth.onAuthStateChange(async (event, session) => {
-    currentAccessToken = session?.access_token || currentAccessToken;
-    if (event === 'SIGNED_IN' && session?.user) {
-      await handleUserSignIn(session.user, session.access_token || '');
-    } else if (event === 'SIGNED_OUT') {
-      userDataFetched = false;
-      currentUser = null;
-      currentAccessToken = '';
-      initialLibrarySyncPending = false;
-      stopCloudPolling();
-      updateMutationLockUI();
-      updateUserMenu();
+    const authPlan = syncModel.authStateChangePlan({ event, session, currentAccessToken });
+    currentAccessToken = authPlan.currentAccessToken;
+    if (authPlan.type === 'sign-in') {
+      await handleUserSignIn(authPlan.user, authPlan.accessToken);
+    } else if (authPlan.type === 'sign-out') {
+      userDataFetched = authPlan.reset.userDataFetched;
+      currentUser = authPlan.reset.currentUser;
+      initialLibrarySyncPending = authPlan.reset.initialLibrarySyncPending;
+      if (authPlan.stopCloudPolling) stopCloudPolling();
+      if (authPlan.updateMutationLock) updateMutationLockUI();
+      if (authPlan.updateUserMenu) updateUserMenu();
     }
   });
 

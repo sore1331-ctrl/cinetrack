@@ -1691,6 +1691,37 @@ test.describe('tracker data integrity', () => {
       clearStorageKeys: ['cinetrack_movies', 'cinetrack_sharing'],
       nextAuthMode: 'form',
     });
+    expect(model.authStateChangePlan({
+      event: 'SIGNED_IN',
+      session: { user: { id: 'user-1' }, access_token: 'token-1' },
+      currentAccessToken: 'old-token',
+    })).toEqual({
+      type: 'sign-in',
+      currentAccessToken: 'token-1',
+      user: { id: 'user-1' },
+      accessToken: 'token-1',
+    });
+    expect(model.authStateChangePlan({
+      event: 'SIGNED_OUT',
+      session: null,
+      currentAccessToken: 'token-1',
+    })).toEqual({
+      type: 'sign-out',
+      currentAccessToken: '',
+      reset: {
+        userDataFetched: false,
+        currentUser: null,
+        initialLibrarySyncPending: false,
+      },
+      stopCloudPolling: true,
+      updateMutationLock: true,
+      updateUserMenu: true,
+    });
+    expect(model.authStateChangePlan({
+      event: 'TOKEN_REFRESHED',
+      session: { access_token: 'token-2' },
+      currentAccessToken: 'token-1',
+    })).toEqual({ type: 'ignore', currentAccessToken: 'token-2' });
 
     expect(model.buildSavePayload({
       userId: 'user-1',
@@ -1762,5 +1793,17 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('currentUser = signOutPlan.reset.currentUser;');
     expect(app).toContain('signOutPlan.clearStorageKeys.forEach(key => localStorage.removeItem(key));');
     expect(app).toContain('showAuthOverlay(signOutPlan.nextAuthMode);');
+  });
+
+  test('auth state changes are routed through the sync model', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+
+    expect(app).toContain('const authPlan = syncModel.authStateChangePlan({ event, session, currentAccessToken });');
+    expect(app).toContain('currentAccessToken = authPlan.currentAccessToken;');
+    expect(app).toContain('if (authPlan.type === \'sign-in\') {');
+    expect(app).toContain('await handleUserSignIn(authPlan.user, authPlan.accessToken);');
+    expect(app).toContain('} else if (authPlan.type === \'sign-out\') {');
+    expect(app).toContain('userDataFetched = authPlan.reset.userDataFetched;');
+    expect(app).toContain('if (authPlan.stopCloudPolling) stopCloudPolling();');
   });
 });

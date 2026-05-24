@@ -143,6 +143,37 @@
     };
   }
 
+  function authStateChangePlan({
+    event = '',
+    session = null,
+    currentAccessToken = '',
+  } = {}) {
+    const nextAccessToken = session?.access_token || currentAccessToken || '';
+    if (event === 'SIGNED_IN' && session?.user) {
+      return {
+        type: 'sign-in',
+        currentAccessToken: nextAccessToken,
+        user: session.user,
+        accessToken: session.access_token || '',
+      };
+    }
+    if (event === 'SIGNED_OUT') {
+      return {
+        type: 'sign-out',
+        currentAccessToken: '',
+        reset: {
+          userDataFetched: false,
+          currentUser: null,
+          initialLibrarySyncPending: false,
+        },
+        stopCloudPolling: true,
+        updateMutationLock: true,
+        updateUserMenu: true,
+      };
+    }
+    return { type: 'ignore', currentAccessToken: nextAccessToken };
+  }
+
   root.sync = {
     hasUnsyncedLocalChanges,
     shouldSkipCloudLoad,
@@ -157,5 +188,6 @@
     signInLoadPlan,
     failedSaveLoadResult,
     signOutCleanupPlan,
+    authStateChangePlan,
   };
 })();
