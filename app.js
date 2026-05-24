@@ -5496,44 +5496,53 @@ document.getElementById('sharing-toggle').addEventListener('change', async e => 
 
 // ── Reload from cloud ───────────────────────────────────
 reloadCloudBtn.addEventListener('click', async () => {
-  document.getElementById('user-dropdown').classList.add('hidden');
-  clearTimeout(cloudSyncTimer);
-  cloudSyncTimer = null;
+  const reloadPlan = syncModel.reloadFromCloudPlan();
+  if (reloadPlan.hideUserDropdown) document.getElementById('user-dropdown').classList.add('hidden');
+  if (reloadPlan.clearPendingSave) {
+    clearTimeout(cloudSyncTimer);
+    cloudSyncTimer = null;
+  }
   reloadCloudBtn.disabled = true;
-  reloadCloudBtn.textContent = '↻ Loading…';
-  const result = await loadUserData({ force: true });
+  reloadCloudBtn.textContent = reloadPlan.button.busyText;
+  const result = await loadUserData(reloadPlan.loadOptions);
   reloadCloudBtn.disabled = false;
-  reloadCloudBtn.textContent = '↻ Reload from cloud';
-  if (result?.ok) showToast('Reloaded from cloud ✓');
+  reloadCloudBtn.textContent = reloadPlan.button.idleText;
+  const resultPlan = syncModel.reloadFromCloudResultPlan(result);
+  if (resultPlan.toast) showToast(resultPlan.toast);
 });
 
 // ── Sync now (push pending + pull latest) ──────────────
 const syncNowBtn = document.getElementById('sync-now-btn');
 syncNowBtn.addEventListener('click', async () => {
-  document.getElementById('user-dropdown').classList.add('hidden');
-  if (offlineMode || !currentUser) {
-    showToast('Sync unavailable in offline mode.', true);
+  const syncStartPlan = syncModel.manualSyncStartPlan({ offlineMode, hasCurrentUser: Boolean(currentUser) });
+  if (syncStartPlan.hideUserDropdown) document.getElementById('user-dropdown').classList.add('hidden');
+  if (!syncStartPlan.canSync) {
+    showToast(syncStartPlan.toast.message, syncStartPlan.toast.isError);
     return;
   }
   syncNowBtn.disabled = true;
-  syncNowBtn.textContent = '↻ Syncing…';
+  syncNowBtn.textContent = syncStartPlan.button.busyText;
   // Cancel any pending debounce so we don't double-write
-  clearTimeout(cloudSyncTimer);
-  cloudSyncTimer = null;
+  if (syncStartPlan.clearPendingSave) {
+    clearTimeout(cloudSyncTimer);
+    cloudSyncTimer = null;
+  }
   try {
-    if (hasUnsyncedLocalChanges()) {
+    const syncWorkPlan = syncModel.manualSyncWorkPlan({ hasLocalChanges: hasUnsyncedLocalChanges() });
+    if (syncWorkPlan.saveFirst) {
       const saveResult = await saveUserData();
-      if (!saveResult?.ok) throw new Error(saveResult?.error || 'Cloud save failed');
+      if (!saveResult?.ok) throw new Error(saveResult?.error || syncWorkPlan.saveError);
     }
-    const loadResult = await loadUserData({ force: true });
-    if (!loadResult?.ok) throw new Error(loadResult?.error || 'Cloud reload failed');
-    showToast('Synced ✓');
+    const loadResult = await loadUserData(syncWorkPlan.loadOptions);
+    if (!loadResult?.ok) throw new Error(loadResult?.error || syncWorkPlan.loadError);
+    showToast(syncWorkPlan.successToast);
   } catch (e) {
     logAppError('sync.manual', e);
-    showToast('Sync failed: ' + (e?.message || 'unknown error'), true);
+    const errorToast = syncModel.manualSyncErrorToast(e);
+    showToast(errorToast.message, errorToast.isError);
   }
   syncNowBtn.disabled = false;
-  syncNowBtn.textContent = '↻ Sync now';
+  syncNowBtn.textContent = syncStartPlan.button.idleText;
 });
 
 // ── Refresh metadata ────────────────────────────────────

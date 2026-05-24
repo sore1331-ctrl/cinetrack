@@ -211,6 +211,59 @@
     };
   }
 
+  function reloadFromCloudPlan() {
+    return {
+      hideUserDropdown: true,
+      clearPendingSave: true,
+      button: {
+        busyText: '\u21bb Loading\u2026',
+        idleText: '\u21bb Reload from cloud',
+      },
+      loadOptions: { force: true },
+      successToast: 'Reloaded from cloud \u2713',
+    };
+  }
+
+  function reloadFromCloudResultPlan(result = {}) {
+    return result?.ok ? { toast: reloadFromCloudPlan().successToast } : { toast: '' };
+  }
+
+  function manualSyncStartPlan({
+    offlineMode = false,
+    hasCurrentUser = false,
+  } = {}) {
+    if (offlineMode || !hasCurrentUser) {
+      return {
+        canSync: false,
+        hideUserDropdown: true,
+        toast: { message: 'Sync unavailable in offline mode.', isError: true },
+      };
+    }
+    return {
+      canSync: true,
+      hideUserDropdown: true,
+      clearPendingSave: true,
+      button: {
+        busyText: '\u21bb Syncing\u2026',
+        idleText: '\u21bb Sync now',
+      },
+    };
+  }
+
+  function manualSyncWorkPlan({ hasLocalChanges = false } = {}) {
+    return {
+      saveFirst: Boolean(hasLocalChanges),
+      loadOptions: { force: true },
+      saveError: 'Cloud save failed',
+      loadError: 'Cloud reload failed',
+      successToast: 'Synced \u2713',
+    };
+  }
+
+  function manualSyncErrorToast(error = {}) {
+    return { message: 'Sync failed: ' + (error?.message || 'unknown error'), isError: true };
+  }
+
   root.sync = {
     hasUnsyncedLocalChanges,
     shouldSkipCloudLoad,
@@ -228,5 +281,10 @@
     authStateChangePlan,
     initialSessionPlan,
     initialSessionErrorPlan,
+    reloadFromCloudPlan,
+    reloadFromCloudResultPlan,
+    manualSyncStartPlan,
+    manualSyncWorkPlan,
+    manualSyncErrorToast,
   };
 })();

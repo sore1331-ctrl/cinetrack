@@ -1758,6 +1758,36 @@ test.describe('tracker data integrity', () => {
       render: true,
       toast: { message: 'Cloud session timed out. Opened in local mode.', isError: true },
     });
+    expect(model.reloadFromCloudPlan()).toEqual(expect.objectContaining({
+      hideUserDropdown: true,
+      clearPendingSave: true,
+      loadOptions: { force: true },
+      successToast: expect.any(String),
+    }));
+    expect(model.reloadFromCloudResultPlan({ ok: true }).toast).toBe(model.reloadFromCloudPlan().successToast);
+    expect(model.reloadFromCloudResultPlan({ ok: false }).toast).toBe('');
+    expect(model.manualSyncStartPlan({ offlineMode: true, hasCurrentUser: true })).toEqual({
+      canSync: false,
+      hideUserDropdown: true,
+      toast: { message: 'Sync unavailable in offline mode.', isError: true },
+    });
+    expect(model.manualSyncStartPlan({ offlineMode: false, hasCurrentUser: true })).toEqual(expect.objectContaining({
+      canSync: true,
+      hideUserDropdown: true,
+      clearPendingSave: true,
+    }));
+    expect(model.manualSyncWorkPlan({ hasLocalChanges: true })).toEqual(expect.objectContaining({
+      saveFirst: true,
+      loadOptions: { force: true },
+      saveError: 'Cloud save failed',
+      loadError: 'Cloud reload failed',
+      successToast: expect.any(String),
+    }));
+    expect(model.manualSyncWorkPlan({ hasLocalChanges: false }).saveFirst).toBe(false);
+    expect(model.manualSyncErrorToast({ message: 'Nope' })).toEqual({
+      message: 'Sync failed: Nope',
+      isError: true,
+    });
 
     expect(model.buildSavePayload({
       userId: 'user-1',
@@ -1854,5 +1884,18 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('if (initialSessionErrorPlan.type === \'keep-current-user\') {');
     expect(app).toContain('offlineMode = initialSessionErrorPlan.offlineMode;');
     expect(app).toContain('showToast(initialSessionErrorPlan.toast.message, initialSessionErrorPlan.toast.isError);');
+  });
+
+  test('manual cloud controls are routed through the sync model', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+
+    expect(app).toContain('const reloadPlan = syncModel.reloadFromCloudPlan();');
+    expect(app).toContain('const result = await loadUserData(reloadPlan.loadOptions);');
+    expect(app).toContain('const resultPlan = syncModel.reloadFromCloudResultPlan(result);');
+    expect(app).toContain('const syncStartPlan = syncModel.manualSyncStartPlan({ offlineMode, hasCurrentUser: Boolean(currentUser) });');
+    expect(app).toContain('showToast(syncStartPlan.toast.message, syncStartPlan.toast.isError);');
+    expect(app).toContain('const syncWorkPlan = syncModel.manualSyncWorkPlan({ hasLocalChanges: hasUnsyncedLocalChanges() });');
+    expect(app).toContain('const loadResult = await loadUserData(syncWorkPlan.loadOptions);');
+    expect(app).toContain('const errorToast = syncModel.manualSyncErrorToast(e);');
   });
 });
