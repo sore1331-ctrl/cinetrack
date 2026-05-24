@@ -1502,6 +1502,33 @@ test.describe('tracker data integrity', () => {
     expect(model.metadataEnrichmentPatch({ overview: 'New' }, { notes: 'Keep' })).not.toHaveProperty('notes');
   });
 
+  test('library model summarizes bulk metadata refresh results', () => {
+    const model = loadLibraryModel();
+    const state = model.bulkMetadataRefreshState();
+
+    model.recordBulkMetadataRefresh(state, { title: 'Finished Show', demoted: true });
+    model.recordBulkMetadataRefresh(state, { title: 'Another Show', demoted: true });
+    model.recordBulkMetadataRefresh(state, { failed: true });
+
+    expect(state).toEqual({
+      updated: 2,
+      failed: 1,
+      demoted: 2,
+      demotedTitles: ['Finished Show', 'Another Show'],
+    });
+    expect(model.bulkMetadataRefreshSummary(state, { cancelled: true }))
+      .toBe('Refreshed 2 titles · ⏳ 2 back to In Progress (Finished Show, Another Show) · 1 failed · cancelled');
+  });
+
+  test('bulk metadata refresh results are routed through the library model', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+
+    expect(app).toContain('const refreshState = libraryModel.bulkMetadataRefreshState();');
+    expect(app).toContain('libraryModel.recordBulkMetadataRefresh(refreshState, { demoted: result?.demoted, title: m.title });');
+    expect(app).toContain('libraryModel.recordBulkMetadataRefresh(refreshState, { failed: true });');
+    expect(app).toContain('libraryModel.bulkMetadataRefreshSummary(refreshState, { cancelled: cancelTmdbRefresh })');
+  });
+
   test('library model compares and restores from backup snapshots', () => {
     const model = loadLibraryModel();
     const snapshot = [

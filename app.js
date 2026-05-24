@@ -5547,8 +5547,7 @@ tmdbRefreshBtn.addEventListener('click', async () => {
 
   cancelTmdbRefresh = false;
   importProgress.classList.remove('hidden');
-  let updated = 0, failed = 0, demoted = 0;
-  const demotedTitles = [];
+  const refreshState = libraryModel.bulkMetadataRefreshState();
   for (let i = 0; i < targets.length; i++) {
     if (cancelTmdbRefresh) break;
     const m = targets[i];
@@ -5559,29 +5558,16 @@ tmdbRefreshBtn.addEventListener('click', async () => {
       const before = libraryModel.clone(m);
       const result = applyMetadataRefresh(m, d);
       updateLibraryEntry(m.id, libraryModel.protectProgress(before, m), { allowDowngrade: false });
-      if (result?.demoted) {
-        demoted++;
-        if (demotedTitles.length < 3) demotedTitles.push(m.title);
-      }
-      updated++;
+      libraryModel.recordBulkMetadataRefresh(refreshState, { demoted: result?.demoted, title: m.title });
     } catch (e) {
-      failed++;
+      libraryModel.recordBulkMetadataRefresh(refreshState, { failed: true });
       logAppError('metadata.bulk_refresh', e, { title: m.title, id: m.id }, 'warn');
     }
   }
   progressBar.style.width = '100%';
   importProgress.classList.add('hidden');
   save(); updateCountryDropdown(); render();
-  const parts = [`Refreshed ${updated} title${updated !== 1 ? 's' : ''}`];
-  if (demoted) {
-    const sample = demotedTitles.join(', ');
-    const more   = demoted - demotedTitles.length;
-    const list   = more > 0 ? `${sample} +${more} more` : sample;
-    parts.push(`⏳ ${demoted} back to In Progress (${list})`);
-  }
-  if (failed)            parts.push(`${failed} failed`);
-  if (cancelTmdbRefresh) parts.push('cancelled');
-  showToast(parts.join(' · '));
+  showToast(libraryModel.bulkMetadataRefreshSummary(refreshState, { cancelled: cancelTmdbRefresh }));
 });
 
 // Reuse the import-progress cancel button for metadata refresh too

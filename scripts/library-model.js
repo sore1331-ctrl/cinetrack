@@ -228,6 +228,47 @@
     return patch;
   }
 
+  function bulkMetadataRefreshState() {
+    return {
+      updated: 0,
+      failed: 0,
+      demoted: 0,
+      demotedTitles: [],
+    };
+  }
+
+  function recordBulkMetadataRefresh(state, result = {}) {
+    const next = state || bulkMetadataRefreshState();
+    if (result.failed) {
+      next.failed += 1;
+      return next;
+    }
+    next.updated += 1;
+    if (result.demoted) {
+      next.demoted += 1;
+      if (next.demotedTitles.length < 3 && result.title) next.demotedTitles.push(result.title);
+    }
+    return next;
+  }
+
+  function bulkMetadataRefreshSummary(state = {}, { cancelled = false } = {}) {
+    const updated = Math.max(0, toInt(state.updated, 0));
+    const failed = Math.max(0, toInt(state.failed, 0));
+    const demoted = Math.max(0, toInt(state.demoted, 0));
+    const demotedTitles = Array.isArray(state.demotedTitles) ? state.demotedTitles : [];
+    const parts = [`Refreshed ${updated} title${updated !== 1 ? 's' : ''}`];
+
+    if (demoted) {
+      const sample = demotedTitles.join(', ');
+      const more = demoted - demotedTitles.length;
+      const list = more > 0 ? `${sample} +${more} more` : sample;
+      parts.push(`⏳ ${demoted} back to In Progress (${list})`);
+    }
+    if (failed) parts.push(`${failed} failed`);
+    if (cancelled) parts.push('cancelled');
+    return parts.join(' · ');
+  }
+
   function compareSnapshot(current = [], snapshot = []) {
     const currentSafe = sanitiseLibrary(current);
     const snapshotSafe = sanitiseLibrary(snapshot);
@@ -296,6 +337,9 @@
     removeEntries,
     changeStatus,
     metadataEnrichmentPatch,
+    bulkMetadataRefreshState,
+    recordBulkMetadataRefresh,
+    bulkMetadataRefreshSummary,
     compareSnapshot,
     restoreFromSnapshot,
   };
