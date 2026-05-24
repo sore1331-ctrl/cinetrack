@@ -98,6 +98,30 @@
     return rotateList(results, refreshIndex * visibleLimit);
   }
 
+  function requestKey({ scope = 'all', idParam = '', force = false, source = 'tmdb' } = {}) {
+    return `${source}:${scope}:${idParam}:${force ? 'force' : 'cached'}`;
+  }
+
+  function isCacheUsable({
+    cache = null,
+    poolKey = '',
+    now = Date.now(),
+    ttlMs = 0,
+    visibleCount = 0,
+    minVisible = 6,
+  } = {}) {
+    return Boolean(
+      cache &&
+      cache.poolKey === poolKey &&
+      Number(now || 0) - Number(cache.fetchedAt || 0) < Number(ttlMs || 0) &&
+      Number(visibleCount || 0) >= Number(minVisible || 0)
+    );
+  }
+
+  function shouldTopUpRecommendations({ visibleCount = 0, visibleLimit = 10 } = {}) {
+    return Number(visibleCount || 0) < Math.max(1, Math.ceil(Number(visibleLimit || 10) * 0.7));
+  }
+
   function actionFromDataset(dataset = {}) {
     const id = dataset.recId || '';
     const source = dataset.recSource || 'tmdb';
@@ -162,6 +186,9 @@
     score,
     rank,
     rotateForced,
+    requestKey,
+    isCacheUsable,
+    shouldTopUpRecommendations,
     actionFromDataset,
     watchlistEntryFromAction,
     detailsFetchTarget,

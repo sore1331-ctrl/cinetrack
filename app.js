@@ -3216,6 +3216,9 @@ const RECS_CACHE_KEY     = 'cinetrack_recs_cache_v2';
 const RECS_REFRESH_KEY   = 'cinetrack_recs_refresh_index';
 const RECS_VISIBLE_LIMIT = 10;
 const RECS_TTL_MS        = 24 * 60 * 60 * 1000;  // 24 hours
+const RECS_MIN_VISIBLE_CACHE = 6;
+const recommendationFetchInFlight = new Map();
+let recommendationLoadSeq = 0;
 
 function getDismissedRecs() {
   try { return new Set(JSON.parse(localStorage.getItem(DISMISSED_RECS_KEY) || '[]').map(String)); }
@@ -3233,6 +3236,10 @@ function readRecsCache() {
 }
 function writeRecsCache(cache) {
   localStorage.setItem(RECS_CACHE_KEY, JSON.stringify(cache));
+}
+
+function recommendationRequestKey({ scope = 'all', idParam = '', force = false, source = 'tmdb' } = {}) {
+  return recommendationModel.requestKey({ scope, idParam, force, source });
 }
 
 function dismissedRecProfile() {
@@ -3424,9 +3431,31 @@ function visibleRecommendationCount(results, scope) {
   return count;
 }
 
+async function fetchRecommendationJson({ scope, idParam, force = false }) {
+  const key = recommendationRequestKey({ scope, idParam, force, source: 'tmdb' });
+  if (recommendationFetchInFlight.has(key)) return recommendationFetchInFlight.get(key);
+
+  const request = (async () => {
+    try {
+      const params = new URLSearchParams({ ids: idParam });
+      if (scope !== 'all') params.set('type', scope);
+      if (force) params.set('_', String(Date.now()));
+      const r = await fetch(`/api/recommend?${params}`, { cache: force ? 'no-store' : 'default' });
+      if (!r.ok) throw new Error(r.status);
+      return await r.json();
+    } finally {
+      recommendationFetchInFlight.delete(key);
+    }
+  })();
+
+  recommendationFetchInFlight.set(key, request);
+  return request;
+}
+
 async function loadRecommendations({ force = false } = {}) {
   const section = document.getElementById('recs-section');
   if (!section) return;
+  const loadSeq = ++recommendationLoadSeq;
   const scope = recommendationScopeType();
 
   // Pool: watched + in_progress titles with tmdbId. In-progress shows
@@ -3478,16 +3507,22 @@ async function loadRecommendations({ force = false } = {}) {
   // Cache check (skip when forced)
   if (!force) {
     const cache = readRecsCache();
-    if (cache && cache.poolKey === poolKey && (Date.now() - cache.fetchedAt) < RECS_TTL_MS) {
-      if (visibleRecommendationCount(cache.results, scope) >= 6) {
-        const ranked = rankRecommendationResults(cache.results, {
-          genreCounts,
-          dismissedProfile: dismissedRecProfile(),
-          scope,
-        });
-        renderRecsCards(section, ranked, genreCounts, scope);
-        return;
-      }
+    if (recommendationModel.isCacheUsable({
+      cache,
+      poolKey,
+      now: Date.now(),
+      ttlMs: RECS_TTL_MS,
+      visibleCount: visibleRecommendationCount(cache?.results, scope),
+      minVisible: RECS_MIN_VISIBLE_CACHE,
+    })) {
+      const ranked = rankRecommendationResults(cache.results, {
+        genreCounts,
+        dismissedProfile: dismissedRecProfile(),
+        scope,
+      });
+      if (loadSeq !== recommendationLoadSeq) return;
+      renderRecsCards(section, ranked, genreCounts, scope);
+      return;
     }
   }
 
@@ -3513,6 +3548,7 @@ async function loadRecommendations({ force = false } = {}) {
       });
       anilistResults = rotateForcedRecommendations(anilistResults, refreshIndex, force);
       writeRecsCache({ fetchedAt: Date.now(), poolKey, results: anilistResults, source: 'anilist' });
+      if (loadSeq !== recommendationLoadSeq) return;
       renderRecsCards(section, anilistResults, genreCounts, scope);
       return;
     }
@@ -3529,14 +3565,17 @@ async function loadRecommendations({ force = false } = {}) {
 
   let data;
   try {
-    const params = new URLSearchParams({ ids: idParam });
-    if (scope !== 'all') params.set('type', scope);
-    if (force) params.set('_', String(Date.now()));
-    const r = await fetch(`/api/recommend?${params}`, { cache: force ? 'no-store' : 'default' });
-    if (!r.ok) throw new Error(r.status);
-    data = await r.json();
+    data = await fetchRecommendationJson({ scope, idParam, force });
   } catch {
-    section.innerHTML = '<p class="recs-empty">Recommendations require Vercel deployment with a TMDB API key.</p>';
+    const cache = readRecsCache();
+    if (cache?.poolKey === poolKey && Array.isArray(cache.results) && cache.results.length) {
+      if (loadSeq !== recommendationLoadSeq) return;
+      renderRecsCards(section, cache.results, genreCounts, scope);
+      return;
+    }
+    if (loadSeq === recommendationLoadSeq) {
+      section.innerHTML = '<p class="recs-empty">Recommendations require Vercel deployment with a TMDB API key.</p>';
+    }
     return;
   }
 
@@ -3561,6 +3600,7 @@ async function loadRecommendations({ force = false } = {}) {
   });
   results = rotateForcedRecommendations(results, refreshIndex, force);
   writeRecsCache({ fetchedAt: Date.now(), poolKey, results, source: scope === 'anime' ? 'anilist-first' : 'tmdb' });
+  if (loadSeq !== recommendationLoadSeq) return;
   renderRecsCards(section, results, genreCounts, scope);
 }
 
@@ -3666,6 +3706,11 @@ function renderRecsCards(section, results, genreCounts, scope = 'all') {
             section.querySelector('.recs-sub')?.remove();
             section.insertAdjacentHTML('beforeend',
               '<p class="recs-empty">All caught up — dismissed everything for now. Hit ↻ Refresh for a fresh batch.</p>');
+          } else if (recommendationModel.shouldTopUpRecommendations({
+            visibleCount: section.querySelectorAll('.rec-card').length,
+            visibleLimit: RECS_VISIBLE_LIMIT,
+          })) {
+            loadRecommendations({ force: true });
           }
         }, 200);
       }

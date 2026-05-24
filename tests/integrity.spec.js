@@ -976,9 +976,20 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('function scoreRecommendation');
     expect(app).toContain('function dismissedRecProfile');
     expect(app).toContain('function visibleRecommendationCount');
-    expect(app).toContain('visibleRecommendationCount(cache.results, scope) >= 6');
+    expect(app).toContain('recommendationModel.isCacheUsable');
     expect(app).toContain('const sample = selectRecommendationSeeds');
     expect(app).not.toContain('const sample = pickRandom');
+  });
+
+  test('recommendation fetch orchestration avoids stale renders and duplicate requests', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+
+    expect(app).toContain('const recommendationFetchInFlight = new Map()');
+    expect(app).toContain('let recommendationLoadSeq = 0');
+    expect(app).toContain('async function fetchRecommendationJson');
+    expect(app).toContain('recommendationFetchInFlight.has(key)');
+    expect(app).toContain('if (loadSeq !== recommendationLoadSeq) return');
+    expect(app).toContain('recommendationModel.shouldTopUpRecommendations');
   });
 
   test('recommendation refresh rotates seeds and bypasses request cache', () => {
@@ -1431,6 +1442,16 @@ test.describe('tracker data integrity', () => {
     expect(model.compatibleTypes('anime', 'tv')).toBe(true);
     expect(model.sourceKey({ source: 'anilist', externalId: 123 })).toBe('anilist:123');
     expect(model.rotateForced([1, 2, 3, 4], 1, true, 2)).toEqual([3, 4, 1, 2]);
+    expect(model.requestKey({ scope: 'tv', idParam: '1:tv', force: true })).toBe('tmdb:tv:1:tv:force');
+    expect(model.isCacheUsable({
+      cache: { poolKey: 'a', fetchedAt: 10, results: [] },
+      poolKey: 'a',
+      now: 20,
+      ttlMs: 100,
+      visibleCount: 6,
+      minVisible: 6,
+    })).toBe(true);
+    expect(model.shouldTopUpRecommendations({ visibleCount: 5, visibleLimit: 10 })).toBe(true);
   });
 
   test('recommendation model builds watchlist actions and enrichment targets', () => {
