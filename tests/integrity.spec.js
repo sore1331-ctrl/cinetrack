@@ -732,6 +732,39 @@ test.describe('tracker data integrity', () => {
     expect(model.rewatchState('watched', 'id', 2)).toEqual({ visible: true, count: 2, plural: 's' });
     expect(model.finalWatchCount('watchlist', 4, { watchCount: 7 })).toBe(7);
     expect(model.finalWatchCount('watched', 0, {})).toBe(1);
+    expect(model.episodeState({
+      mediaType: 'tv',
+      seasons: [
+        { number: 1, total: 12, watched: 12, name: 'One' },
+        { number: 2, total: 8, watched: 99, name: 'Two' },
+      ],
+    })).toEqual({
+      isShow: true,
+      totalEpisodes: 20,
+      watchedEpisodes: 20,
+      seasons: [
+        { number: 1, total: 12, watched: 12, name: 'One' },
+        { number: 2, total: 8, watched: 8, name: 'Two' },
+      ],
+    });
+    expect(model.derivedStatus('watchlist', { isShow: true, totalEpisodes: 10, watchedEpisodes: 3 })).toBe('in_progress');
+    expect(model.derivedStatus('dropped', { isShow: true, totalEpisodes: 10, watchedEpisodes: 10 })).toBe('dropped');
+    expect(model.entryPayload({
+      fields: { title: 'Show', status: 'watchlist', runtime: '45' },
+      mediaType: 'tv',
+      progress: { isShow: true, totalEpisodes: 12, watchedEpisodes: 12, seasons: [] },
+      selectedRating: 8,
+      editingWatchCount: 0,
+      existing: { watchCount: 4, tmdbId: 123 },
+    })).toEqual(expect.objectContaining({
+      title: 'Show',
+      status: 'watched',
+      rating: 8,
+      runtime: 45,
+      watchCount: 1,
+      externalSource: 'tmdb',
+      externalId: '123',
+    }));
   });
 
   test('modal UI state is routed through the modal model', () => {
@@ -744,7 +777,8 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('modalModel.formValues(movie)');
     expect(app).toContain('modalModel.cloneSeasons(movie)');
     expect(app).toContain('modalModel.rewatchState(status, editingId, editingWatchCount)');
-    expect(app).toContain('modalModel.finalWatchCount(status, editingWatchCount, existing)');
+    expect(app).toContain('modalModel.episodeState({');
+    expect(app).toContain('const data = modalModel.entryPayload({');
   });
 
   test('anime recommendations prefer AniList before TMDB fallback', () => {

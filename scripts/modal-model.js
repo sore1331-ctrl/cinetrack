@@ -60,6 +60,88 @@
     return 0;
   }
 
+  function numberValue(value) {
+    return Math.max(0, parseInt(value, 10) || 0);
+  }
+
+  function episodeState({ mediaType, seasons = [], totalInput = '', watchedInput = '' } = {}) {
+    const isShow = mediaType === 'tv' || mediaType === 'anime';
+    if (!isShow) {
+      return { isShow, totalEpisodes: 0, watchedEpisodes: 0, seasons: [] };
+    }
+
+    if (seasons.length) {
+      const cleanSeasons = seasons.map(season => ({
+        number: season.number,
+        total: numberValue(season.total),
+        watched: Math.min(numberValue(season.watched), numberValue(season.total)),
+        name: season.name,
+      }));
+      return {
+        isShow,
+        totalEpisodes: cleanSeasons.reduce((sum, season) => sum + (season.total || 0), 0),
+        watchedEpisodes: cleanSeasons.reduce((sum, season) => sum + (season.watched || 0), 0),
+        seasons: cleanSeasons,
+      };
+    }
+
+    const totalEpisodes = numberValue(totalInput);
+    const watchedEpisodes = Math.min(numberValue(watchedInput), totalEpisodes || numberValue(watchedInput));
+    return { isShow, totalEpisodes, watchedEpisodes, seasons: [] };
+  }
+
+  function derivedStatus(status, progress) {
+    if (status === 'dropped') return status;
+    if (!progress?.isShow || !progress.totalEpisodes) return status;
+    if (progress.watchedEpisodes >= progress.totalEpisodes) return 'watched';
+    if (progress.watchedEpisodes > 0) return 'in_progress';
+    return status;
+  }
+
+  function externalFields({ selection = null, selectedSource = null, selectedExternalId = '', existing = {} } = {}) {
+    return {
+      tmdbId: selectedSource === 'tmdb'
+        ? (selection?.id || existing?.tmdbId || null)
+        : (selection ? null : existing?.tmdbId || null),
+      externalSource: selectedSource || existing?.externalSource || (existing?.tmdbId ? 'tmdb' : 'manual'),
+      externalId: selectedExternalId || existing?.externalId || (existing?.tmdbId ? String(existing.tmdbId) : null),
+      sourceStatus: selection?.source_status || existing?.sourceStatus || '',
+    };
+  }
+
+  function entryPayload({
+    fields = {},
+    mediaType = 'movie',
+    progress = {},
+    selectedRating = 0,
+    editingWatchCount = 0,
+    existing = {},
+    posterUrl = '',
+    selection = null,
+    selectedSource = null,
+    selectedExternalId = '',
+  } = {}) {
+    const status = derivedStatus(fields.status || 'watchlist', progress);
+    return {
+      title: fields.title || '',
+      year: fields.year || '',
+      genre: fields.genre || '',
+      director: fields.director || '',
+      country: fields.country || '',
+      status,
+      notes: fields.notes || '',
+      runtime: numberValue(fields.runtime),
+      rating: status === 'watchlist' ? 0 : selectedRating,
+      mediaType,
+      totalEpisodes: progress.totalEpisodes || 0,
+      watchedEpisodes: progress.watchedEpisodes || 0,
+      seasons: progress.seasons || [],
+      watchCount: finalWatchCount(status, editingWatchCount, existing),
+      posterUrl,
+      ...externalFields({ selection, selectedSource, selectedExternalId, existing }),
+    };
+  }
+
   root.modal = {
     mediaTypeForOpen,
     formValues,
@@ -69,5 +151,9 @@
     showsRating,
     rewatchState,
     finalWatchCount,
+    episodeState,
+    derivedStatus,
+    externalFields,
+    entryPayload,
   };
 })();

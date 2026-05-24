@@ -5067,61 +5067,34 @@ form.addEventListener('submit', e => {
   if (isShow && editingSeasons.length) captureCurrentSeason();
   if (isShow && editingSeasons.length) normaliseSeasons(editingSeasons);
 
-  let totalEpisodes, watchedEpisodes, seasons;
-  if (isShow && editingSeasons.length) {
-    seasons = editingSeasons.map(s => ({ number: s.number, total: s.total, watched: s.watched || 0, name: s.name }));
-    totalEpisodes   = seasons.reduce((s, x) => s + (x.total   || 0), 0);
-    watchedEpisodes = seasons.reduce((s, x) => s + (x.watched || 0), 0);
-  } else if (isShow) {
-    totalEpisodes   = Math.max(0, parseInt(epTotalInput.value)   || 0);
-    watchedEpisodes = Math.max(0, parseInt(epWatchedInput.value) || 0);
-    if (totalEpisodes > 0 && watchedEpisodes > totalEpisodes) watchedEpisodes = totalEpisodes;
-    seasons = [];
-  } else {
-    totalEpisodes = 0; watchedEpisodes = 0; seasons = [];
-  }
-
-  let status = document.getElementById('f-status').value;
-  // Auto-derive watched/in_progress from episode counts — but only when
-  // the user hasn't explicitly chosen Dropped. Dropping a show with
-  // partial progress is a valid intent that should be respected.
-  if (status !== 'dropped' && isShow && totalEpisodes > 0) {
-    if (watchedEpisodes >= totalEpisodes) status = 'watched';
-    else if (watchedEpisodes > 0)         status = 'in_progress';
-  }
-
-  // Re-watch count: only meaningful for 'watched' status. Use the in-modal
-  // editor value when status is watched; otherwise preserve the existing
-  // count so downgrading and re-promoting doesn't lose the history.
-  let watchCount;
-  watchCount = modalModel.finalWatchCount(status, editingWatchCount, existing);
-
-  const data = {
-    title,
-    year:      document.getElementById('f-year').value     || '',
-    genre:     document.getElementById('f-genre').value    || '',
-    director:  document.getElementById('f-director').value || '',
-    country:   document.getElementById('f-country').value  || '',
-    status,
-    notes:     document.getElementById('f-notes').value    || '',
-    runtime:   parseInt(document.getElementById('f-runtime').value) || 0,
-    // Preserve rating for watched / in_progress / dropped (the user's
-    // verdict is still meaningful even after dropping). Only clear it
-    // when moving back to watchlist.
-    rating:    status === 'watchlist' ? 0 : selectedRating,
+  const progress = modalModel.episodeState({
     mediaType: activeMediaType,
-    totalEpisodes,
-    watchedEpisodes,
-    seasons,
-    watchCount,
+    seasons: editingSeasons,
+    totalInput: epTotalInput.value,
+    watchedInput: epWatchedInput.value,
+  });
+
+  const data = modalModel.entryPayload({
+    fields: {
+      title,
+      year: document.getElementById('f-year').value,
+      genre: document.getElementById('f-genre').value,
+      director: document.getElementById('f-director').value,
+      country: document.getElementById('f-country').value,
+      status: document.getElementById('f-status').value,
+      notes: document.getElementById('f-notes').value,
+      runtime: document.getElementById('f-runtime').value,
+    },
+    mediaType: activeMediaType,
+    progress,
+    selectedRating,
+    editingWatchCount,
+    existing,
     posterUrl,
-    tmdbId: selectedSource === 'tmdb'
-      ? (tmdbSelection?.id || existing?.tmdbId || null)
-      : (tmdbSelection ? null : existing?.tmdbId || null),
-    externalSource: selectedSource || existing?.externalSource || (existing?.tmdbId ? 'tmdb' : 'manual'),
-    externalId: selectedExternalId || existing?.externalId || (existing?.tmdbId ? String(existing.tmdbId) : null),
-    sourceStatus: tmdbSelection?.source_status || existing?.sourceStatus || '',
-  };
+    selection: tmdbSelection,
+    selectedSource,
+    selectedExternalId,
+  });
 
   if (editingId) {
     updateLibraryEntry(editingId, data, { allowDowngrade: true });
