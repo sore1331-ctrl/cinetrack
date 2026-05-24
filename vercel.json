@@ -1,4 +1,10 @@
 {
+  "crons": [
+    {
+      "path": "/api/push-episode-alerts",
+      "schedule": "0 9 * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/",
