@@ -112,6 +112,16 @@
     return '';
   }
 
+  function signInLoadPlan({ hasLocalChanges = false } = {}) {
+    return hasLocalChanges
+      ? { saveFirst: true, loadOptions: { onlyIfNewer: true }, savingMessage: 'Saving local changes before cloud load' }
+      : { saveFirst: false, loadOptions: {}, savingMessage: '' };
+  }
+
+  function failedSaveLoadResult(saved = {}) {
+    return { ok: false, error: saved?.error || 'Cloud save failed' };
+  }
+
   root.sync = {
     hasUnsyncedLocalChanges,
     shouldSkipCloudLoad,
@@ -123,5 +133,7 @@
     assertApiSaveResponse,
     cloudRefreshDecision,
     signInSyncToast,
+    signInLoadPlan,
+    failedSaveLoadResult,
   };
 })();

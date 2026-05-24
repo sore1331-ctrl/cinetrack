@@ -1665,6 +1665,17 @@ test.describe('tracker data integrity', () => {
     expect(model.signInSyncToast({ previousCount: 5, newCount: 2 }))
       .toBe('Synced — 3 titles removed since this device last synced');
     expect(model.signInSyncToast({ previousCount: 5, newCount: 6 })).toBe('');
+    expect(model.signInLoadPlan({ hasLocalChanges: true })).toEqual({
+      saveFirst: true,
+      loadOptions: { onlyIfNewer: true },
+      savingMessage: 'Saving local changes before cloud load',
+    });
+    expect(model.signInLoadPlan({ hasLocalChanges: false })).toEqual({
+      saveFirst: false,
+      loadOptions: {},
+      savingMessage: '',
+    });
+    expect(model.failedSaveLoadResult({ error: 'Nope' })).toEqual({ ok: false, error: 'Nope' });
 
     expect(model.buildSavePayload({
       userId: 'user-1',
@@ -1716,5 +1727,15 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('const syncToast = syncModel.signInSyncToast({');
     expect(app).toContain('newCount: Array.isArray(movies) ? movies.length : 0');
     expect(app).toContain('if (syncToast) showToast(syncToast);');
+  });
+
+  test('sign-in cloud load plan is routed through the sync model', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+
+    expect(app).toContain('const loadPlan = syncModel.signInLoadPlan({ hasLocalChanges: hasUnsyncedLocalChanges() });');
+    expect(app).toContain('if (loadPlan.saveFirst) {');
+    expect(app).toContain('setSyncState(\'saving\', loadPlan.savingMessage);');
+    expect(app).toContain('loaded = syncModel.failedSaveLoadResult(saved);');
+    expect(app).toContain('loaded = await loadUserData(loadPlan.loadOptions);');
   });
 });

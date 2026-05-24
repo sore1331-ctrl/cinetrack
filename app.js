@@ -5718,16 +5718,17 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
     (async () => {
       let loaded;
       try {
-        if (hasUnsyncedLocalChanges()) {
-          setSyncState('saving', 'Saving local changes before cloud load');
+        const loadPlan = syncModel.signInLoadPlan({ hasLocalChanges: hasUnsyncedLocalChanges() });
+        if (loadPlan.saveFirst) {
+          setSyncState('saving', loadPlan.savingMessage);
           const saved = await saveUserData();
           if (!saved?.ok) {
-            loaded = { ok: false, error: saved?.error || 'Cloud save failed' };
+            loaded = syncModel.failedSaveLoadResult(saved);
           } else {
-            loaded = await loadUserData({ onlyIfNewer: true });
+            loaded = await loadUserData(loadPlan.loadOptions);
           }
         } else {
-          loaded = await loadUserData();
+          loaded = await loadUserData(loadPlan.loadOptions);
         }
         if (!loaded?.ok) {
           // pendingLocal isn't a real failure — guard just chose to keep
