@@ -343,7 +343,6 @@ let mutationLockToastAt = 0;
 let sb              = null;
 let currentUser     = null;
 let currentAccessToken = '';
-let pushPublicKey = '';
 let offlineMode     = false;
 let currentUsername = null;
 let sharingEnabled  = localStorage.getItem('cinetrack_sharing') === 'true';
@@ -418,9 +417,8 @@ async function initSupabase() {
   try {
     const r = await withTimeout(fetch('/api/config', { cache: 'no-store' }), 'Supabase config load', 15000);
     if (!r.ok) throw new Error(`Config failed (${r.status})`);
-    const { supabaseUrl, supabaseKey, vapidPublicKey } = await withTimeout(r.json(), 'Supabase config parse', 3000);
+    const { supabaseUrl, supabaseKey } = await withTimeout(r.json(), 'Supabase config parse', 3000);
     if (!supabaseUrl || !supabaseKey) throw new Error();
-    pushPublicKey = vapidPublicKey || '';
     sb = window.supabase.createClient(supabaseUrl, supabaseKey);
     return true;
   } catch {
@@ -2574,85 +2572,6 @@ function hasUnwatchedAiringEpisodeToday(m, episode, todayStr = todayDateString()
   return calendarModel.hasUnwatchedAiringEpisodeToday(m, episode, todayStr);
 }
 
-function pushKeyBytes(base64Url) {
-  const padding = '='.repeat((4 - (base64Url.length % 4)) % 4);
-  const base64 = (base64Url + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const raw = atob(base64);
-  return Uint8Array.from([...raw].map(char => char.charCodeAt(0)));
-}
-
-async function pushRegistration() {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-    throw new Error('Push notifications are not supported by this browser.');
-  }
-  return navigator.serviceWorker.register('/sw.js');
-}
-
-async function savePushSubscription(subscription) {
-  const token = await getSupabaseAccessToken();
-  if (!token) throw new Error('Sign in before enabling push notifications.');
-  const r = await fetch('/api/push-subscription', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      subscription: subscription.toJSON(),
-      userAgent: navigator.userAgent || '',
-    }),
-  });
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok || !data?.ok) throw new Error(data?.error || `Push subscription failed (${r.status})`);
-}
-
-async function deletePushSubscription(endpoint) {
-  const token = await getSupabaseAccessToken();
-  if (!token || !endpoint) return;
-  await fetch('/api/push-subscription', {
-    method: 'DELETE',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ endpoint }),
-  }).catch(() => {});
-}
-
-async function enableDevicePush() {
-  if (!pushPublicKey) {
-    showToast('Browser alerts enabled. Phone push needs VAPID setup.', true);
-    return true;
-  }
-  try {
-    const registration = await pushRegistration();
-    const existing = await registration.pushManager.getSubscription();
-    const subscription = existing || await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: pushKeyBytes(pushPublicKey),
-    });
-    await savePushSubscription(subscription);
-    return true;
-  } catch (e) {
-    logAppError('push.subscribe', e, {}, 'warn');
-    showToast(e?.message || 'Could not enable phone push notifications', true);
-    return false;
-  }
-}
-
-async function disableDevicePush() {
-  if (!('serviceWorker' in navigator)) return;
-  try {
-    const registration = await navigator.serviceWorker.getRegistration('/sw.js');
-    const subscription = await registration?.pushManager?.getSubscription();
-    if (!subscription) return;
-    await deletePushSubscription(subscription.endpoint);
-    await subscription.unsubscribe();
-  } catch (e) {
-    logAppError('push.unsubscribe', e, {}, 'warn');
-  }
-}
-
 function getAiringTodaySignal(m, todayStr = todayDateString()) {
   return calendarModel.airingTodaySignal(m, readUpcomingCache(), todayStr);
 }
@@ -2835,10 +2754,6 @@ async function setEpisodeNotifPref(value) {
         return false;
       }
     }
-    const pushEnabled = await enableDevicePush();
-    if (!pushEnabled) return false;
-  } else {
-    await disableDevicePush();
   }
   localStorage.setItem('cinetrack_notif', value);
   applyEpisodeNotif(value);
@@ -5812,10 +5727,6 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
     withTimeout(loadPreferences(), 'Preference load', 15000).catch(e => {
       logAppError('preferences.initial_load', e, {}, 'warn');
     });
-    if (pushPublicKey && localStorage.getItem('cinetrack_notif') === 'on') {
-      enableDevicePush().catch(e => logAppError('push.resubscribe', e, {}, 'warn'));
-    }
-
     // User data: still runs in the background, but we capture the local
     // count up front so we can tell the user when cloud diverges
     // significantly (added/removed titles from another device).

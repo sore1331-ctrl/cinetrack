@@ -159,71 +159,6 @@ CREATE INDEX IF NOT EXISTS progress_events_user_created_idx
 CREATE INDEX IF NOT EXISTS progress_events_user_item_idx
   ON public.progress_events (user_id, item_key, created_at DESC);
 
--- 5. Web Push subscriptions and send dedupe for phone/desktop push alerts.
-CREATE TABLE IF NOT EXISTS public.push_subscriptions (
-  id            bigserial PRIMARY KEY,
-  user_id       uuid REFERENCES auth.users(id) ON DELETE CASCADE,
-  endpoint      text NOT NULL UNIQUE,
-  subscription  jsonb NOT NULL,
-  user_agent    text,
-  created_at    timestamptz DEFAULT now(),
-  updated_at    timestamptz DEFAULT now(),
-  last_seen_at  timestamptz DEFAULT now()
-);
-
-ALTER TABLE public.push_subscriptions
-  ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE;
-
-ALTER TABLE public.push_subscriptions
-  ADD COLUMN IF NOT EXISTS endpoint text;
-
-ALTER TABLE public.push_subscriptions
-  ADD COLUMN IF NOT EXISTS subscription jsonb;
-
-ALTER TABLE public.push_subscriptions
-  ADD COLUMN IF NOT EXISTS user_agent text;
-
-ALTER TABLE public.push_subscriptions
-  ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now();
-
-ALTER TABLE public.push_subscriptions
-  ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
-
-ALTER TABLE public.push_subscriptions
-  ADD COLUMN IF NOT EXISTS last_seen_at timestamptz DEFAULT now();
-
-CREATE UNIQUE INDEX IF NOT EXISTS push_subscriptions_endpoint_idx
-  ON public.push_subscriptions (endpoint);
-
-CREATE INDEX IF NOT EXISTS push_subscriptions_user_idx
-  ON public.push_subscriptions (user_id, last_seen_at DESC);
-
-CREATE TABLE IF NOT EXISTS public.push_notification_events (
-  id                bigserial PRIMARY KEY,
-  user_id           uuid REFERENCES auth.users(id) ON DELETE CASCADE,
-  notification_key  text NOT NULL,
-  payload           jsonb DEFAULT '{}'::jsonb,
-  sent_at           timestamptz DEFAULT now()
-);
-
-ALTER TABLE public.push_notification_events
-  ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE;
-
-ALTER TABLE public.push_notification_events
-  ADD COLUMN IF NOT EXISTS notification_key text;
-
-ALTER TABLE public.push_notification_events
-  ADD COLUMN IF NOT EXISTS payload jsonb DEFAULT '{}'::jsonb;
-
-ALTER TABLE public.push_notification_events
-  ADD COLUMN IF NOT EXISTS sent_at timestamptz DEFAULT now();
-
-CREATE UNIQUE INDEX IF NOT EXISTS push_notification_events_user_key_idx
-  ON public.push_notification_events (user_id, notification_key);
-
-CREATE INDEX IF NOT EXISTS push_notification_events_user_sent_idx
-  ON public.push_notification_events (user_id, sent_at DESC);
-
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -249,8 +184,6 @@ ALTER TABLE public.profiles  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_data ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_data_backups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.progress_events ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.push_notification_events ENABLE ROW LEVEL SECURITY;
 
 -- 7. Recreate policies idempotently.
 DROP POLICY IF EXISTS "profiles_select" ON public.profiles;
@@ -278,11 +211,6 @@ DROP POLICY IF EXISTS "progress_events_select_own" ON public.progress_events;
 DROP POLICY IF EXISTS "progress_events_insert_own" ON public.progress_events;
 DROP POLICY IF EXISTS "progress_events_update_none" ON public.progress_events;
 DROP POLICY IF EXISTS "progress_events_delete_none" ON public.progress_events;
-DROP POLICY IF EXISTS "push_subscriptions_select_own" ON public.push_subscriptions;
-DROP POLICY IF EXISTS "push_subscriptions_insert_own" ON public.push_subscriptions;
-DROP POLICY IF EXISTS "push_subscriptions_update_own" ON public.push_subscriptions;
-DROP POLICY IF EXISTS "push_subscriptions_delete_own" ON public.push_subscriptions;
-DROP POLICY IF EXISTS "push_notification_events_select_own" ON public.push_notification_events;
 
 -- Profiles:
 -- Signed-in users can read profile display data for community features.
@@ -348,52 +276,19 @@ CREATE POLICY "progress_events_insert_own" ON public.progress_events
   FOR INSERT TO authenticated
   WITH CHECK ((select auth.uid()) = user_id);
 
--- Push subscriptions:
--- Users can register and remove only their own browser/device endpoints.
-CREATE POLICY "push_subscriptions_select_own" ON public.push_subscriptions
-  FOR SELECT TO authenticated
-  USING ((select auth.uid()) = user_id);
-
-CREATE POLICY "push_subscriptions_insert_own" ON public.push_subscriptions
-  FOR INSERT TO authenticated
-  WITH CHECK ((select auth.uid()) = user_id);
-
-CREATE POLICY "push_subscriptions_update_own" ON public.push_subscriptions
-  FOR UPDATE TO authenticated
-  USING ((select auth.uid()) = user_id)
-  WITH CHECK ((select auth.uid()) = user_id);
-
-CREATE POLICY "push_subscriptions_delete_own" ON public.push_subscriptions
-  FOR DELETE TO authenticated
-  USING ((select auth.uid()) = user_id);
-
--- Notification events:
--- Normal users can inspect their own send history; only server-side service
--- role jobs should insert dedupe rows.
-CREATE POLICY "push_notification_events_select_own" ON public.push_notification_events
-  FOR SELECT TO authenticated
-  USING ((select auth.uid()) = user_id);
-
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.profiles TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON public.user_data TO authenticated;
 GRANT SELECT, INSERT ON public.user_data_backups TO authenticated;
 GRANT SELECT, INSERT ON public.progress_events TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.push_subscriptions TO authenticated;
-GRANT SELECT ON public.push_notification_events TO authenticated;
 GRANT USAGE, SELECT ON SEQUENCE public.user_data_backups_id_seq TO authenticated;
 GRANT USAGE, SELECT ON SEQUENCE public.progress_events_id_seq TO authenticated;
-GRANT USAGE, SELECT ON SEQUENCE public.push_subscriptions_id_seq TO authenticated;
-GRANT USAGE, SELECT ON SEQUENCE public.push_notification_events_id_seq TO authenticated;
 
 REVOKE DELETE ON public.user_data FROM authenticated;
 REVOKE UPDATE, DELETE ON public.user_data_backups FROM authenticated;
 REVOKE UPDATE, DELETE ON public.progress_events FROM authenticated;
-REVOKE INSERT, UPDATE, DELETE ON public.push_notification_events FROM authenticated;
 REVOKE ALL ON public.user_data FROM anon;
 REVOKE ALL ON public.user_data_backups FROM anon;
 REVOKE ALL ON public.progress_events FROM anon;
-REVOKE ALL ON public.push_subscriptions FROM anon;
-REVOKE ALL ON public.push_notification_events FROM anon;
 
 -- This helper is not used by CineTrack at runtime and should not be callable
 -- from the API if it exists.

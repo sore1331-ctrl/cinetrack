@@ -973,35 +973,6 @@ test.describe('tracker data integrity', () => {
     expect(sql).toContain('REVOKE UPDATE, DELETE ON public.progress_events FROM authenticated');
   });
 
-  test('web push infrastructure is wired behind authenticated APIs', () => {
-    const sql = fs.readFileSync(path.join(root, 'SUPABASE_SETUP.sql'), 'utf8');
-    const config = fs.readFileSync(path.join(root, 'api', 'config.js'), 'utf8');
-    const subscriptionApi = fs.readFileSync(path.join(root, 'api', 'push-subscription.js'), 'utf8');
-    const alertsApi = fs.readFileSync(path.join(root, 'api', 'push-episode-alerts.js'), 'utf8');
-    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
-    const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-    const vercel = fs.readFileSync(path.join(root, 'vercel.json'), 'utf8');
-    const serviceWorker = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
-    const manifest = fs.readFileSync(path.join(root, 'manifest.webmanifest'), 'utf8');
-
-    expect(sql).toContain('CREATE TABLE IF NOT EXISTS public.push_subscriptions');
-    expect(sql).toContain('CREATE TABLE IF NOT EXISTS public.push_notification_events');
-    expect(sql).toContain('push_subscriptions_insert_own');
-    expect(sql).toContain('REVOKE INSERT, UPDATE, DELETE ON public.push_notification_events FROM authenticated');
-    expect(config).toContain('vapidPublicKey: process.env.VAPID_PUBLIC_KEY');
-    expect(subscriptionApi).toContain("Authorization: `Bearer ${token}`");
-    expect(subscriptionApi).toContain('push_subscriptions?on_conflict=endpoint');
-    expect(alertsApi).toContain("requiredEnv('SUPABASE_SERVICE_ROLE_KEY')");
-    expect(alertsApi).toContain("requiredEnv('VAPID_PRIVATE_KEY')");
-    expect(alertsApi).toContain('webPush.sendNotification');
-    expect(app).toContain("navigator.serviceWorker.register('/sw.js')");
-    expect(app).toContain("fetch('/api/push-subscription'");
-    expect(index).toContain('<link rel="manifest" href="/manifest.webmanifest" />');
-    expect(vercel).toContain('/api/push-episode-alerts');
-    expect(serviceWorker).toContain("self.addEventListener('push'");
-    expect(manifest).toContain('"display": "standalone"');
-  });
-
   test('profile exposes local recovery snapshots', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
     const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
