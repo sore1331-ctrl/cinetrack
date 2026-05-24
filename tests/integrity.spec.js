@@ -452,11 +452,21 @@ test.describe('tracker data integrity', () => {
     const tvmazeApi = fs.readFileSync(path.join(root, 'api', 'tvmaze-calendar.js'), 'utf8');
 
     expect(app).toContain('async function fetchTvmazeCalendarForEntries');
-    expect(app).toContain("cache.byId?.[key]?.source === 'tvmaze'");
+    expect(app).toContain("requiredSource: 'tvmaze'");
     expect(app).toContain('mergeUpcomingCache(results)');
     expect(app).toContain('tvmazeUpcoming = await fetchTvmazeCalendarForEntries(tracked, { force });');
     expect(tvmazeApi).toContain('findCalendarEpisode');
     expect(tvmazeApi).toContain('ep.airdate >= today && ep.airdate <= horizon');
+  });
+
+  test('upcoming cache refresh preserves existing entries while warming badges', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+
+    expect(app).toContain('function patchUpcomingCache(results = [], requestedKeys = [])');
+    expect(app).toContain('const byId = cache.byId && typeof cache.byId ===');
+    expect(app).toContain('calendarModel.cacheWarmPlan');
+    expect(app).toContain('upcomingWarmInFlight = true');
+    expect(app).toContain("warmUpcomingCacheForBadge({ force: true, reason: 'daily' })");
   });
 
   test('tracked calendar only renders confirmed future dates', () => {
@@ -509,6 +519,42 @@ test.describe('tracker data integrity', () => {
     }, cache, '2026-05-23')).toEqual({ type: 'movie', releaseDate: '2026-05-23' });
   });
 
+  test('calendar model plans cache warming without duplicate network work', () => {
+    const model = loadCalendarModel();
+    const now = Date.parse('2026-05-24T09:00:00Z');
+    const freshCache = { fetchedAt: now - 1000, byId: { 'tv:1': null, 'movie:2': { releaseDate: '2026-05-24' } } };
+
+    expect(model.cacheWarmPlan({
+      keys: ['tv:1', 'movie:2', 'tv:1'],
+      cache: freshCache,
+      ttlMs: 60000,
+      now,
+    })).toMatchObject({ shouldWarm: false, reason: 'fresh', keys: ['tv:1', 'movie:2'] });
+
+    expect(model.cacheWarmPlan({
+      keys: ['tv:1', 'movie:3'],
+      cache: freshCache,
+      ttlMs: 60000,
+      now,
+    })).toMatchObject({ shouldWarm: true, reason: 'stale-or-missing' });
+
+    expect(model.cacheWarmPlan({
+      keys: ['tv:1'],
+      cache: freshCache,
+      ttlMs: 60000,
+      now,
+      inFlight: true,
+    })).toMatchObject({ shouldWarm: false, reason: 'in-flight' });
+
+    expect(model.cacheHasFreshKeys({
+      cache: { fetchedAt: now, byId: { 'tv:4': { source: 'tmdb' } } },
+      keys: ['tv:4'],
+      ttlMs: 60000,
+      now,
+      requiredSource: 'tvmaze',
+    })).toBe(false);
+  });
+
   test('calendar model builds discover watchlist entries', () => {
     const model = loadCalendarModel();
     const action = model.discoverActionFromDataset({
@@ -527,6 +573,12 @@ test.describe('tracker data integrity', () => {
       posterPath: '/poster.jpg',
     });
     expect(model.discoverFetchType(action.type)).toBe('tv');
+    expect(model.discoverCacheKey({ type: 'anime', region: 'GB', page: 2 })).toBe('anime:GB:2');
+    expect(Object.keys(model.pruneTimestampCache({
+      old: { fetchedAt: 1 },
+      newer: { fetchedAt: 3 },
+      middle: { fetchedAt: 2 },
+    }, { maxEntries: 2 }))).toEqual(['newer', 'middle']);
     expect(model.discoverWatchlistEntry(action, path => `poster:${path}`)).toEqual(expect.objectContaining({
       title: 'Upcoming Show',
       year: '2026',
@@ -543,6 +595,9 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('calendarModel.discoverActionFromDataset(btn.dataset)');
     expect(app).toContain('calendarModel.discoverFetchType(action.type)');
     expect(app).toContain('calendarModel.discoverWatchlistEntry(action, externalPosterUrl)');
+    expect(app).toContain('calendarModel.discoverCacheKey({ type, region, page })');
+    expect(app).toContain('discoverFetchInFlight.has(key)');
+    expect(app).toContain('calendarModel.pruneTimestampCache');
     expect(app).toContain('libraryModel.metadataEnrichmentPatch(details, m, externalPosterUrl)');
   });
 

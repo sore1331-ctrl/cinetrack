@@ -2404,12 +2404,14 @@ function renderRatingDist(buckets) {
 // Cache key bumped (v2) when the entry shape changed to {type, ...}.
 const UPCOMING_CACHE_KEY    = 'cinetrack_upcoming_cache_v2';
 const UPCOMING_TTL_MS       = 6 * 60 * 60 * 1000;  // 6 hours
+const UPCOMING_WARM_MIN_MS  = 30 * 1000;
 const UPCOMING_HORIZON_DAYS = 14;   // for TV episodes
 const MOVIE_HORIZON_DAYS    = 60;   // for theatrical releases
 
 // Discover-mode cache: key by `${type}:${region}:${page}`. 24h TTL.
 const DISCOVER_CACHE_KEY = 'cinetrack_discover_cache_v1';
 const DISCOVER_TTL_MS    = 24 * 60 * 60 * 1000;
+const DISCOVER_MAX_CACHE_ENTRIES = 24;
 
 // Common 2-letter regions matching what the where-to-watch endpoint uses.
 const DISCOVER_REGIONS = ['US','GB','CA','AU','DE','FR','JP','BR','MX','IN','NL','ES','IT','PL','SE','NO','DK','FI','IE','NZ'];
@@ -2427,6 +2429,9 @@ let discoverType   = (() => {
   const v = localStorage.getItem('cinetrack_discover_type');
   return DISCOVER_TYPES.includes(v) ? v : 'movie';
 })();
+let upcomingWarmInFlight = false;
+let lastUpcomingWarmAt = 0;
+const discoverFetchInFlight = new Map();
 
 function readUpcomingCache() {
   try { return JSON.parse(localStorage.getItem(UPCOMING_CACHE_KEY) || 'null'); }
@@ -2449,6 +2454,21 @@ function mergeUpcomingCache(items = []) {
   writeUpcomingCache({ fetchedAt: Date.now(), byId });
 }
 
+function patchUpcomingCache(results = [], requestedKeys = []) {
+  const cache = readUpcomingCache() || { fetchedAt: Date.now(), byId: {} };
+  const byId = cache.byId && typeof cache.byId === 'object' ? { ...cache.byId } : {};
+  for (const item of results || []) {
+    const key = item?.sourceKey || `${item?.type || 'tv'}:${item?.tmdbId || item?.externalId || ''}`;
+    if (!key || key.endsWith(':')) continue;
+    byId[key] = item;
+  }
+  for (const key of requestedKeys || []) {
+    if (key && !(key in byId)) byId[key] = null;
+  }
+  writeUpcomingCache({ fetchedAt: Date.now(), byId });
+  return byId;
+}
+
 // Caller passes ids as 'type:id' (e.g. 'tv:1399' or 'movie:823464').
 // Bare numeric ids are tolerated and treated as TV.
 async function fetchUpcoming(ids, { force = false } = {}) {
@@ -2464,12 +2484,7 @@ async function fetchUpcoming(ids, { force = false } = {}) {
   const r = await fetch(`/api/upcoming?ids=${encodeURIComponent(keys.join(','))}`);
   if (!r.ok) throw new Error(`Upcoming fetch failed (${r.status})`);
   const data = await r.json();
-  const byId = Object.fromEntries(
-    (data.results || []).map(s => [`${s.type || 'tv'}:${s.tmdbId}`, s])
-  );
-  // Mark keys that returned nothing (ended/canceled/no-date) as null so we don't re-hit them
-  keys.forEach(k => { if (!(k in byId)) byId[k] = null; });
-  writeUpcomingCache({ fetchedAt: now, byId });
+  const byId = patchUpcomingCache(data.results || [], keys);
   return keys.map(k => byId[k]).filter(Boolean);
 }
 
@@ -2527,9 +2542,14 @@ async function fetchTvmazeCalendarForEntries(entries, { force = false } = {}) {
 
   const cache = readUpcomingCache();
   const now = Date.now();
-  const fresh = cache && (now - cache.fetchedAt) < UPCOMING_TTL_MS;
   const keys = tvEntries.map(calendarKeyForEntry);
-  const cached = fresh && !force && keys.every(key => cache.byId?.[key]?.source === 'tvmaze');
+  const cached = !force && calendarModel.cacheHasFreshKeys({
+    cache,
+    keys,
+    ttlMs: UPCOMING_TTL_MS,
+    now,
+    requiredSource: 'tvmaze',
+  });
   if (cached) return keys.map(key => cache.byId[key]).filter(item => item?.source === 'tvmaze');
 
   const r = await fetch('/api/tvmaze-calendar', {
@@ -2657,10 +2677,10 @@ async function checkEpisodeNotifications() {
 
 // Warm the upcoming cache so the Calendar tab can show its airing-today
 // badge even if the user never opens the Calendar panel.
-async function warmUpcomingCacheForBadge() {
+function calendarWarmKeysForEntries(entries = movies) {
   const ids = [];
   const tvEntries = [];
-  for (const m of movies) {
+  for (const m of entries) {
     if (!m.tmdbId) continue;
     const isShow = m.mediaType === 'tv' || m.mediaType === 'anime';
     if (isShow && (m.status === 'in_progress' || m.status === 'watchlist')) {
@@ -2669,13 +2689,39 @@ async function warmUpcomingCacheForBadge() {
     }
     else if (m.mediaType === 'movie' && m.status === 'watchlist') ids.push(`movie:${m.tmdbId}`);
   }
-  if (!ids.length && !tvEntries.length) { updateCalendarAiringBadge(); return; }
-  try { await fetchUpcoming(ids); } catch { /* offline-safe */ }
-  try { await fetchTvmazeCalendarForEntries(tvEntries); } catch { /* offline-safe */ }
-  updateCalendarAiringBadge();
-  // Re-render the content grid so any "Today" highlights appear without
-  // waiting for the next user interaction.
-  if (activeView === 'content') render();
+  return { ids: [...new Set(ids)], tvEntries };
+}
+
+async function warmUpcomingCacheForBadge({ force = false, reason = 'badge' } = {}) {
+  const { ids, tvEntries } = calendarWarmKeysForEntries();
+  const plan = calendarModel.cacheWarmPlan({
+    keys: ids,
+    cache: readUpcomingCache(),
+    ttlMs: UPCOMING_TTL_MS,
+    now: Date.now(),
+    force,
+    inFlight: upcomingWarmInFlight,
+    lastWarmAt: lastUpcomingWarmAt,
+    minIntervalMs: UPCOMING_WARM_MIN_MS,
+  });
+  if (!plan.shouldWarm) {
+    updateCalendarAiringBadge();
+    return plan;
+  }
+
+  upcomingWarmInFlight = true;
+  lastUpcomingWarmAt = Date.now();
+  try {
+    try { await fetchUpcoming(ids, { force }); } catch (e) { logAppError('calendar.warm_tmdb', e, { reason, force }, 'warn'); }
+    try { await fetchTvmazeCalendarForEntries(tvEntries, { force }); } catch (e) { logAppError('calendar.warm_tvmaze', e, { reason, force }, 'warn'); }
+    updateCalendarAiringBadge();
+    // Re-render the content grid so any "Today" highlights appear without
+    // waiting for the next user interaction.
+    if (activeView === 'content') render();
+    return plan;
+  } finally {
+    upcomingWarmInFlight = false;
+  }
 }
 
 function trackedCalendarEntries() {
@@ -2700,6 +2746,7 @@ async function refreshTrackedCalendarSources({ force = false } = {}) {
     fetchUpcoming(tmdbIds, { force }),
     fetchExternalUpcomingForEntries(externalEntries),
   ]);
+  mergeUpcomingCache(externalUpcoming);
   let tvmazeUpcoming = [];
   try {
     tvmazeUpcoming = await fetchTvmazeCalendarForEntries(tracked, { force });
@@ -2727,7 +2774,7 @@ async function maybeRefreshCalendarOncePerAccountToday() {
   }
 
   try {
-    await refreshTrackedCalendarSources({ force: true });
+    await warmUpcomingCacheForBadge({ force: true, reason: 'daily' });
     await mergeProfilePreferences({ [CALENDAR_DAILY_REFRESH_PREF]: today });
     localStorage.setItem(CALENDAR_DAILY_REFRESH_PREF, today);
     updateCalendarAiringBadge();
@@ -2985,22 +3032,39 @@ function readDiscoverCache() {
   catch { return {}; }
 }
 function writeDiscoverCache(c) {
-  try { localStorage.setItem(DISCOVER_CACHE_KEY, JSON.stringify(c)); } catch {}
+  try {
+    const pruned = calendarModel.pruneTimestampCache(c, { maxEntries: DISCOVER_MAX_CACHE_ENTRIES });
+    localStorage.setItem(DISCOVER_CACHE_KEY, JSON.stringify(pruned));
+  } catch {}
 }
 
 async function fetchDiscoverUpcoming({ type, region, page = 1, force = false }) {
-  const key = `${type}:${region}:${page}`;
+  const key = calendarModel.discoverCacheKey({ type, region, page });
   const cache = readDiscoverCache();
   const now = Date.now();
   const entry = cache[key];
   if (!force && entry && (now - entry.fetchedAt) < DISCOVER_TTL_MS) return entry.data;
+  if (!force && discoverFetchInFlight.has(key)) return discoverFetchInFlight.get(key);
 
-  const r = await fetch(`/api/discover-upcoming?type=${type}&region=${region}&page=${page}`);
-  if (!r.ok) throw new Error(`Discover fetch failed (${r.status})`);
-  const data = await r.json();
-  cache[key] = { fetchedAt: now, data };
-  writeDiscoverCache(cache);
-  return data;
+  const request = (async () => {
+    try {
+      const r = await fetch(`/api/discover-upcoming?type=${type}&region=${region}&page=${page}`);
+      if (!r.ok) throw new Error(`Discover fetch failed (${r.status})`);
+      const data = await r.json();
+      const latestCache = readDiscoverCache();
+      latestCache[key] = { fetchedAt: Date.now(), data };
+      writeDiscoverCache(latestCache);
+      return data;
+    } catch (e) {
+      if (entry?.data) return entry.data;
+      throw e;
+    } finally {
+      discoverFetchInFlight.delete(key);
+    }
+  })();
+
+  discoverFetchInFlight.set(key, request);
+  return request;
 }
 
 async function renderCalendarDiscover(body, { force = false } = {}) {
@@ -5621,15 +5685,18 @@ document.addEventListener('visibilitychange', () => {
     saveUserData();
   } else if (!document.hidden && !offlineMode && currentUser) {
     scheduleEntryCloudRefresh('visible');
+    warmUpcomingCacheForBadge({ reason: 'visible' });
   }
 });
 
 window.addEventListener('focus', () => {
   scheduleEntryCloudRefresh('focus');
+  warmUpcomingCacheForBadge({ reason: 'focus' });
 });
 
 window.addEventListener('pageshow', () => {
   scheduleEntryCloudRefresh('pageshow');
+  warmUpcomingCacheForBadge({ reason: 'pageshow' });
 });
 
 async function refreshFromCloudIfNewer() {

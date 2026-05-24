@@ -84,6 +84,45 @@
     return null;
   }
 
+  function cacheHasFreshKeys({
+    cache = null,
+    keys = [],
+    ttlMs = 0,
+    now = Date.now(),
+    requiredSource = '',
+  } = {}) {
+    if (!keys.length) return true;
+    if (!cache?.byId || !cache.fetchedAt) return false;
+    if (ttlMs && Number(now || 0) - Number(cache.fetchedAt || 0) >= Number(ttlMs || 0)) return false;
+    return keys.every(key => {
+      if (!(key in cache.byId)) return false;
+      if (!requiredSource) return true;
+      return cache.byId[key]?.source === requiredSource;
+    });
+  }
+
+  function cacheWarmPlan({
+    keys = [],
+    cache = null,
+    ttlMs = 0,
+    now = Date.now(),
+    force = false,
+    inFlight = false,
+    lastWarmAt = 0,
+    minIntervalMs = 30000,
+  } = {}) {
+    const uniqueKeys = [...new Set((keys || []).filter(Boolean))];
+    if (!uniqueKeys.length) return { shouldWarm: false, reason: 'empty', keys: uniqueKeys };
+    if (inFlight) return { shouldWarm: false, reason: 'in-flight', keys: uniqueKeys };
+    if (!force && Number(now || 0) - Number(lastWarmAt || 0) < Number(minIntervalMs || 0)) {
+      return { shouldWarm: false, reason: 'throttled', keys: uniqueKeys };
+    }
+    if (!force && cacheHasFreshKeys({ cache, keys: uniqueKeys, ttlMs, now })) {
+      return { shouldWarm: false, reason: 'fresh', keys: uniqueKeys };
+    }
+    return { shouldWarm: true, reason: force ? 'forced' : 'stale-or-missing', keys: uniqueKeys };
+  }
+
   function discoverActionFromDataset(dataset = {}) {
     return {
       tmdbId: dataset.addId || dataset.tmdbId || '',
@@ -100,6 +139,20 @@
 
   function discoverFetchType(type) {
     return discoverMediaType(type) === 'movie' ? 'movie' : 'tv';
+  }
+
+  function discoverCacheKey({ type = 'movie', region = 'US', page = 1 } = {}) {
+    return `${discoverMediaType(type)}:${region || 'US'}:${Number(page || 1)}`;
+  }
+
+  function pruneTimestampCache(cache = {}, { maxEntries = 24 } = {}) {
+    const entries = Object.entries(cache || {});
+    if (entries.length <= maxEntries) return cache || {};
+    return Object.fromEntries(
+      entries
+        .sort((a, b) => Number(b[1]?.fetchedAt || 0) - Number(a[1]?.fetchedAt || 0))
+        .slice(0, maxEntries)
+    );
   }
 
   function discoverWatchlistEntry(action = {}, posterUrl = path => path || '') {
@@ -127,9 +180,13 @@
     episodeOrdinalForProgress,
     hasUnwatchedAiringEpisodeToday,
     airingTodaySignal,
+    cacheHasFreshKeys,
+    cacheWarmPlan,
     discoverActionFromDataset,
     discoverMediaType,
     discoverFetchType,
+    discoverCacheKey,
+    pruneTimestampCache,
     discoverWatchlistEntry,
   };
 })();
