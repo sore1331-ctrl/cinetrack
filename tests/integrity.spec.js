@@ -1660,6 +1660,11 @@ test.describe('tracker data integrity', () => {
       now: 5000,
       lastAttempt: 0,
     }).shouldRefresh).toBe(false);
+    expect(model.signInSyncToast({ previousCount: 2, newCount: 5 }))
+      .toBe('Synced — 3 new titles from another device');
+    expect(model.signInSyncToast({ previousCount: 5, newCount: 2 }))
+      .toBe('Synced — 3 titles removed since this device last synced');
+    expect(model.signInSyncToast({ previousCount: 5, newCount: 6 })).toBe('');
 
     expect(model.buildSavePayload({
       userId: 'user-1',
@@ -1703,5 +1708,13 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('if (!decision.shouldRefresh) return;');
     expect(app).toContain('lastCloudRefreshAttempt = decision.nextLastAttempt;');
     expect(app).toContain('}, decision.delay);');
+  });
+
+  test('sign-in sync count toast is routed through the sync model', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+
+    expect(app).toContain('const syncToast = syncModel.signInSyncToast({');
+    expect(app).toContain('newCount: Array.isArray(movies) ? movies.length : 0');
+    expect(app).toContain('if (syncToast) showToast(syncToast);');
   });
 });

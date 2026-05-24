@@ -100,6 +100,18 @@
     };
   }
 
+  function signInSyncToast({ previousCount = 0, newCount = 0, threshold = 2 } = {}) {
+    const delta = Number(newCount || 0) - Number(previousCount || 0);
+    if (delta >= threshold) {
+      return `Synced — ${delta} new title${delta === 1 ? '' : 's'} from another device`;
+    }
+    if (delta <= -threshold) {
+      const removed = Math.abs(delta);
+      return `Synced — ${removed} title${removed === 1 ? '' : 's'} removed since this device last synced`;
+    }
+    return '';
+  }
+
   root.sync = {
     hasUnsyncedLocalChanges,
     shouldSkipCloudLoad,
@@ -110,5 +122,6 @@
     assertApiLoadResponse,
     assertApiSaveResponse,
     cloudRefreshDecision,
+    signInSyncToast,
   };
 })();

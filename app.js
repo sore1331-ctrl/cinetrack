@@ -5738,13 +5738,11 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
         startCloudPolling();
         maybeRefreshCalendarOncePerAccountToday();
 
-        const newCount = Array.isArray(movies) ? movies.length : 0;
-        const delta = newCount - previousCount;
-        if (delta >= 2) {
-          showToast(`Synced — ${delta} new title${delta === 1 ? '' : 's'} from another device`);
-        } else if (delta <= -2) {
-          showToast(`Synced — ${-delta} title${delta === -1 ? '' : 's'} removed since this device last synced`);
-        }
+        const syncToast = syncModel.signInSyncToast({
+          previousCount,
+          newCount: Array.isArray(movies) ? movies.length : 0,
+        });
+        if (syncToast) showToast(syncToast);
       } finally {
         initialLibrarySyncPending = false;
         updateMutationLockUI();
