@@ -821,6 +821,39 @@ test.describe('tracker data integrity', () => {
     }, { editingId: 'c', normaliseTitle, normaliseYear })).toBeNull();
   });
 
+  test('duplicate model matches recommendations already tracked in the library', () => {
+    const model = loadDuplicateModel();
+    const library = [
+      { id: 'a', title: 'Young Justice', year: '2010', mediaType: 'tv', tmdbId: 33217 },
+      { id: 'b', title: 'NANA', year: '2006', mediaType: 'anime', externalSource: 'anilist', externalId: '877' },
+      { id: 'c', title: 'Long Manual Match', year: '', mediaType: 'movie' },
+    ];
+    const normaliseTitle = value => String(value || '').trim().toLowerCase();
+    const normaliseYear = value => String(value || '').match(/\d{4}/)?.[0] || '';
+    const compatibleTypes = (a, b) => a === b || (a === 'anime' && b === 'tv') || (a === 'tv' && b === 'anime');
+    const recommendationSourceKey = rec => `${rec.source || 'tmdb'}:${rec.externalId || rec.id}`;
+
+    expect(model.findTrackedRecommendation(library, {
+      id: 33217,
+      source: 'tmdb',
+      media_type: 'tv',
+      title: 'Other',
+    }, { normaliseTitle, normaliseYear, compatibleTypes, recommendationSourceKey })).toBe(library[0]);
+    expect(model.findTrackedRecommendation(library, {
+      id: 877,
+      externalId: 877,
+      source: 'anilist',
+      media_type: 'tv',
+      title: 'Nana',
+    }, { normaliseTitle, normaliseYear, compatibleTypes, recommendationSourceKey })).toBe(library[1]);
+    expect(model.findTrackedRecommendation(library, {
+      id: 'missing',
+      source: 'tmdb',
+      media_type: 'movie',
+      title: 'Long Manual Match',
+    }, { normaliseTitle, normaliseYear, compatibleTypes, recommendationSourceKey })).toBe(library[2]);
+  });
+
   test('duplicate detection is routed through the duplicate model', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
     const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
@@ -828,6 +861,7 @@ test.describe('tracker data integrity', () => {
     expect(index).toContain('scripts/duplicate-model.js');
     expect(app).toContain('const duplicateModel = window.CineTrack?.duplicates;');
     expect(app).toContain('return duplicateModel.findDuplicate(movies, {');
+    expect(app).toContain('return duplicateModel.findTrackedRecommendation(movies, rec, {');
   });
 
   test('anime recommendations prefer AniList before TMDB fallback', () => {

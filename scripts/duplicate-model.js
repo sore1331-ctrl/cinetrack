@@ -41,8 +41,45 @@
     return library.find(entry => isDuplicateCandidate(entry, query, options)) || null;
   }
 
+  function findTrackedRecommendation(library = [], rec = {}, options = {}) {
+    if (!rec) return null;
+    const normaliseTitle = options.normaliseTitle || defaultNormaliseTitle;
+    const normaliseYear = options.normaliseYear || defaultNormaliseYear;
+    const compatibleTypes = options.compatibleTypes || ((a, b) => !a || !b || a === b);
+    const recommendationMediaType = options.recommendationMediaType || (item => item?.media_type || item?.mediaType || '');
+    const recommendationSourceKey = options.recommendationSourceKey || (item => {
+      const source = item?.source || 'tmdb';
+      const externalId = item?.externalId || item?.id;
+      return externalId ? `${source}:${externalId}` : '';
+    });
+
+    const source = rec.source || 'tmdb';
+    const recType = recommendationMediaType(rec);
+    const recId = rec.id == null ? '' : String(rec.id);
+    const recSourceKey = recommendationSourceKey(rec);
+    const recTitle = normaliseTitle(rec.title);
+    const recYear = normaliseYear(rec.year);
+
+    return library.find(entry => {
+      const entryType = entry?.mediaType || '';
+      if (!compatibleTypes(entryType, recType)) return false;
+
+      if (source === 'tmdb' && recId && entry.tmdbId && String(entry.tmdbId) === recId) return true;
+      if (recSourceKey && entry.externalSource && entry.externalId && `${entry.externalSource}:${entry.externalId}` === recSourceKey) return true;
+
+      const entryTitle = normaliseTitle(entry.title);
+      if (!entryTitle || !recTitle || entryTitle !== recTitle) return false;
+
+      const entryYear = normaliseYear(entry.year);
+      if (entryYear && recYear) return entryYear === recYear;
+
+      return recTitle.length >= 8;
+    }) || null;
+  }
+
   root.duplicates = {
     findDuplicate,
+    findTrackedRecommendation,
     isDuplicateCandidate,
   };
 })();

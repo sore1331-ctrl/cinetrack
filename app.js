@@ -3246,29 +3246,13 @@ function recommendationSourceKey(rec) {
 }
 
 function findTrackedRecommendationMatch(rec) {
-  if (!rec) return null;
-  const source = rec.source || 'tmdb';
-  const recType = recMediaType(rec);
-  const recId = rec.id == null ? '' : String(rec.id);
-  const recSourceKey = recommendationSourceKey(rec);
-  const recTitle = normaliseDuplicateTitle(rec.title);
-  const recYear = normaliseDuplicateYear(rec.year);
-
-  return movies.find(m => {
-    const movieType = m.mediaType || '';
-    if (!compatibleRecTypes(movieType, recType)) return false;
-
-    if (source === 'tmdb' && recId && m.tmdbId && String(m.tmdbId) === recId) return true;
-    if (recSourceKey && m.externalSource && m.externalId && `${m.externalSource}:${m.externalId}` === recSourceKey) return true;
-
-    const movieTitle = normaliseDuplicateTitle(m.title);
-    if (!movieTitle || !recTitle || movieTitle !== recTitle) return false;
-
-    const movieYear = normaliseDuplicateYear(m.year);
-    if (movieYear && recYear) return movieYear === recYear;
-
-    return recTitle.length >= 8;
-  }) || null;
+  return duplicateModel.findTrackedRecommendation(movies, rec, {
+    normaliseTitle: normaliseDuplicateTitle,
+    normaliseYear: normaliseDuplicateYear,
+    compatibleTypes: compatibleRecTypes,
+    recommendationMediaType: recMediaType,
+    recommendationSourceKey,
+  });
 }
 
 function recommendationInfoUrl(rec) {
