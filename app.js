@@ -5769,26 +5769,32 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
 
   try {
     const { data: { session } } = await withTimeout(sb.auth.getSession(), 'Initial session load', SESSION_TIMEOUT_MS);
-    if (session?.user) {
-      await handleUserSignIn(session.user, session.access_token || '');
+    const initialSessionPlan = syncModel.initialSessionPlan({ session });
+    if (initialSessionPlan.type === 'sign-in') {
+      await handleUserSignIn(initialSessionPlan.user, initialSessionPlan.accessToken);
     } else {
-      showAuthOverlay('form');
+      showAuthOverlay(initialSessionPlan.authMode);
     }
   } catch (e) {
     logAppError('auth.initial_session', e, {}, 'warn');
-    if (currentUser) {
-      hideAuthOverlay();
-      updateCountryDropdown();
-      render();
-      startCloudPolling();
+    const initialSessionErrorPlan = syncModel.initialSessionErrorPlan({
+      hasCurrentUser: Boolean(currentUser),
+      hasMovies: movies.length > 0,
+      errorMessage: e?.message,
+    });
+    if (initialSessionErrorPlan.type === 'keep-current-user') {
+      if (initialSessionErrorPlan.hideAuthOverlay) hideAuthOverlay();
+      if (initialSessionErrorPlan.updateCountryDropdown) updateCountryDropdown();
+      if (initialSessionErrorPlan.render) render();
+      if (initialSessionErrorPlan.startCloudPolling) startCloudPolling();
       return;
     }
-    offlineMode = true;
-    hideAuthOverlay();
-    setSyncState('error', e?.message || 'Session load failed');
-    if (movies.length === 0) seedData();
-    updateCountryDropdown();
-    render();
-    showToast('Cloud session timed out. Opened in local mode.', true);
+    offlineMode = initialSessionErrorPlan.offlineMode;
+    if (initialSessionErrorPlan.hideAuthOverlay) hideAuthOverlay();
+    setSyncState(initialSessionErrorPlan.syncState.state, initialSessionErrorPlan.syncState.message);
+    if (initialSessionErrorPlan.seedData) seedData();
+    if (initialSessionErrorPlan.updateCountryDropdown) updateCountryDropdown();
+    if (initialSessionErrorPlan.render) render();
+    showToast(initialSessionErrorPlan.toast.message, initialSessionErrorPlan.toast.isError);
   }
 })();

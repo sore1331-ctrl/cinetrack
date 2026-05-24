@@ -174,6 +174,43 @@
     return { type: 'ignore', currentAccessToken: nextAccessToken };
   }
 
+  function initialSessionPlan({ session = null } = {}) {
+    if (session?.user) {
+      return {
+        type: 'sign-in',
+        user: session.user,
+        accessToken: session.access_token || '',
+      };
+    }
+    return { type: 'show-auth', authMode: 'form' };
+  }
+
+  function initialSessionErrorPlan({
+    hasCurrentUser = false,
+    hasMovies = false,
+    errorMessage = '',
+  } = {}) {
+    if (hasCurrentUser) {
+      return {
+        type: 'keep-current-user',
+        hideAuthOverlay: true,
+        updateCountryDropdown: true,
+        render: true,
+        startCloudPolling: true,
+      };
+    }
+    return {
+      type: 'local-mode',
+      offlineMode: true,
+      hideAuthOverlay: true,
+      syncState: { state: 'error', message: errorMessage || 'Session load failed' },
+      seedData: !hasMovies,
+      updateCountryDropdown: true,
+      render: true,
+      toast: { message: 'Cloud session timed out. Opened in local mode.', isError: true },
+    };
+  }
+
   root.sync = {
     hasUnsyncedLocalChanges,
     shouldSkipCloudLoad,
@@ -189,5 +226,7 @@
     failedSaveLoadResult,
     signOutCleanupPlan,
     authStateChangePlan,
+    initialSessionPlan,
+    initialSessionErrorPlan,
   };
 })();

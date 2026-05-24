@@ -1722,6 +1722,42 @@ test.describe('tracker data integrity', () => {
       session: { access_token: 'token-2' },
       currentAccessToken: 'token-1',
     })).toEqual({ type: 'ignore', currentAccessToken: 'token-2' });
+    expect(model.initialSessionPlan({
+      session: { user: { id: 'user-1' }, access_token: 'session-token' },
+    })).toEqual({
+      type: 'sign-in',
+      user: { id: 'user-1' },
+      accessToken: 'session-token',
+    });
+    expect(model.initialSessionPlan({ session: null })).toEqual({
+      type: 'show-auth',
+      authMode: 'form',
+    });
+    expect(model.initialSessionErrorPlan({
+      hasCurrentUser: true,
+      hasMovies: true,
+      errorMessage: 'Timeout',
+    })).toEqual({
+      type: 'keep-current-user',
+      hideAuthOverlay: true,
+      updateCountryDropdown: true,
+      render: true,
+      startCloudPolling: true,
+    });
+    expect(model.initialSessionErrorPlan({
+      hasCurrentUser: false,
+      hasMovies: false,
+      errorMessage: 'Timeout',
+    })).toEqual({
+      type: 'local-mode',
+      offlineMode: true,
+      hideAuthOverlay: true,
+      syncState: { state: 'error', message: 'Timeout' },
+      seedData: true,
+      updateCountryDropdown: true,
+      render: true,
+      toast: { message: 'Cloud session timed out. Opened in local mode.', isError: true },
+    });
 
     expect(model.buildSavePayload({
       userId: 'user-1',
@@ -1805,5 +1841,18 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('} else if (authPlan.type === \'sign-out\') {');
     expect(app).toContain('userDataFetched = authPlan.reset.userDataFetched;');
     expect(app).toContain('if (authPlan.stopCloudPolling) stopCloudPolling();');
+  });
+
+  test('initial session startup is routed through the sync model', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+
+    expect(app).toContain('const initialSessionPlan = syncModel.initialSessionPlan({ session });');
+    expect(app).toContain('await handleUserSignIn(initialSessionPlan.user, initialSessionPlan.accessToken);');
+    expect(app).toContain('showAuthOverlay(initialSessionPlan.authMode);');
+    expect(app).toContain('const initialSessionErrorPlan = syncModel.initialSessionErrorPlan({');
+    expect(app).toContain('hasCurrentUser: Boolean(currentUser)');
+    expect(app).toContain('if (initialSessionErrorPlan.type === \'keep-current-user\') {');
+    expect(app).toContain('offlineMode = initialSessionErrorPlan.offlineMode;');
+    expect(app).toContain('showToast(initialSessionErrorPlan.toast.message, initialSessionErrorPlan.toast.isError);');
   });
 });
