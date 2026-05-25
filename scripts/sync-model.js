@@ -36,6 +36,35 @@
     return !lastCloudUpdatedAt || row.updated_at > lastCloudUpdatedAt;
   }
 
+  function cloudLoadDecision({
+    force = false,
+    onlyIfNewer = false,
+    hasLocalChanges = false,
+    row = null,
+    lastCloudUpdatedAt = null,
+    initialChangeVersion = 0,
+    currentChangeVersion = 0,
+    initialTimerSet = false,
+    currentTimerSet = false,
+  } = {}) {
+    if (shouldSkipCloudLoad({ force, hasLocalChanges })) {
+      return {
+        action: 'skip-pending',
+        result: { ok: false, pendingLocal: true, error: 'Skipped cloud load because this device has pending local changes.' },
+      };
+    }
+    if (!shouldUseLoadedRow({ row, onlyIfNewer, lastCloudUpdatedAt })) {
+      return { action: 'skip-not-newer', result: { ok: true, changed: false } };
+    }
+    if (didEditDuringLoad({ initialChangeVersion, currentChangeVersion, initialTimerSet, currentTimerSet })) {
+      return {
+        action: 'skip-midflight',
+        result: { ok: false, pendingLocal: true, error: 'Skipped cloud load because new local changes appeared during the load.' },
+      };
+    }
+    return { action: 'apply', result: null };
+  }
+
   function buildSavePayload({
     userId,
     movies,
@@ -49,6 +78,33 @@
       updated_at: updatedAt || new Date().toISOString(),
       base_updated_at: lastCloudUpdatedAt,
       base_version: lastCloudVersion,
+    };
+  }
+
+  function shouldSaveUserData({
+    hasClient = false,
+    hasUser = false,
+    hasPendingMarker = false,
+    hasLocalChanges = false,
+  } = {}) {
+    if (!hasClient || !hasUser) return { shouldSave: false, result: { ok: false, error: 'Not signed in' } };
+    if (!hasPendingMarker && !hasLocalChanges) return { shouldSave: false, result: { ok: true, skipped: true } };
+    return { shouldSave: true, result: null };
+  }
+
+  function saveSuccessState({
+    result = {},
+    payload = {},
+    moviesLength = 0,
+    lastCloudVersion = 0,
+    lastSavedLocalVersion = 0,
+    saveVersion = 0,
+  } = {}) {
+    return {
+      lastCloudUpdatedAt: result.updated_at || payload.updated_at || null,
+      lastCloudVersion: Number(result.version || lastCloudVersion || 0),
+      lastCloudItemCount: result.item_count ?? moviesLength,
+      lastSavedLocalVersion: Math.max(Number(lastSavedLocalVersion || 0), Number(saveVersion || 0)),
     };
   }
 
@@ -269,7 +325,10 @@
     shouldSkipCloudLoad,
     didEditDuringLoad,
     shouldUseLoadedRow,
+    cloudLoadDecision,
     buildSavePayload,
+    shouldSaveUserData,
+    saveSuccessState,
     normaliseUserDataRow,
     assertApiLoadResponse,
     assertApiSaveResponse,

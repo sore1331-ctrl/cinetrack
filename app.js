@@ -613,32 +613,29 @@ async function loadUserData(options = {}) {
   const initialChangeVersion = localChangeVersion;
   const initialTimerSet      = Boolean(cloudSyncTimer);
   try {
-    if (syncModel.shouldSkipCloudLoad({ force, hasLocalChanges: hasUnsyncedLocalChanges() })) {
-      return { ok: false, pendingLocal: true, error: 'Skipped cloud load because this device has pending local changes.' };
-    }
+    const hasLocalChanges = hasUnsyncedLocalChanges();
+    const preLoadDecision = syncModel.cloudLoadDecision({ force, hasLocalChanges });
+    if (preLoadDecision.action !== 'apply') return preLoadDecision.result;
     const row = await loadUserDataWithFallback();
-
-    if (onlyIfNewer) {
-      if (!syncModel.shouldUseLoadedRow({ row, onlyIfNewer, lastCloudUpdatedAt })) {
-        if (!silent) setSyncState('saved');
-        return { ok: true, changed: false };
-      }
-    }
 
     // Re-check after the await — but only block on changes that actually
     // appeared DURING the await. We compare against the snapshot taken
     // at entry so force: true (Reload from cloud) still works as intended:
     // the user explicitly chose to discard their existing pending edits,
     // and only brand-new edits made during the load should preserve.
-    const newEditsMidFlight = syncModel.didEditDuringLoad({
+    const loadDecision = syncModel.cloudLoadDecision({
+      force,
+      onlyIfNewer,
+      row,
+      lastCloudUpdatedAt,
       initialChangeVersion,
       currentChangeVersion: localChangeVersion,
       initialTimerSet,
       currentTimerSet: Boolean(cloudSyncTimer),
     });
-    if (newEditsMidFlight) {
+    if (loadDecision.action !== 'apply') {
       if (!silent) setSyncState('saved');
-      return { ok: false, pendingLocal: true, error: 'Skipped cloud load because new local changes appeared during the load.' };
+      return loadDecision.result;
     }
 
     if (row?.exists && Array.isArray(row.movies)) {
@@ -682,8 +679,13 @@ async function loadUserData(options = {}) {
 }
 
 async function saveUserData() {
-  if (!sb || !currentUser) return { ok: false, error: 'Not signed in' };
-  if (!readPendingSyncMarker() && !hasUnsyncedLocalChanges()) return { ok: true, skipped: true };
+  const saveDecision = syncModel.shouldSaveUserData({
+    hasClient: Boolean(sb),
+    hasUser: Boolean(currentUser),
+    hasPendingMarker: Boolean(readPendingSyncMarker()),
+    hasLocalChanges: hasUnsyncedLocalChanges(),
+  });
+  if (!saveDecision.shouldSave) return saveDecision.result;
   const saveVersion = localChangeVersion;
   try {
     writeLocalLibraryBackup('before-cloud-save', movies);
@@ -695,10 +697,18 @@ async function saveUserData() {
     });
     const result = await saveUserDataWithFallback(payload);
 
-    lastCloudUpdatedAt = result.updated_at || payload.updated_at;
-    lastCloudVersion = Number(result.version || lastCloudVersion || 0);
-    lastCloudItemCount = result.item_count ?? movies.length;
-    lastSavedLocalVersion = Math.max(lastSavedLocalVersion, saveVersion);
+    const nextSyncState = syncModel.saveSuccessState({
+      result,
+      payload,
+      moviesLength: movies.length,
+      lastCloudVersion,
+      lastSavedLocalVersion,
+      saveVersion,
+    });
+    lastCloudUpdatedAt = nextSyncState.lastCloudUpdatedAt;
+    lastCloudVersion = nextSyncState.lastCloudVersion;
+    lastCloudItemCount = nextSyncState.lastCloudItemCount;
+    lastSavedLocalVersion = nextSyncState.lastSavedLocalVersion;
     clearPendingSyncMarker();
     setSyncState('saved');
     return { ok: true };

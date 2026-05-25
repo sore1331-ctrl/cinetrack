@@ -408,7 +408,8 @@ test.describe('tracker data integrity', () => {
     expect(api).not.toContain('updated_at: updated_at ||');
     expect(app).toContain('syncModel.buildSavePayload');
     expect(app).toContain('lastCloudVersion,');
-    expect(app).toContain('lastCloudVersion = Number(result.version');
+    expect(app).toContain('syncModel.saveSuccessState');
+    expect(app).toContain('lastCloudVersion = nextSyncState.lastCloudVersion');
   });
 
   test('progress events capture append-only audit changes', () => {
@@ -1972,6 +1973,29 @@ test.describe('tracker data integrity', () => {
       lastCloudUpdatedAt: '2026-05-23T10:00:00.000Z',
       row: { updated_at: '2026-05-23T09:00:00.000Z' },
     })).toBe(false);
+    expect(model.cloudLoadDecision({
+      force: false,
+      hasLocalChanges: true,
+    })).toEqual({
+      action: 'skip-pending',
+      result: { ok: false, pendingLocal: true, error: 'Skipped cloud load because this device has pending local changes.' },
+    });
+    expect(model.cloudLoadDecision({
+      onlyIfNewer: true,
+      row: { updated_at: '2026-05-23T09:00:00.000Z' },
+      lastCloudUpdatedAt: '2026-05-23T10:00:00.000Z',
+    })).toEqual({
+      action: 'skip-not-newer',
+      result: { ok: true, changed: false },
+    });
+    expect(model.cloudLoadDecision({
+      initialChangeVersion: 1,
+      currentChangeVersion: 2,
+    })).toEqual({
+      action: 'skip-midflight',
+      result: { ok: false, pendingLocal: true, error: 'Skipped cloud load because new local changes appeared during the load.' },
+    });
+    expect(model.cloudLoadDecision({ row: { updated_at: '2026-05-23T11:00:00.000Z' } }).action).toBe('apply');
     expect(model.cloudRefreshDecision({
       hasClient: true,
       hasUser: true,
@@ -2120,6 +2144,28 @@ test.describe('tracker data integrity', () => {
       message: 'Sync failed: Nope',
       isError: true,
     });
+    expect(model.shouldSaveUserData({ hasClient: false, hasUser: true })).toEqual({
+      shouldSave: false,
+      result: { ok: false, error: 'Not signed in' },
+    });
+    expect(model.shouldSaveUserData({ hasClient: true, hasUser: true })).toEqual({
+      shouldSave: false,
+      result: { ok: true, skipped: true },
+    });
+    expect(model.shouldSaveUserData({ hasClient: true, hasUser: true, hasPendingMarker: true }).shouldSave).toBe(true);
+    expect(model.saveSuccessState({
+      result: { updated_at: '2026-05-23T13:00:00.000Z', version: 8, item_count: 3 },
+      payload: { updated_at: '2026-05-23T12:00:00.000Z' },
+      moviesLength: 2,
+      lastCloudVersion: 7,
+      lastSavedLocalVersion: 4,
+      saveVersion: 5,
+    })).toEqual({
+      lastCloudUpdatedAt: '2026-05-23T13:00:00.000Z',
+      lastCloudVersion: 8,
+      lastCloudItemCount: 3,
+      lastSavedLocalVersion: 5,
+    });
 
     expect(model.buildSavePayload({
       userId: 'user-1',
@@ -2163,6 +2209,17 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('if (!decision.shouldRefresh) return;');
     expect(app).toContain('lastCloudRefreshAttempt = decision.nextLastAttempt;');
     expect(app).toContain('}, decision.delay);');
+  });
+
+  test('cloud load and save state decisions are routed through the sync model', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+
+    expect(app).toContain('const preLoadDecision = syncModel.cloudLoadDecision({ force, hasLocalChanges });');
+    expect(app).toContain('const loadDecision = syncModel.cloudLoadDecision({');
+    expect(app).toContain('if (loadDecision.action !== \'apply\') {');
+    expect(app).toContain('const saveDecision = syncModel.shouldSaveUserData({');
+    expect(app).toContain('const nextSyncState = syncModel.saveSuccessState({');
+    expect(app).not.toContain('const newEditsMidFlight = syncModel.didEditDuringLoad');
   });
 
   test('sign-in sync count toast is routed through the sync model', () => {
