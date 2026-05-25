@@ -2012,22 +2012,14 @@ function toggleTimeSpentFormat() {
 
 // ── Stats bar ───────────────────────────────────────────
 function updateStats() {
-  const isDroppedView = activeType === 'dropped';
-  const allOfType     = isDroppedView
-    ? movies.filter(m => m.status === 'dropped')
-    : movies.filter(m => m.mediaType === activeType && m.status !== 'dropped');
-  const watchedCnt    = isDroppedView ? 0 : allOfType.filter(m => m.status === 'watched').length;
-  const inProgressCnt = isDroppedView ? 0 : allOfType.filter(m => m.status === 'in_progress').length;
-  const watchlistCnt  = isDroppedView ? 0 : allOfType.filter(m => m.status === 'watchlist').length;
+  const stats = statsModel.statusSummary(movies, activeType, countryFilter);
+  const { isDroppedView, allOfType, watchedCnt, inProgressCnt, watchlistCnt } = stats;
 
   const a = s => activeStatus === s ? ' stat-active' : '';
 
   let countryHTML = '';
-  if (countryFilter) {
-    const byCountry   = allOfType.filter(m => m.country === countryFilter);
-    const cWatched    = byCountry.filter(m => m.status === 'watched').length;
-    const cInProgress = byCountry.filter(m => m.status === 'in_progress').length;
-    const cWatchlist  = byCountry.filter(m => m.status === 'watchlist').length;
+  if (stats.country) {
+    const { entries: byCountry, watched: cWatched, inProgress: cInProgress, watchlist: cWatchlist } = stats.country;
     countryHTML = isDroppedView
       ? `<span class="country-stats">🌍 <strong>${esc(countryFilter)}</strong><span class="stat-sep">·</span><span class="cs-dropped">📛 ${byCountry.length}</span></span>`
       : `<span class="country-stats">` +
@@ -2053,80 +2045,26 @@ function renderStats() {
   const panel = document.getElementById('stats-panel');
   if (!panel) return;
 
-  const scoped = statsTypeFilter === 'all'
-    ? movies
-    : movies.filter(m => m.mediaType === statsTypeFilter);
-
-  const watched      = scoped.filter(m => m.status === 'watched');
-  const inProgress   = scoped.filter(m => m.status === 'in_progress');
-  const inProgressN  = inProgress.length;
-  const watchlistN   = scoped.filter(m => m.status === 'watchlist').length;
-  const watchedN     = watched.length;
-
-  const totalMin = scoped.reduce((s, m) => s + actualWatchedMinutes(m), 0);
-
-  // Episode tally across TV/anime entries (within the active type filter)
-  const showsWithEps = scoped.filter(m =>
-    (m.mediaType === 'tv' || m.mediaType === 'anime') && (m.totalEpisodes || 0) > 0
-  );
-  const epsWatched = showsWithEps.reduce((s, m) => s + Math.min(m.watchedEpisodes || 0, m.totalEpisodes), 0);
-  const epsTotal   = showsWithEps.reduce((s, m) => s + m.totalEpisodes, 0);
-
-  const ratings  = watched.filter(m => m.rating > 0).map(m => m.rating);
-  const avgRating = ratings.length
-    ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1)
-    : null;
-
-  // Genres
-  const genreCounts = {};
-  watched.forEach(m => {
-    (m.genre || '').split(',').map(g => g.trim()).filter(Boolean).forEach(g => {
-      genreCounts[g] = (genreCounts[g] || 0) + 1;
-    });
-  });
-  const topGenres = Object.entries(genreCounts).sort((a, b) => b[1] - a[1]).slice(0, 12);
-
-  // Decades (groups of 10)
-  const decadeCounts = {};
-  watched.forEach(m => {
-    const y = parseInt(m.year);
-    if (!y || y < 1900 || y > 2100) return;
-    const d = Math.floor(y / 10) * 10;
-    decadeCounts[d] = (decadeCounts[d] || 0) + 1;
-  });
-  const decadeEntries = Object.entries(decadeCounts)
-    .sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
-    .map(([d, c]) => [`${d}s`, c]);
-
-  // Countries
-  const countryCounts = {};
-  watched.forEach(m => {
-    if (!m.country) return;
-    countryCounts[m.country] = (countryCounts[m.country] || 0) + 1;
-  });
-  const topCountries = Object.entries(countryCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
-
-  // Directors
-  const directorCounts = {};
-  watched.forEach(m => {
-    if (!m.director) return;
-    directorCounts[m.director] = (directorCounts[m.director] || 0) + 1;
-  });
-  const topDirectors = Object.entries(directorCounts)
-    .filter(([, c]) => c >= 2)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10);
-
-  // Rating distribution (1-10)
-  const ratingBuckets = Array.from({length: 10}, (_, i) => [String(i + 1), 0]);
-  ratings.forEach(r => { if (r >= 1 && r <= 10) ratingBuckets[r - 1][1]++; });
-  const hasRatings = ratings.length > 0;
-
-  // Top rated titles (by rating, then by recency)
-  const topRated = watched
-    .filter(m => m.rating > 0)
-    .sort((a, b) => b.rating - a.rating || (b.addedAt || 0) - (a.addedAt || 0))
-    .slice(0, 8);
+  const stats = statsModel.statsPageSummary(movies, statsTypeFilter);
+  const {
+    scoped,
+    watched,
+    inProgress,
+    inProgressN,
+    watchlistN,
+    watchedN,
+    totalMin,
+    epsWatched,
+    epsTotal,
+    avgRating,
+    topGenres,
+    topCountries,
+    topDirectors,
+    decadeEntries,
+    ratingBuckets,
+    hasRatings,
+    topRated,
+  } = stats;
 
   // Type breakdown — only when "all" is active
   const typeEntries = statsTypeFilter === 'all' ? [

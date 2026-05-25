@@ -635,6 +635,32 @@ test.describe('tracker data integrity', () => {
     expect(summary.topGenres[0]).toEqual(['Drama', 1]);
     expect(summary.topCountries[0]).toEqual(['US', 1]);
     expect(summary.ratingDist).toEqual([[8, 1]]);
+
+    const page = model.statsPageSummary([
+      { id: 'movie', mediaType: 'movie', status: 'watched', runtime: 120, rating: 8, genre: 'Drama, Comedy', country: 'US', director: 'A', year: 2020 },
+      { id: 'movie2', mediaType: 'movie', status: 'watched', runtime: 90, rating: 9, genre: 'Drama', country: 'US', director: 'A', year: 2021 },
+      { id: 'show', mediaType: 'tv', status: 'in_progress', runtime: 500, watchedEpisodes: 5, totalEpisodes: 10, genre: 'Drama' },
+    ], 'all');
+
+    expect(model.statusSummary(page.scoped, 'movie')).toEqual(expect.objectContaining({
+      watchedCnt: 2,
+      inProgressCnt: 0,
+      watchlistCnt: 0,
+    }));
+    expect(page.totalMin).toBe(460);
+    expect(page.epsWatched).toBe(5);
+    expect(page.epsTotal).toBe(10);
+    expect(page.topGenres[0]).toEqual(['Drama', 2]);
+    expect(page.topDirectors[0]).toEqual(['A', 2]);
+    expect(page.decadeEntries).toEqual([['2020s', 2]]);
+    expect(page.typeEntries).toEqual([['movie', 2]]);
+  });
+
+  test('vercel hobby api function count stays within limit', () => {
+    const apiFiles = fs.readdirSync(path.join(root, 'api')).filter(file => file.endsWith('.js'));
+
+    expect(apiFiles).not.toEqual(expect.arrayContaining(['push-episode-alerts.js', 'push-subscription.js']));
+    expect(apiFiles.length).toBeLessThanOrEqual(12);
   });
 
   test('card model builds reusable card state', () => {
