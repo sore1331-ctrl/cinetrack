@@ -48,6 +48,13 @@
     })).filter(summary => summary.watched + summary.inProgress + summary.watchlist > 0);
   }
 
+  function typeLabel(type) {
+    if (type === 'movie') return 'ðŸŽ¬ Films';
+    if (type === 'tv') return 'ðŸ“º TV Shows';
+    if (type === 'anime') return 'ðŸŽŒ Anime';
+    return type || '';
+  }
+
   function statusSummary(library = [], activeType = 'movie', countryFilter = '') {
     const isDroppedView = activeType === 'dropped';
     const allOfType = isDroppedView
@@ -110,7 +117,7 @@
 
     const typeEntries = typeFilter === 'all'
       ? ['movie', 'tv', 'anime']
-        .map(type => [type, library.filter(entry => entry.mediaType === type && entry.status === 'watched').length])
+        .map(type => [typeLabel(type), library.filter(entry => entry.mediaType === type && entry.status === 'watched').length])
         .filter(([, count]) => count > 0)
       : [];
 
@@ -126,6 +133,8 @@
       })
       .sort((a, b) => a.remaining - b.remaining)
       .slice(0, 8);
+    const topGenreEntries = topGenres(watched, 12);
+    const topCountryEntries = topCounts(watched, 'country', 10);
 
     return {
       scoped,
@@ -139,8 +148,8 @@
       epsTotal: showsWithEps.reduce((sum, entry) => sum + entry.totalEpisodes, 0),
       ratings,
       avgRating,
-      topGenres: topGenres(watched, 12),
-      topCountries: topCounts(watched, 'country', 10),
+      topGenres: topGenreEntries,
+      topCountries: topCountryEntries,
       topDirectors: topCounts(watched, 'director', 100).filter(([, count]) => count >= 2).slice(0, 10),
       decadeEntries: decadeSummary(watched),
       ratingBuckets: ratingBuckets(ratings),
@@ -151,6 +160,8 @@
         .slice(0, 8),
       typeEntries,
       currentlyWatching,
+      topGenreName: topGenreEntries[0]?.[0] || 'No genre yet',
+      topCountryName: topCountryEntries[0]?.[0] || 'No country yet',
     };
   }
 
@@ -181,6 +192,7 @@
     topGenres,
     ratingDistribution,
     byTypeSummary,
+    typeLabel,
     statusSummary,
     decadeSummary,
     ratingBuckets,

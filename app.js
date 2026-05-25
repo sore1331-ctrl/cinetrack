@@ -2048,8 +2048,6 @@ function renderStats() {
   const stats = statsModel.statsPageSummary(movies, statsTypeFilter);
   const {
     scoped,
-    watched,
-    inProgress,
     inProgressN,
     watchlistN,
     watchedN,
@@ -2064,26 +2062,11 @@ function renderStats() {
     ratingBuckets,
     hasRatings,
     topRated,
+    typeEntries,
+    currentlyWatching,
+    topGenreName,
+    topCountryName,
   } = stats;
-
-  // Type breakdown — only when "all" is active
-  const typeEntries = statsTypeFilter === 'all' ? [
-    ['🎬 Films',    movies.filter(m => m.mediaType === 'movie' && m.status === 'watched').length],
-    ['📺 TV Shows', movies.filter(m => m.mediaType === 'tv'    && m.status === 'watched').length],
-    ['🎌 Anime',    movies.filter(m => m.mediaType === 'anime' && m.status === 'watched').length],
-  ].filter(e => e[1] > 0) : [];
-
-  // Currently watching — TV/anime in_progress entries with a known total,
-  // sorted closest-to-done first. Hidden when filter is 'movie'.
-  const currentlyWatching = statsTypeFilter === 'movie' ? [] : inProgress
-    .filter(m => (m.mediaType === 'tv' || m.mediaType === 'anime') && (m.totalEpisodes || 0) > 0)
-    .map(m => ({
-      m,
-      pct: Math.round((Math.min(m.watchedEpisodes || 0, m.totalEpisodes) / m.totalEpisodes) * 100),
-      remaining: m.totalEpisodes - Math.min(m.watchedEpisodes || 0, m.totalEpisodes),
-    }))
-    .sort((a, b) => a.remaining - b.remaining)
-    .slice(0, 8);
 
   const maxOf = arr => arr.length ? Math.max(...arr.map(e => e[1])) : 1;
 
@@ -2091,9 +2074,6 @@ function renderStats() {
     const labels = { all: 'All', movie: '🎬 Films', tv: '📺 TV', anime: '🎌 Anime' };
     return `<button class="stats-type-tab${statsTypeFilter === t ? ' active' : ''}" data-stats-type="${t}">${labels[t]}</button>`;
   }).join('');
-
-  const topGenreName = topGenres[0]?.[0] || 'No genre yet';
-  const topCountryName = topCountries[0]?.[0] || 'No country yet';
 
   const topRatedHTML = topRated.length ? `
     <div class="chart-section chart-section-wide">

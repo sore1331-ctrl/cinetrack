@@ -653,7 +653,10 @@ test.describe('tracker data integrity', () => {
     expect(page.topGenres[0]).toEqual(['Drama', 2]);
     expect(page.topDirectors[0]).toEqual(['A', 2]);
     expect(page.decadeEntries).toEqual([['2020s', 2]]);
-    expect(page.typeEntries).toEqual([['movie', 2]]);
+    expect(page.typeEntries).toEqual([[model.typeLabel('movie'), 2]]);
+    expect(page.currentlyWatching[0]).toEqual(expect.objectContaining({ pct: 50, remaining: 5 }));
+    expect(page.topGenreName).toBe('Drama');
+    expect(page.topCountryName).toBe('US');
   });
 
   test('vercel hobby api function count stays within limit', () => {
