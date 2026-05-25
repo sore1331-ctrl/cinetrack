@@ -1767,7 +1767,7 @@ function applyTMDBSelection(details) {
   if (!document.getElementById('f-notes').value)
     document.getElementById('f-notes').value  = details.overview || '';
 
-  renderProviders(details.providers);
+  modalProviders.render(details.providers);
   checkDuplicateForSelection(details);
 }
 
@@ -1826,52 +1826,6 @@ function checkDuplicateForSelection(selection) {
   }
 }
 
-const PROVIDER_LOGO_BASE = 'https://image.tmdb.org/t/p/w92';
-function renderProviders(providers) {
-  const el = document.getElementById('modal-providers');
-  if (!el) return;
-  if (!providers || typeof providers !== 'object') {
-    el.classList.add('hidden');
-    el.innerHTML = '';
-    return;
-  }
-  const region = localStorage.getItem('cinetrack_provider_region') || 'US';
-  const data = providers[region] || providers['US'] || providers[Object.keys(providers)[0]];
-  if (!data) { el.classList.add('hidden'); el.innerHTML = ''; return; }
-
-  const logos = ps => ps.slice(0, 6).map(p =>
-    `<img class="provider-logo" src="${PROVIDER_LOGO_BASE}${p.logo}" alt="${esc(p.name)}" title="${esc(p.name)}" loading="lazy" />`
-  ).join('');
-
-  const sections = [];
-  if (data.flatrate?.length) sections.push(`<div class="provider-row"><span class="provider-row-label">Stream</span><div class="provider-logos">${logos(data.flatrate)}</div></div>`);
-  if (data.rent?.length)     sections.push(`<div class="provider-row"><span class="provider-row-label">Rent</span><div class="provider-logos">${logos(data.rent)}</div></div>`);
-  if (data.buy?.length)      sections.push(`<div class="provider-row"><span class="provider-row-label">Buy</span><div class="provider-logos">${logos(data.buy)}</div></div>`);
-
-  if (!sections.length) { el.classList.add('hidden'); el.innerHTML = ''; return; }
-
-  const regionLabel = region;
-  el.innerHTML = `
-    <div class="modal-providers-header">
-      <span>📺 Where to watch</span>
-      <select class="provider-region-select" id="provider-region-select">
-        ${Object.keys(providers).map(r =>
-          `<option value="${r}"${r === regionLabel ? ' selected' : ''}>${r}</option>`
-        ).join('')}
-      </select>
-    </div>
-    ${sections.join('')}
-    ${data.link ? `<a class="provider-link" href="${esc(data.link)}" target="_blank" rel="noopener noreferrer">View on JustWatch ↗</a>` : ''}
-  `;
-  el.classList.remove('hidden');
-
-  el.querySelector('#provider-region-select')?.addEventListener('change', e => {
-    localStorage.setItem('cinetrack_provider_region', e.target.value);
-    scheduleSavePrefs();
-    renderProviders(providers);
-  });
-}
-
 function resetTMDBUI() {
   tmdbSelection = null;
   tmdbSelected.classList.add('hidden');
@@ -1880,8 +1834,7 @@ function resetTMDBUI() {
   hideDropdown();
   tmdbError.classList.add('hidden');
   tmdbSearching.classList.add('hidden');
-  const provEl = document.getElementById('modal-providers');
-  if (provEl) { provEl.classList.add('hidden'); provEl.innerHTML = ''; }
+  modalProviders.clear();
   document.getElementById('duplicate-warning')?.classList.add('hidden');
 }
 
@@ -3867,6 +3820,22 @@ const modalSeasons = modalController.createSeasonController({
   esc,
   normaliseSeasons,
 });
+const modalRewatch = modalController.createRewatchController({
+  row: document.getElementById('rewatch-row'),
+  countEl: document.getElementById('rewatch-count'),
+  pluralEl: document.getElementById('rewatch-plural'),
+  incBtn: document.getElementById('rewatch-inc-btn'),
+  decBtn: document.getElementById('rewatch-dec-btn'),
+  statusInput: document.getElementById('f-status'),
+  modalModel,
+});
+const modalProviders = modalController.createProviderController({
+  container: document.getElementById('modal-providers'),
+  fetchDetails: fetchTMDBDetails,
+  sourceModel,
+  esc,
+  scheduleSavePrefs,
+});
 
 function openModal(movie = null) {
   editingId = movie ? movie.id : null;
@@ -3900,9 +3869,7 @@ function openModal(movie = null) {
   modalSeasons.initFromEntry(movie);
   selectedRating = values.rating;
 
-  // Re-watch count: default to 1 when status is watched, otherwise 0
-  editingWatchCount = modalModel.initialWatchCount(movie);
-  updateRewatchUI();
+  modalRewatch.initFromEntry(movie);
 
   toggleRatingLabel();
   buildStars();
@@ -3910,43 +3877,7 @@ function openModal(movie = null) {
   tmdbQuery.focus();
 
   // Auto-load streaming providers for entries with a TMDB id
-  if (movie?.tmdbId) loadProvidersForEntry(movie);
-}
-
-let editingWatchCount = 0;
-function updateRewatchUI() {
-  const row = document.getElementById('rewatch-row');
-  if (!row) return;
-  const status = document.getElementById('f-status').value;
-  const state = modalModel.rewatchState(status, editingId, editingWatchCount);
-  row.classList.toggle('hidden', !state.visible);
-  document.getElementById('rewatch-count').textContent = String(state.count);
-  document.getElementById('rewatch-plural').textContent = state.plural;
-}
-
-document.getElementById('rewatch-inc-btn')?.addEventListener('click', () => {
-  editingWatchCount = Math.max(1, editingWatchCount) + 1;
-  updateRewatchUI();
-});
-document.getElementById('rewatch-dec-btn')?.addEventListener('click', () => {
-  if (editingWatchCount > 1) editingWatchCount -= 1;
-  updateRewatchUI();
-});
-
-const providerCache = new Map();
-async function loadProvidersForEntry(movie) {
-  if (!movie?.tmdbId) return;
-  const fetchType = movie.mediaType === 'anime' ? 'tv' : (movie.mediaType || 'movie');
-  const cacheKey  = `${fetchType}:${movie.tmdbId}`;
-  if (providerCache.has(cacheKey)) {
-    renderProviders(providerCache.get(cacheKey));
-    return;
-  }
-  try {
-    const details = await fetchTMDBDetails(movie.tmdbId, fetchType);
-    providerCache.set(cacheKey, details.providers);
-    renderProviders(details.providers);
-  } catch { /* silent */ }
+  if (movie?.tmdbId) modalProviders.loadForEntry(movie);
 }
 
 function closeModal() {
@@ -4038,7 +3969,7 @@ form.addEventListener('submit', e => {
     mediaType: activeMediaType,
     progress,
     selectedRating,
-    editingWatchCount,
+    editingWatchCount: modalRewatch.count(),
     existing,
     posterUrl,
     selection: tmdbSelection,
@@ -4059,7 +3990,7 @@ form.addEventListener('submit', e => {
 addBtn.addEventListener('click', () => openModal());
 cancelBtn.addEventListener('click', closeModal);
 modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
-document.getElementById('f-status').addEventListener('change', () => { toggleRatingLabel(); buildStars(); updateRewatchUI(); });
+document.getElementById('f-status').addEventListener('change', () => { toggleRatingLabel(); buildStars(); modalRewatch.update(); });
 const searchClearBtn = document.getElementById('search-clear-btn');
 function updateSearchClearBtn() {
   if (!searchClearBtn) return;

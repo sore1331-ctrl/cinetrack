@@ -1011,7 +1011,13 @@ test.describe('tracker data integrity', () => {
     expect(controller).toContain('modalModel.selectionSeasonState({');
     expect(app).toContain('modalModel.detailsFetchType(activeMediaType');
     expect(app).toContain('modalModel.selectedExternal(tmdbSelection)');
-    expect(app).toContain('modalModel.rewatchState(status, editingId, editingWatchCount)');
+    expect(app).toContain('modalRewatch.initFromEntry(movie)');
+    expect(app).toContain('editingWatchCount: modalRewatch.count()');
+    expect(controller).toContain('function createRewatchController');
+    expect(controller).toContain('modalModel.rewatchState');
+    expect(controller).toContain('function createProviderController');
+    expect(app).toContain('modalProviders.render(details.providers)');
+    expect(app).toContain('modalProviders.loadForEntry(movie)');
     expect(app).toContain('modalModel.episodeState({');
     expect(app).toContain('const data = modalModel.entryPayload({');
   });
