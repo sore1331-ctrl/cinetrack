@@ -1172,15 +1172,18 @@ test.describe('tracker data integrity', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
     const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
     const profileView = fs.readFileSync(path.join(root, 'scripts', 'profile-view.js'), 'utf8');
+    const profileController = fs.readFileSync(path.join(root, 'scripts', 'profile-controller.js'), 'utf8');
     const profileCss = fs.readFileSync(path.join(root, 'styles', 'profile.css'), 'utf8');
     const skinCss = fs.readFileSync(path.join(root, 'styles', 'skin.css'), 'utf8');
 
     expect(app).toContain('function localLibraryBackups()');
     expect(app).toContain('profileView.renderProfileHtml');
+    expect(app).toContain('profileController.attachProfileInteractions');
     expect(profileView).toContain('function renderProfileHtml');
-    expect(app).toContain('profileModel.backupImpactLabel(compare)');
+    expect(profileController).toContain('function attachProfileInteractions');
+    expect(profileController).toContain('profileModel?.backupImpactLabel(compare)');
     expect(profileView).toContain('data-restore-backup');
-    expect(app).toContain('restoreLibraryFromBackup(backup.movies)');
+    expect(profileController).toContain('restoreLibraryFromBackup?.(backup.movies)');
     expect(profileView).toContain('Local safety snapshots are created before cloud loads');
     expect(app).toContain('function currentUserDisplayName()');
     expect(app).toContain('function userInitial');
@@ -1188,6 +1191,7 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('userAvatar.textContent  = userInitial(displayName);');
     expect(index).toContain('scripts/profile-model.js');
     expect(index).toContain('scripts/profile-view.js');
+    expect(index).toContain('scripts/profile-controller.js');
     expect(index).toContain('<span id="user-avatar">?</span>');
     expect(index).not.toContain('account-control.png');
     expect(profileCss).toContain('.profile-sharing-badge');
