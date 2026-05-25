@@ -1088,6 +1088,7 @@ test.describe('tracker data integrity', () => {
 
   test('recommendations use controlled seeds and post-fetch scoring', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const recView = fs.readFileSync(path.join(root, 'scripts', 'recommendation-view.js'), 'utf8');
 
     expect(app).toContain('function selectRecommendationSeeds');
     expect(app).toContain('function rankRecommendationResults');
@@ -1098,20 +1099,23 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('recommendationModel.isCacheUsable');
     expect(app).toContain('recommendationModel.seedProfile(movies, scope)');
     expect(app).toContain('recommendationModel.seedRequest(seededPool');
-    expect(app).toContain('recommendationModel.visibleResults(results');
+    expect(app).toContain('recommendationView.renderCards({');
+    expect(recView).toContain('model.visibleResults(results');
     expect(app).toContain('recommendationModel.dismissedProfile(dismissed, results)');
     expect(app).not.toContain('const sample = pickRandom');
   });
 
   test('recommendation fetch orchestration avoids stale renders and duplicate requests', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const recView = fs.readFileSync(path.join(root, 'scripts', 'recommendation-view.js'), 'utf8');
 
     expect(app).toContain('const recommendationFetchInFlight = new Map()');
     expect(app).toContain('let recommendationLoadSeq = 0');
     expect(app).toContain('async function fetchRecommendationJson');
     expect(app).toContain('recommendationFetchInFlight.has(key)');
     expect(app).toContain('if (loadSeq !== recommendationLoadSeq) return');
-    expect(app).toContain('recommendationModel.shouldTopUpRecommendations');
+    expect(app).toContain('recommendationView.bindCards(section');
+    expect(recView).toContain('model.shouldTopUpRecommendations');
   });
 
   test('recommendation refresh rotates seeds and bypasses request cache', () => {
