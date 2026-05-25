@@ -995,14 +995,20 @@ test.describe('tracker data integrity', () => {
   test('modal UI state is routed through the modal model', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
     const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+    const controller = fs.readFileSync(path.join(root, 'scripts', 'modal-controller.js'), 'utf8');
 
     expect(index).toContain('scripts/modal-model.js');
+    expect(index).toContain('scripts/modal-controller.js');
     expect(app).toContain('const modalModel = window.CineTrack?.modal;');
+    expect(app).toContain('const modalController = window.CineTrack?.modalController;');
     expect(app).toContain('modalModel.mediaTypeForOpen(movie, activeType)');
     expect(app).toContain('modalModel.formValues(movie)');
     expect(app).toContain('modalModel.typeUiState(activeMediaType)');
-    expect(app).toContain('modalModel.cloneSeasons(movie)');
-    expect(app).toContain('modalModel.selectionSeasonState({');
+    expect(app).toContain('modalSeasons.initFromEntry(movie)');
+    expect(app).toContain('modalSeasons.applySelection(details');
+    expect(controller).toContain('function createSeasonController');
+    expect(controller).toContain('modalModel.cloneSeasons(entry)');
+    expect(controller).toContain('modalModel.selectionSeasonState({');
     expect(app).toContain('modalModel.detailsFetchType(activeMediaType');
     expect(app).toContain('modalModel.selectedExternal(tmdbSelection)');
     expect(app).toContain('modalModel.rewatchState(status, editingId, editingWatchCount)');

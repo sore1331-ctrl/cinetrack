@@ -259,6 +259,7 @@ const filterModel = window.CineTrack?.filters;
 const paginationModel = window.CineTrack?.pagination;
 const randomPickerModel = window.CineTrack?.randomPicker;
 const modalModel = window.CineTrack?.modal;
+const modalController = window.CineTrack?.modalController;
 const duplicateModel = window.CineTrack?.duplicates;
 const errorLog = window.CineTrack?.errors;
 const syncModel = window.CineTrack?.sync;
@@ -1762,21 +1763,7 @@ function applyTMDBSelection(details) {
   document.getElementById('f-country').value  = details.country  || '';
   if (details.runtime) document.getElementById('f-runtime').value = details.runtime;
 
-  const seasonState = modalModel.selectionSeasonState({
-    details,
-    seasons: editingSeasons,
-    totalInput: epTotalInput.value,
-    watchedInput: epWatchedInput.value,
-    status: document.getElementById('f-status')?.value || '',
-  });
-  if (seasonState.hasSeasons) {
-    editingSeasons = seasonState.seasons;
-    editingSeasonIdx = seasonState.seasonIndex;
-    rebuildSeasonDropdown();
-    loadSeasonIntoInputs(editingSeasonIdx);
-  } else if (seasonState.totalInput && !epTotalInput.value) {
-    epTotalInput.value = seasonState.totalInput;
-  }
+  modalSeasons.applySelection(details, document.getElementById('f-status')?.value || '');
   if (!document.getElementById('f-notes').value)
     document.getElementById('f-notes').value  = details.overview || '';
 
@@ -3867,52 +3854,18 @@ function populateYearSelect(selectedYear) {
 }
 
 // ── Modal ───────────────────────────────────────────────
-// Per-season buffer used while the modal is open. Cloned from the
-// entry on open and from TMDB on selection; written back on submit.
-let editingSeasons   = [];
-let editingSeasonIdx = 0;
-
 const seasonSelectLabel = document.getElementById('season-select-label');
 const seasonSelect      = document.getElementById('f-season-select');
 const epWatchedInput    = document.getElementById('f-ep-watched');
 const epTotalInput      = document.getElementById('f-ep-total');
-
-function rebuildSeasonDropdown() {
-  if (!editingSeasons.length) {
-    seasonSelectLabel.classList.add('hidden');
-    return;
-  }
-  seasonSelectLabel.classList.remove('hidden');
-  seasonSelect.innerHTML = editingSeasons.map((s, i) =>
-    `<option value="${i}"${i === editingSeasonIdx ? ' selected' : ''}>${esc(s.name || `Season ${s.number}`)} — ${s.watched || 0}/${s.total}</option>`
-  ).join('');
-}
-
-function loadSeasonIntoInputs(idx) {
-  editingSeasonIdx = idx;
-  const s = editingSeasons[idx];
-  if (!s) return;
-  epWatchedInput.value = s.watched || 0;
-  epTotalInput.value   = s.total   || 0;
-}
-
-function captureCurrentSeason() {
-  const s = editingSeasons[editingSeasonIdx];
-  if (!s) return;
-  s.total   = Math.max(0, parseInt(epTotalInput.value)   || 0);
-  s.watched = Math.max(0, parseInt(epWatchedInput.value) || 0);
-  if (s.total > 0 && s.watched > s.total) s.watched = s.total;
-}
-
-seasonSelect.addEventListener('change', () => {
-  const newIdx = parseInt(seasonSelect.value);
-  // Save current season's edits, then advance to the new selection
-  // *before* rebuilding — otherwise rebuild's `selected` attribute
-  // resets the dropdown back to the previous season.
-  captureCurrentSeason();
-  editingSeasonIdx = newIdx;
-  loadSeasonIntoInputs(editingSeasonIdx);
-  rebuildSeasonDropdown();
+const modalSeasons = modalController.createSeasonController({
+  seasonSelectLabel,
+  seasonSelect,
+  epWatchedInput,
+  epTotalInput,
+  modalModel,
+  esc,
+  normaliseSeasons,
 });
 
 function openModal(movie = null) {
@@ -3944,18 +3897,7 @@ function openModal(movie = null) {
   document.getElementById('f-runtime').value  = values.runtime;
   document.getElementById('f-notes').value    = values.notes;
 
-  // Initialise the season buffer from the entry (deep copy)
-  editingSeasons = modalModel.cloneSeasons(movie);
-  // Default to lowest unfinished season, or first if all caught up
-  editingSeasonIdx = modalModel.initialSeasonIndex(editingSeasons);
-  rebuildSeasonDropdown();
-
-  if (editingSeasons.length) {
-    loadSeasonIntoInputs(editingSeasonIdx);
-  } else {
-    epWatchedInput.value = movie?.watchedEpisodes || '';
-    epTotalInput.value   = movie?.totalEpisodes   || '';
-  }
+  modalSeasons.initFromEntry(movie);
   selectedRating = values.rating;
 
   // Re-watch count: default to 1 when status is watched, otherwise 0
@@ -4073,12 +4015,11 @@ form.addEventListener('submit', e => {
   const isShow = activeMediaType === 'tv' || activeMediaType === 'anime';
 
   // Capture in-flight edits to the currently-selected season, then normalise.
-  if (isShow && editingSeasons.length) captureCurrentSeason();
-  if (isShow && editingSeasons.length) normaliseSeasons(editingSeasons);
+  if (isShow && modalSeasons.hasSeasons()) modalSeasons.captureAndNormalise();
 
   const progress = modalModel.episodeState({
     mediaType: activeMediaType,
-    seasons: editingSeasons,
+    seasons: modalSeasons.seasons(),
     totalInput: epTotalInput.value,
     watchedInput: epWatchedInput.value,
   });
