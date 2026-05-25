@@ -202,6 +202,53 @@
     });
   }
 
+  function incrementEpisode(entry = {}) {
+    const next = clone(entry) || {};
+    if (Array.isArray(next.seasons) && next.seasons.length) {
+      const sorted = [...next.seasons].sort((a, b) => (a.number || 0) - (b.number || 0));
+      const active = sorted.find(season => (season.watched || 0) < (season.total || 0));
+      if (active) {
+        active.watched = Math.min((active.watched || 0) + 1, active.total || 0);
+        let lastTouched = -1;
+        for (let i = 0; i < sorted.length; i++) {
+          sorted[i].watched = Math.min(sorted[i].watched || 0, sorted[i].total || 0);
+          if ((sorted[i].watched || 0) > 0) lastTouched = i;
+        }
+        for (let i = 0; i < lastTouched; i++) sorted[i].watched = sorted[i].total || 0;
+        next.totalEpisodes = next.seasons.reduce((sum, season) => sum + (season.total || 0), 0);
+        next.watchedEpisodes = next.seasons.reduce((sum, season) => {
+          return sum + Math.min(season.watched || 0, season.total || 0);
+        }, 0);
+        next.status = next.watchedEpisodes >= next.totalEpisodes ? 'watched' : 'in_progress';
+      }
+    } else if ((next.totalEpisodes || 0) > 0) {
+      const watched = Math.min((next.watchedEpisodes || 0) + 1, next.totalEpisodes);
+      next.watchedEpisodes = watched;
+      next.status = watched >= next.totalEpisodes ? 'watched' : 'in_progress';
+    }
+    return next;
+  }
+
+  function cycleCardStatus(entry = {}) {
+    const next = clone(entry) || {};
+    next.status = next.status === 'watched' ? 'watchlist'
+      : next.status === 'in_progress' ? 'watched'
+      : next.status === 'dropped' ? 'in_progress'
+      : 'in_progress';
+    if (next.status === 'watchlist') {
+      next.rating = 0;
+      next.watchedEpisodes = 0;
+      if (Array.isArray(next.seasons)) next.seasons.forEach(season => { season.watched = 0; });
+    }
+    return next;
+  }
+
+  function pruneSelectionToVisible(selectedIds = [], visibleIds = []) {
+    const visible = visibleIds instanceof Set ? visibleIds : new Set(visibleIds || []);
+    const selected = selectedIds instanceof Set ? selectedIds : new Set(selectedIds || []);
+    return new Set([...selected].filter(id => visible.has(id)));
+  }
+
   function metadataEnrichmentPatch(details = {}, current = {}, posterUrl = path => path || '') {
     const patch = {};
     if (details.title) patch.title = details.title;
@@ -336,6 +383,9 @@
     removeEntry,
     removeEntries,
     changeStatus,
+    incrementEpisode,
+    cycleCardStatus,
+    pruneSelectionToVisible,
     metadataEnrichmentPatch,
     bulkMetadataRefreshState,
     recordBulkMetadataRefresh,

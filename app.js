@@ -2582,18 +2582,7 @@ async function checkEpisodeNotifications() {
 // Warm the upcoming cache so the Calendar tab can show its airing-today
 // badge even if the user never opens the Calendar panel.
 function calendarWarmKeysForEntries(entries = movies) {
-  const ids = [];
-  const tvEntries = [];
-  for (const m of entries) {
-    if (!m.tmdbId) continue;
-    const isShow = m.mediaType === 'tv' || m.mediaType === 'anime';
-    if (isShow && (m.status === 'in_progress' || m.status === 'watchlist')) {
-      ids.push(`tv:${m.tmdbId}`);
-      if (m.mediaType === 'tv') tvEntries.push(m);
-    }
-    else if (m.mediaType === 'movie' && m.status === 'watchlist') ids.push(`movie:${m.tmdbId}`);
-  }
-  return { ids: [...new Set(ids)], tvEntries };
+  return calendarModel.warmKeysForEntries(entries);
 }
 
 async function warmUpcomingCacheForBadge({ force = false, reason = 'badge' } = {}) {
@@ -3363,51 +3352,15 @@ async function loadRecommendations({ force = false } = {}) {
   const loadSeq = ++recommendationLoadSeq;
   const scope = recommendationScopeType();
 
-  // Pool: watched + in_progress titles with tmdbId. In-progress shows
-  // reflect what you're currently watching → reasonable to seed from.
-  const pool = movies.filter(m =>
-    (m.status === 'watched' || m.status === 'in_progress') &&
-    (scope === 'all' || m.mediaType === scope) &&
-    (m.tmdbId ||
-      (m.externalSource === 'tvmaze' && m.externalId && m.mediaType === 'tv') ||
-      (m.externalSource === 'anilist' && m.externalId && m.mediaType === 'anime'))
-  );
+  const seedProfile = recommendationModel.seedProfile(movies, scope);
+  const { pool, genreCounts, topPool, poolKey } = seedProfile;
 
   if (!pool.length) {
     section.innerHTML = '<p class="recs-empty">Mark some titles as watched in this view to get personalised recommendations.</p>';
     return;
   }
 
-  // Genre profile (only watched titles count toward the genre weights).
-  const watched = movies.filter(m => m.status === 'watched' && (scope === 'all' || m.mediaType === scope));
-  const genreCounts = {};
-  watched.forEach(m => {
-    if (!m.genre) return;
-    m.genre.split(',').map(g => g.trim()).filter(Boolean).forEach(g => {
-      genreCounts[g] = (genreCounts[g] || 0) + 1;
-    });
-  });
-
-  // Score each pool entry:
-  //   ratingMul  = (rating || 5) / 5  → unrated = 1.0, 10/10 = 2.0, 1/10 = 0.2
-  //   genreScore = avg of its genres' frequencies
-  //   final      = ratingMul * (genreScore + 1)   (+1 so genre-less still counts)
-  const scored = pool.map(m => {
-    const genres = (m.genre || '').split(',').map(g => g.trim()).filter(Boolean);
-    const genreScore = genres.length
-      ? genres.reduce((s, g) => s + (genreCounts[g] || 0), 0) / genres.length
-      : 0;
-    const ratingMul = (m.rating || 5) / 5;
-    return { ...m, _score: ratingMul * (genreScore + 1) };
-  }).sort((a, b) => b._score - a._score || (b.addedAt || 0) - (a.addedAt || 0));
-
-  // Top 20 → random sample 8. Sampling gives variety on refresh while
-  // keeping seeds grounded in your strongest signals.
-  const topPool = scored.slice(0, 20);
   const refreshIndex = recommendationRefreshIndex(scope, force);
-  const poolKey = `${scope}:` + topPool.map(m =>
-    seedKeyForMovie(m)
-  ).sort().join(',');
 
   // Cache check (skip when forced)
   if (!force) {
@@ -4619,9 +4572,7 @@ function render() {
   const list = filtered(upcomingCache);
 
   const visibleIds = new Set(list.map(m => m.id));
-  for (const id of selectedIds) {
-    if (!visibleIds.has(id)) selectedIds.delete(id);
-  }
+  selectedIds = libraryModel.pruneSelectionToVisible(selectedIds, visibleIds);
   updateBulkBar();
   updateStats();
   syncSeriesStatusFilterVisibility();
@@ -5135,42 +5086,15 @@ grid.addEventListener('click', e => {
       if (menu) menu.hidden = false;
     }
   } else if (epIncId) {
-    const m = movies.find(m => m.id === epIncId);
-    if (!m) return;
-    updateLibraryEntry(epIncId, entry => {
-      if (Array.isArray(entry.seasons) && entry.seasons.length) {
-        const active = activeSeason(entry);
-        if (active) {
-          active.watched = Math.min((active.watched || 0) + 1, active.total);
-          normaliseSeasons(entry.seasons);
-          recomputeShowProgress(entry);
-          entry.status = entry.watchedEpisodes >= entry.totalEpisodes ? 'watched' : 'in_progress';
-        }
-      } else if ((entry.totalEpisodes || 0) > 0) {
-        const next = Math.min((entry.watchedEpisodes || 0) + 1, entry.totalEpisodes);
-        entry.watchedEpisodes = next;
-        entry.status = next >= entry.totalEpisodes ? 'watched' : 'in_progress';
-      }
-      return entry;
-    }, { allowDowngrade: true });
+    if (!movies.some(m => m.id === epIncId)) return;
+    updateLibraryEntry(epIncId, libraryModel.incrementEpisode, { allowDowngrade: true });
     save(); render();
   } else if (editId) {
     openModal(movies.find(m => m.id === editId));
   } else if (toggleId) {
     const m = movies.find(m => m.id === toggleId);
     if (m) {
-      updateLibraryEntry(toggleId, entry => {
-        entry.status = entry.status === 'watched' ? 'watchlist'
-                 : entry.status === 'in_progress' ? 'watched'
-                 : entry.status === 'dropped' ? 'in_progress'
-                 : 'in_progress';
-        if (entry.status === 'watchlist') {
-          entry.rating = 0;
-          entry.watchedEpisodes = 0;
-          if (Array.isArray(entry.seasons)) entry.seasons.forEach(s => { s.watched = 0; });
-        }
-        return entry;
-      }, { allowDowngrade: true });
+      updateLibraryEntry(toggleId, libraryModel.cycleCardStatus, { allowDowngrade: true });
       // 'watched' is handled by save() -> syncEpisodeProgress() (fills every season)
       save(); render();
     }

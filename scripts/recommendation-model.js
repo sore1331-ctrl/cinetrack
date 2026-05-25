@@ -70,6 +70,38 @@
     return [...primary, ...rotated.slice(0, Math.max(0, limit - primary.length))];
   }
 
+  function seedProfile(library = [], scope = 'all') {
+    const inScope = entry => scope === 'all' || entry.mediaType === scope;
+    const hasSource = entry => Boolean(
+      entry.tmdbId ||
+      (entry.externalSource === 'tvmaze' && entry.externalId && entry.mediaType === 'tv') ||
+      (entry.externalSource === 'anilist' && entry.externalId && entry.mediaType === 'anime')
+    );
+    const pool = (library || []).filter(entry =>
+      (entry.status === 'watched' || entry.status === 'in_progress') &&
+      inScope(entry) &&
+      hasSource(entry)
+    );
+    const watched = (library || []).filter(entry => entry.status === 'watched' && inScope(entry));
+    const genreCounts = {};
+    watched.forEach(entry => {
+      String(entry.genre || '').split(',').map(genre => genre.trim()).filter(Boolean).forEach(genre => {
+        genreCounts[genre] = (genreCounts[genre] || 0) + 1;
+      });
+    });
+    const scored = pool.map(entry => {
+      const genres = String(entry.genre || '').split(',').map(genre => genre.trim()).filter(Boolean);
+      const genreScore = genres.length
+        ? genres.reduce((sum, genre) => sum + (genreCounts[genre] || 0), 0) / genres.length
+        : 0;
+      const ratingMul = (entry.rating || 5) / 5;
+      return { ...entry, _score: ratingMul * (genreScore + 1) };
+    }).sort((a, b) => b._score - a._score || (b.addedAt || 0) - (a.addedAt || 0));
+    const topPool = scored.slice(0, 20);
+    const poolKey = `${scope}:` + topPool.map(seedKey).sort().join(',');
+    return { pool, watched, genreCounts, scored, topPool, poolKey };
+  }
+
   function score(rec, { genreCounts = {}, dismissedProfile = {}, scope = 'all' } = {}) {
     const genres = String(rec.genre || '')
       .split(',')
@@ -183,6 +215,7 @@
     seedKey,
     rotateList,
     selectSeeds,
+    seedProfile,
     score,
     rank,
     rotateForced,

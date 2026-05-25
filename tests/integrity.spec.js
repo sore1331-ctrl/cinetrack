@@ -500,6 +500,16 @@ test.describe('tracker data integrity', () => {
 
     expect(model.dateString(base)).toBe('2026-05-23');
     expect(model.addDaysString(14, base)).toBe('2026-06-06');
+    expect(model.warmKeysForEntries([
+      { mediaType: 'tv', status: 'in_progress', tmdbId: 10 },
+      { mediaType: 'anime', status: 'watchlist', tmdbId: 11 },
+      { mediaType: 'movie', status: 'watchlist', tmdbId: 12 },
+      { mediaType: 'movie', status: 'watched', tmdbId: 13 },
+      { mediaType: 'tv', status: 'watched', tmdbId: 14 },
+    ])).toEqual({
+      ids: ['tv:10', 'tv:11', 'movie:12'],
+      tvEntries: [{ mediaType: 'tv', status: 'in_progress', tmdbId: 10 }],
+    });
     expect(model.keyForEntry({ mediaType: 'anime', tmdbId: 10 })).toBe('tv:10');
     expect(model.keyForEntry({ mediaType: 'movie', tmdbId: 20 })).toBe('movie:20');
     expect(model.keyForEntry({ externalSource: 'anilist', externalId: '777' })).toBe('anilist:777');
@@ -706,6 +716,8 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('const cardModel = window.CineTrack?.cards;');
     expect(app).toContain('const cardView = cardModel.view');
     expect(app).toContain('const infoUrl = cardView.infoUrl;');
+    expect(app).toContain('updateLibraryEntry(epIncId, libraryModel.incrementEpisode');
+    expect(app).toContain('updateLibraryEntry(toggleId, libraryModel.cycleCardStatus');
   });
 
   test('split stylesheets load directly without the CSS import hub', () => {
@@ -1043,6 +1055,7 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('function dismissedRecProfile');
     expect(app).toContain('function visibleRecommendationCount');
     expect(app).toContain('recommendationModel.isCacheUsable');
+    expect(app).toContain('recommendationModel.seedProfile(movies, scope)');
     expect(app).toContain('const sample = selectRecommendationSeeds');
     expect(app).not.toContain('const sample = pickRandom');
   });
@@ -1509,6 +1522,15 @@ test.describe('tracker data integrity', () => {
     expect(model.sourceKey({ source: 'anilist', externalId: 123 })).toBe('anilist:123');
     expect(model.rotateForced([1, 2, 3, 4], 1, true, 2)).toEqual([3, 4, 1, 2]);
     expect(model.requestKey({ scope: 'tv', idParam: '1:tv', force: true })).toBe('tmdb:tv:1:tv:force');
+    const profile = model.seedProfile([
+      { id: 'a', mediaType: 'movie', status: 'watched', tmdbId: 1, rating: 10, genre: 'Drama', addedAt: 1 },
+      { id: 'b', mediaType: 'movie', status: 'in_progress', tmdbId: 2, rating: 5, genre: 'Drama', addedAt: 2 },
+      { id: 'c', mediaType: 'movie', status: 'watchlist', tmdbId: 3, genre: 'Drama', addedAt: 3 },
+    ], 'movie');
+    expect(profile.pool.map(item => item.id)).toEqual(['a', 'b']);
+    expect(profile.genreCounts).toEqual({ Drama: 1 });
+    expect(profile.topPool[0]._score).toBeGreaterThan(profile.topPool[1]._score);
+    expect(profile.poolKey).toContain('movie:tmdb:1');
     expect(model.isCacheUsable({
       cache: { poolKey: 'a', fetchedAt: 10, results: [] },
       poolKey: 'a',
@@ -1707,6 +1729,46 @@ test.describe('tracker data integrity', () => {
       totalEpisodes: 8,
     }));
     expect(protectedEntry.seasons).toHaveLength(1);
+  });
+
+  test('library model owns card episode and status actions', () => {
+    const model = loadLibraryModel();
+    const incremented = model.incrementEpisode({
+      id: 'show-1',
+      mediaType: 'tv',
+      status: 'in_progress',
+      seasons: [
+        { number: 1, total: 3, watched: 1 },
+        { number: 2, total: 2, watched: 0 },
+      ],
+    });
+
+    expect(incremented).toEqual(expect.objectContaining({
+      status: 'in_progress',
+      totalEpisodes: 5,
+      watchedEpisodes: 2,
+    }));
+    expect(incremented.seasons[0].watched).toBe(2);
+
+    const completed = model.incrementEpisode({
+      id: 'show-2',
+      mediaType: 'tv',
+      status: 'in_progress',
+      totalEpisodes: 2,
+      watchedEpisodes: 1,
+    });
+    expect(completed).toEqual(expect.objectContaining({ status: 'watched', watchedEpisodes: 2 }));
+
+    const cycled = model.cycleCardStatus({
+      mediaType: 'tv',
+      status: 'watched',
+      rating: 9,
+      watchedEpisodes: 4,
+      seasons: [{ number: 1, total: 4, watched: 4 }],
+    });
+    expect(cycled).toEqual(expect.objectContaining({ status: 'watchlist', rating: 0, watchedEpisodes: 0 }));
+    expect(cycled.seasons[0].watched).toBe(0);
+    expect([...model.pruneSelectionToVisible(new Set(['a', 'b']), new Set(['b', 'c']))]).toEqual(['b']);
   });
 
   test('library model preserves stronger season progress during metadata refresh', () => {

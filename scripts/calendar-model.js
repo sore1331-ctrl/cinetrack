@@ -172,6 +172,22 @@
     };
   }
 
+  function warmKeysForEntries(entries = []) {
+    const ids = [];
+    const tvEntries = [];
+    for (const entry of entries || []) {
+      if (!entry?.tmdbId) continue;
+      const isShow = entry.mediaType === 'tv' || entry.mediaType === 'anime';
+      if (isShow && (entry.status === 'in_progress' || entry.status === 'watchlist')) {
+        ids.push(`tv:${entry.tmdbId}`);
+        if (entry.mediaType === 'tv') tvEntries.push(entry);
+      } else if (entry.mediaType === 'movie' && entry.status === 'watchlist') {
+        ids.push(`movie:${entry.tmdbId}`);
+      }
+    }
+    return { ids: [...new Set(ids)], tvEntries };
+  }
+
   root.calendar = {
     dateString,
     addDaysString,
@@ -188,5 +204,6 @@
     discoverCacheKey,
     pruneTimestampCache,
     discoverWatchlistEntry,
+    warmKeysForEntries,
   };
 })();
