@@ -330,7 +330,6 @@ let pendingDeleteId = null;
 let selectedRating  = 0;
 let tmdbSelection   = null;
 let activeMediaType = 'movie';
-let searchTimer     = null;
 let currentPage     = 0;
 let pageSize        = filterModel.pageSize(localStorage.getItem('cinetrack_pagesize'));
 let selectMode      = false;
@@ -1668,105 +1667,10 @@ function updateModalForType() {
   document.getElementById('ep-fields').classList.toggle('hidden', !state.isShow);
 }
 
-// ── TMDB search UI ──────────────────────────────────────
-tmdbQuery.addEventListener('input', () => {
-  clearTimeout(searchTimer);
-  const q = tmdbQuery.value.trim();
-  if (!q) { hideDropdown(); return; }
-  tmdbSearching.textContent = 'Searching…';
-  tmdbSearching.classList.remove('hidden');
-  tmdbError.classList.add('hidden');
-  searchTimer = setTimeout(() => runSearch(q), 400);
-});
-
-async function runSearch(q) {
-  try {
-    const data = await searchExternalTitle(q, activeMediaType);
-    tmdbSearching.classList.add('hidden');
-    renderDropdown(data.results || []);
-  } catch (err) {
-    logAppError('search.external', err, { query: q, type: activeMediaType }, 'warn');
-    tmdbSearching.classList.add('hidden');
-    tmdbError.textContent = err.message;
-    tmdbError.classList.remove('hidden');
-  }
-}
-
-function renderDropdown(results) {
-  if (!results.length) {
-    tmdbDropdown.innerHTML = '<div class="tmdb-no-results">No results found</div>';
-    tmdbDropdown.classList.remove('hidden');
-    return;
-  }
-  tmdbDropdown.innerHTML = results.map(m => `
-    <div class="tmdb-result" data-id="${m.id}" data-source="${m.source || 'tmdb'}" data-media-type="${m.media_type}">
-      <img class="tmdb-result-poster"
-           src="${externalPosterUrl(m.poster_path)}"
-           alt="" onerror="this.style.display='none'" />
-      <div class="tmdb-result-info">
-        <span class="tmdb-result-title">${esc(m.title)}</span>
-        <span class="tmdb-result-year">${m.year || '—'}${activeMediaType === 'anime' ? ` · ${m.media_type}` : ''}</span>
-      </div>
-    </div>
-  `).join('');
-  tmdbDropdown.querySelectorAll('.tmdb-result').forEach((row, idx) => {
-    row._result = results[idx];
-  });
-  tmdbDropdown.classList.remove('hidden');
-}
-
-function hideDropdown() {
-  tmdbDropdown.classList.add('hidden');
-  tmdbDropdown.innerHTML = '';
-}
-
-tmdbDropdown.addEventListener('click', async e => {
-  const row = e.target.closest('.tmdb-result');
-  if (!row) return;
-  const id = row.dataset.id;
-  const rowData = row._result || null;
-  const fetchType = modalModel.detailsFetchType(activeMediaType, {
-    source: row.dataset.source,
-    mediaType: row.dataset.mediaType,
-  });
-  hideDropdown();
-  tmdbSearching.textContent = 'Loading details…';
-  tmdbSearching.classList.remove('hidden');
-  tmdbQuery.value = '';
-
-  try {
-    const details = await fetchExternalDetails(id, fetchType, rowData);
-    tmdbSearching.classList.add('hidden');
-    applyTMDBSelection(details);
-  } catch (err) {
-    logAppError('metadata.selection', err, { id, type: fetchType }, 'warn');
-    tmdbSearching.classList.add('hidden');
-    tmdbError.textContent = err.message;
-    tmdbError.classList.remove('hidden');
-  }
-});
-
 function applyTMDBSelection(details) {
   tmdbSelection = details;
-  tmdbPosterThumb.src = externalPosterUrl(details.poster_path);
-  tmdbPosterThumb.style.display = details.poster_path ? 'block' : 'none';
-  tmdbSelTitle.textContent = details.title;
-  tmdbSelYear.textContent  = [details.year, details.source === 'anilist' ? 'AniList' : details.source === 'tvmaze' ? 'TVmaze' : 'TMDB'].filter(Boolean).join(' · ');
-  tmdbSelected.classList.remove('hidden');
-  tmdbQuery.disabled = true;
-
-  document.getElementById('f-title').value    = details.title    || '';
-  populateYearSelect(details.year || '');
-  document.getElementById('f-year').value     = details.year     || '';
-  document.getElementById('f-genre').value    = details.genre    || '';
-  document.getElementById('f-director').value = details.director || '';
-  document.getElementById('f-country').value  = details.country  || '';
-  if (details.runtime) document.getElementById('f-runtime').value = details.runtime;
-
+  modalSearch.applySelection(details);
   modalSeasons.applySelection(details, document.getElementById('f-status')?.value || '');
-  if (!document.getElementById('f-notes').value)
-    document.getElementById('f-notes').value  = details.overview || '';
-
   modalProviders.render(details.providers);
   checkDuplicateForSelection(details);
 }
@@ -1828,27 +1732,10 @@ function checkDuplicateForSelection(selection) {
 
 function resetTMDBUI() {
   tmdbSelection = null;
-  tmdbSelected.classList.add('hidden');
-  tmdbQuery.disabled = false;
-  tmdbQuery.value = '';
-  hideDropdown();
-  tmdbError.classList.add('hidden');
-  tmdbSearching.classList.add('hidden');
+  modalSearch.reset();
   modalProviders.clear();
   document.getElementById('duplicate-warning')?.classList.add('hidden');
 }
-
-tmdbClear.addEventListener('click', () => {
-  resetTMDBUI();
-  ['f-title','f-year','f-genre','f-director','f-country','f-runtime'].forEach(id =>
-    document.getElementById(id).value = ''
-  );
-  tmdbQuery.focus();
-});
-
-document.addEventListener('click', e => {
-  if (!e.target.closest('#tmdb-search-wrap')) hideDropdown();
-});
 
 // ── Star rating ─────────────────────────────────────────
 function buildStars() {
@@ -3853,6 +3740,36 @@ const modalSubmit = modalController.createSubmitController({
   seasons: modalSeasons,
   rewatch: modalRewatch,
   externalPosterUrl,
+});
+const modalSearch = modalController.createSearchController({
+  query: tmdbQuery,
+  dropdown: tmdbDropdown,
+  selected: tmdbSelected,
+  posterThumb: tmdbPosterThumb,
+  selectedTitle: tmdbSelTitle,
+  selectedYear: tmdbSelYear,
+  clearBtn: tmdbClear,
+  searching: tmdbSearching,
+  error: tmdbError,
+  fields: {
+    title: document.getElementById('f-title'),
+    year: document.getElementById('f-year'),
+    genre: document.getElementById('f-genre'),
+    director: document.getElementById('f-director'),
+    country: document.getElementById('f-country'),
+    runtime: document.getElementById('f-runtime'),
+    notes: document.getElementById('f-notes'),
+  },
+  modalModel,
+  getMediaType: () => activeMediaType,
+  searchExternalTitle,
+  fetchExternalDetails,
+  externalPosterUrl,
+  populateYearSelect,
+  esc,
+  onSelection: applyTMDBSelection,
+  onClear: () => { tmdbSelection = null; },
+  logError: logAppError,
 });
 
 function openModal(movie = null) {

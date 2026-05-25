@@ -323,10 +323,200 @@
     return { buildSubmission };
   }
 
+  function createSearchController(options = {}) {
+    const {
+      query,
+      dropdown,
+      selected,
+      posterThumb,
+      selectedTitle,
+      selectedYear,
+      clearBtn,
+      searching,
+      error,
+      fields = {},
+      modalModel,
+      getMediaType = () => 'movie',
+      searchExternalTitle,
+      fetchExternalDetails,
+      externalPosterUrl = value => value || '',
+      populateYearSelect = () => {},
+      esc = value => String(value ?? ''),
+      onSelection = () => {},
+      onClear = () => {},
+      logError = () => {},
+      debounceMs = 400,
+    } = options;
+
+    let searchTimer = null;
+
+    function hideDropdown() {
+      if (!dropdown) return;
+      dropdown.classList.add('hidden');
+      dropdown.innerHTML = '';
+    }
+
+    function showStatus(message) {
+      if (!searching) return;
+      searching.textContent = message;
+      searching.classList.remove('hidden');
+    }
+
+    function hideStatus() {
+      searching?.classList.add('hidden');
+    }
+
+    function showError(message) {
+      if (!error) return;
+      error.textContent = message;
+      error.classList.remove('hidden');
+    }
+
+    function hideError() {
+      error?.classList.add('hidden');
+    }
+
+    function renderDropdown(results = []) {
+      if (!dropdown) return;
+      if (!results.length) {
+        dropdown.innerHTML = '<div class="tmdb-no-results">No results found</div>';
+        dropdown.classList.remove('hidden');
+        return;
+      }
+      const mediaType = getMediaType();
+      dropdown.innerHTML = results.map(result => `
+        <div class="tmdb-result" data-id="${result.id}" data-source="${result.source || 'tmdb'}" data-media-type="${result.media_type}">
+          <img class="tmdb-result-poster"
+               src="${externalPosterUrl(result.poster_path)}"
+               alt="" onerror="this.style.display='none'" />
+          <div class="tmdb-result-info">
+            <span class="tmdb-result-title">${esc(result.title)}</span>
+            <span class="tmdb-result-year">${result.year || '&mdash;'}${mediaType === 'anime' ? ` &middot; ${esc(result.media_type)}` : ''}</span>
+          </div>
+        </div>
+      `).join('');
+      dropdown.querySelectorAll('.tmdb-result').forEach((row, index) => {
+        row._result = results[index];
+      });
+      dropdown.classList.remove('hidden');
+    }
+
+    async function runSearch(searchTerm) {
+      const mediaType = getMediaType();
+      try {
+        const data = await searchExternalTitle(searchTerm, mediaType);
+        hideStatus();
+        renderDropdown(data.results || []);
+      } catch (err) {
+        logError('search.external', err, { query: searchTerm, type: mediaType }, 'warn');
+        hideStatus();
+        showError(err.message);
+      }
+    }
+
+    async function handleDropdownClick(event) {
+      const row = event.target.closest('.tmdb-result');
+      if (!row) return;
+      const id = row.dataset.id;
+      const rowData = row._result || null;
+      const mediaType = getMediaType();
+      const fetchType = modalModel.detailsFetchType(mediaType, {
+        source: row.dataset.source,
+        mediaType: row.dataset.mediaType,
+      });
+      hideDropdown();
+      showStatus('Loading details...');
+      if (query) query.value = '';
+
+      try {
+        const details = await fetchExternalDetails(id, fetchType, rowData);
+        hideStatus();
+        onSelection(details);
+      } catch (err) {
+        logError('metadata.selection', err, { id, type: fetchType }, 'warn');
+        hideStatus();
+        showError(err.message);
+      }
+    }
+
+    function applySelection(details = {}) {
+      if (posterThumb) {
+        posterThumb.src = externalPosterUrl(details.poster_path);
+        posterThumb.style.display = details.poster_path ? 'block' : 'none';
+      }
+      if (selectedTitle) selectedTitle.textContent = details.title || '';
+      if (selectedYear) {
+        selectedYear.textContent = [
+          details.year,
+          details.source === 'anilist' ? 'AniList' : details.source === 'tvmaze' ? 'TVmaze' : 'TMDB',
+        ].filter(Boolean).join(' · ');
+      }
+      selected?.classList.remove('hidden');
+      if (query) {
+        query.disabled = true;
+        query.value = '';
+      }
+
+      if (fields.title) fields.title.value = details.title || '';
+      populateYearSelect(details.year || '');
+      if (fields.year) fields.year.value = details.year || '';
+      if (fields.genre) fields.genre.value = details.genre || '';
+      if (fields.director) fields.director.value = details.director || '';
+      if (fields.country) fields.country.value = details.country || '';
+      if (fields.runtime && details.runtime) fields.runtime.value = details.runtime;
+      if (fields.notes && !fields.notes.value) fields.notes.value = details.overview || '';
+    }
+
+    function reset() {
+      selected?.classList.add('hidden');
+      if (query) {
+        query.disabled = false;
+        query.value = '';
+      }
+      hideDropdown();
+      hideError();
+      hideStatus();
+    }
+
+    function clearFields() {
+      ['title', 'year', 'genre', 'director', 'country', 'runtime'].forEach(name => {
+        if (fields[name]) fields[name].value = '';
+      });
+    }
+
+    query?.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      const searchTerm = query.value.trim();
+      if (!searchTerm) {
+        hideDropdown();
+        return;
+      }
+      showStatus('Searching...');
+      hideError();
+      searchTimer = setTimeout(() => runSearch(searchTerm), debounceMs);
+    });
+
+    dropdown?.addEventListener('click', handleDropdownClick);
+
+    clearBtn?.addEventListener('click', () => {
+      reset();
+      clearFields();
+      onClear();
+      query?.focus();
+    });
+
+    document.addEventListener('click', event => {
+      if (!event.target.closest('#tmdb-search-wrap')) hideDropdown();
+    });
+
+    return { applySelection, reset, hideDropdown };
+  }
+
   root.modalController = {
     createSeasonController,
     createRewatchController,
     createProviderController,
     createSubmitController,
+    createSearchController,
   };
 })();
