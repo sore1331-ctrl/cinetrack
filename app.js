@@ -254,6 +254,7 @@ const statsModel = window.CineTrack?.stats;
 const cardModel = window.CineTrack?.cards;
 const cardViewRenderer = window.CineTrack?.cardView;
 const cardController = window.CineTrack?.cardController;
+const bulkController = window.CineTrack?.bulkController;
 const filterModel = window.CineTrack?.filters;
 const paginationModel = window.CineTrack?.pagination;
 const randomPickerModel = window.CineTrack?.randomPicker;
@@ -1036,7 +1037,7 @@ function switchView(view, type) {
   if (isContent) {
     selectMode = false;
     selectModeBtn.classList.remove('active');
-    selectedIds.clear();
+    bulkSelection.clear();
     updateCountryDropdown();
     render();
   } else if (isStats) {
@@ -1148,9 +1149,9 @@ function updateClearFiltersBtn() {
   const active = hasActiveFilters();
   if (active && selectMode) {
     selectMode = false;
-    selectedIds.clear();
+    bulkSelection.clear();
     selectModeBtn.classList.remove('active');
-    updateBulkBar();
+    bulkSelection.updateBar();
   }
   clearFiltersBtn.classList.toggle('hidden', !active);
   selectModeBtn.classList.toggle('hidden', active);
@@ -3777,8 +3778,7 @@ function render() {
   const list = filtered(upcomingCache);
 
   const visibleIds = new Set(list.map(m => m.id));
-  selectedIds = libraryModel.pruneSelectionToVisible(selectedIds, visibleIds);
-  updateBulkBar();
+  bulkSelection.pruneToVisible(visibleIds);
   updateStats();
   syncSeriesStatusFilterVisibility();
   updateClearFiltersBtn();
@@ -3801,7 +3801,7 @@ function render() {
 
   pageList.forEach(m => {
     const card = document.createElement('div');
-    const checked = selectedIds.has(m.id);
+    const checked = bulkSelection.has(m.id);
     const airingToday = checkAiringToday(m);
     card.className = 'movie-card'
       + (checked ? ' selected' : '')
@@ -3836,47 +3836,23 @@ const bulkMarkWatched     = document.getElementById('bulk-mark-watched');
 const bulkMarkInProgress  = document.getElementById('bulk-mark-in-progress');
 const bulkMarkWatchlist   = document.getElementById('bulk-mark-watchlist');
 
-function updateBulkBar() {
-  const n = selectedIds.size;
-  bulkBar.classList.toggle('hidden', n === 0);
-  bulkCount.textContent = `${n} selected`;
-}
-
-let selectedIds = new Set();
-
-grid.addEventListener('change', e => {
-  const id = e.target.dataset.check;
-  if (!id) return;
-  if (e.target.checked) selectedIds.add(id);
-  else selectedIds.delete(id);
-  e.target.closest('.movie-card')?.classList.toggle('selected', e.target.checked);
-  updateBulkBar();
-});
-
-bulkSelectAll.addEventListener('click', () => { filtered().forEach(m => selectedIds.add(m.id)); render(); });
-bulkDeselect.addEventListener('click', () => { selectedIds.clear(); render(); });
-
-bulkMarkWatched.addEventListener('click', () => {
-  changeLibraryStatus(selectedIds, 'watched');
-  selectedIds.clear(); save(); render();
-});
-
-bulkMarkInProgress.addEventListener('click', () => {
-  changeLibraryStatus(selectedIds, 'in_progress');
-  selectedIds.clear(); save(); render();
-});
-
-bulkMarkWatchlist.addEventListener('click', () => {
-  changeLibraryStatus(selectedIds, 'watchlist');
-  selectedIds.clear(); save(); render();
-});
-
-bulkDelete.addEventListener('click', () => {
-  const n = selectedIds.size;
-  if (!confirm(`Delete ${n} title${n !== 1 ? 's' : ''}? This cannot be undone.`)) return;
-  removeLibraryEntries(selectedIds);
-  selectedIds.clear();
-  save(); updateCountryDropdown(); render();
+const bulkSelection = bulkController.createBulkSelectionController({
+  grid,
+  bulkBar,
+  bulkCount,
+  bulkSelectAll,
+  bulkDeselect,
+  bulkDelete,
+  bulkMarkWatched,
+  bulkMarkInProgress,
+  bulkMarkWatchlist,
+  filtered,
+  changeLibraryStatus,
+  removeLibraryEntries,
+  save,
+  updateCountryDropdown,
+  render,
+  pruneSelection: libraryModel.pruneSelectionToVisible,
 });
 
 // ── Year select ─────────────────────────────────────────
