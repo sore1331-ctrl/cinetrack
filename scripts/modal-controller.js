@@ -239,9 +239,94 @@
     return { clear, render, loadForEntry };
   }
 
+  function createSubmitController(options = {}) {
+    const {
+      fields = {},
+      epWatchedInput,
+      epTotalInput,
+      modalModel,
+      seasons,
+      rewatch,
+      externalPosterUrl = value => value || '',
+    } = options;
+
+    function fieldValue(name, trim = false) {
+      const value = fields[name]?.value || '';
+      return trim ? value.trim() : value;
+    }
+
+    function readFields(titleOverride = '') {
+      return {
+        title: titleOverride || fieldValue('title', true),
+        year: fieldValue('year'),
+        genre: fieldValue('genre'),
+        director: fieldValue('director'),
+        country: fieldValue('country'),
+        status: fieldValue('status'),
+        notes: fieldValue('notes'),
+        runtime: fieldValue('runtime'),
+      };
+    }
+
+    function buildSubmission({
+      mediaType = 'movie',
+      editingId = null,
+      existing = null,
+      selection = null,
+      selectedRating = 0,
+    } = {}) {
+      const title = fieldValue('title', true);
+      if (!title) return { ok: false, reason: 'missing-title' };
+
+      const posterUrl = selection?.poster_path
+        ? externalPosterUrl(selection.poster_path)
+        : existing?.posterUrl || '';
+      const selected = modalModel.selectedExternal(selection);
+      const isShow = mediaType === 'tv' || mediaType === 'anime';
+
+      if (isShow && seasons?.hasSeasons()) seasons.captureAndNormalise();
+
+      const progress = modalModel.episodeState({
+        mediaType,
+        seasons: seasons?.seasons() || [],
+        totalInput: epTotalInput?.value || '',
+        watchedInput: epWatchedInput?.value || '',
+      });
+
+      const data = modalModel.entryPayload({
+        fields: readFields(title),
+        mediaType,
+        progress,
+        selectedRating,
+        editingWatchCount: rewatch?.count() || 0,
+        existing,
+        posterUrl,
+        selection,
+        selectedSource: selected.selectedSource,
+        selectedExternalId: selected.selectedExternalId,
+      });
+
+      return {
+        ok: true,
+        title,
+        data,
+        duplicateProbe: editingId ? null : {
+          title,
+          year: fieldValue('year') || selection?.year || '',
+          mediaType,
+          source: selected.selectedSource || 'manual',
+          externalId: selected.selectedExternalId,
+        },
+      };
+    }
+
+    return { buildSubmission };
+  }
+
   root.modalController = {
     createSeasonController,
     createRewatchController,
     createProviderController,
+    createSubmitController,
   };
 })();

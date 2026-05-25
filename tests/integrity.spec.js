@@ -1010,16 +1010,19 @@ test.describe('tracker data integrity', () => {
     expect(controller).toContain('modalModel.cloneSeasons(entry)');
     expect(controller).toContain('modalModel.selectionSeasonState({');
     expect(app).toContain('modalModel.detailsFetchType(activeMediaType');
-    expect(app).toContain('modalModel.selectedExternal(tmdbSelection)');
+    expect(controller).toContain('modalModel.selectedExternal(selection)');
     expect(app).toContain('modalRewatch.initFromEntry(movie)');
-    expect(app).toContain('editingWatchCount: modalRewatch.count()');
+    expect(controller).toContain('editingWatchCount: rewatch?.count() || 0');
     expect(controller).toContain('function createRewatchController');
     expect(controller).toContain('modalModel.rewatchState');
     expect(controller).toContain('function createProviderController');
     expect(app).toContain('modalProviders.render(details.providers)');
     expect(app).toContain('modalProviders.loadForEntry(movie)');
-    expect(app).toContain('modalModel.episodeState({');
-    expect(app).toContain('const data = modalModel.entryPayload({');
+    expect(app).toContain('const modalSubmit = modalController.createSubmitController({');
+    expect(app).toContain('const submission = modalSubmit.buildSubmission({');
+    expect(controller).toContain('function createSubmitController');
+    expect(controller).toContain('modalModel.episodeState({');
+    expect(controller).toContain('modalModel.entryPayload({');
   });
 
   test('duplicate model matches source ids and conservative title fallbacks', () => {

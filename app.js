@@ -3836,6 +3836,24 @@ const modalProviders = modalController.createProviderController({
   esc,
   scheduleSavePrefs,
 });
+const modalSubmit = modalController.createSubmitController({
+  fields: {
+    title: document.getElementById('f-title'),
+    year: document.getElementById('f-year'),
+    genre: document.getElementById('f-genre'),
+    director: document.getElementById('f-director'),
+    country: document.getElementById('f-country'),
+    status: document.getElementById('f-status'),
+    notes: document.getElementById('f-notes'),
+    runtime: document.getElementById('f-runtime'),
+  },
+  epWatchedInput,
+  epTotalInput,
+  modalModel,
+  seasons: modalSeasons,
+  rewatch: modalRewatch,
+  externalPosterUrl,
+});
 
 function openModal(movie = null) {
   editingId = movie ? movie.id : null;
@@ -3919,22 +3937,18 @@ form.addEventListener('submit', e => {
     showMutationLockToast();
     return;
   }
-  const title = document.getElementById('f-title').value.trim();
-  if (!title) return;
-
   const existing  = editingId ? movies.find(m => m.id === editingId) : null;
-  const posterUrl = tmdbSelection?.poster_path
-    ? externalPosterUrl(tmdbSelection.poster_path)
-    : existing?.posterUrl || '';
-  const { selectedSource, selectedExternalId } = modalModel.selectedExternal(tmdbSelection);
-  if (!editingId) {
-    const duplicate = findDuplicateTitle({
-      title,
-      year: document.getElementById('f-year').value || tmdbSelection?.year || '',
-      mediaType: activeMediaType,
-      source: selectedSource || 'manual',
-      externalId: selectedExternalId,
-    });
+  const submission = modalSubmit.buildSubmission({
+    mediaType: activeMediaType,
+    editingId,
+    existing,
+    selection: tmdbSelection,
+    selectedRating,
+  });
+  if (!submission.ok) return;
+
+  if (submission.duplicateProbe) {
+    const duplicate = findDuplicateTitle(submission.duplicateProbe);
     if (duplicate) {
       showToast(`"${duplicate.title}" is already in your ${duplicate.status === 'watchlist' ? 'watchlist' : 'library'}.`);
       closeModal();
@@ -3943,44 +3957,10 @@ form.addEventListener('submit', e => {
     }
   }
 
-  const isShow = activeMediaType === 'tv' || activeMediaType === 'anime';
-
-  // Capture in-flight edits to the currently-selected season, then normalise.
-  if (isShow && modalSeasons.hasSeasons()) modalSeasons.captureAndNormalise();
-
-  const progress = modalModel.episodeState({
-    mediaType: activeMediaType,
-    seasons: modalSeasons.seasons(),
-    totalInput: epTotalInput.value,
-    watchedInput: epWatchedInput.value,
-  });
-
-  const data = modalModel.entryPayload({
-    fields: {
-      title,
-      year: document.getElementById('f-year').value,
-      genre: document.getElementById('f-genre').value,
-      director: document.getElementById('f-director').value,
-      country: document.getElementById('f-country').value,
-      status: document.getElementById('f-status').value,
-      notes: document.getElementById('f-notes').value,
-      runtime: document.getElementById('f-runtime').value,
-    },
-    mediaType: activeMediaType,
-    progress,
-    selectedRating,
-    editingWatchCount: modalRewatch.count(),
-    existing,
-    posterUrl,
-    selection: tmdbSelection,
-    selectedSource,
-    selectedExternalId,
-  });
-
   if (editingId) {
-    updateLibraryEntry(editingId, data, { allowDowngrade: true });
+    updateLibraryEntry(editingId, submission.data, { allowDowngrade: true });
   } else {
-    addLibraryEntry({ addedAt: Date.now(), ...data });
+    addLibraryEntry({ addedAt: Date.now(), ...submission.data });
   }
 
   save(); updateCountryDropdown(); render(); closeModal();
