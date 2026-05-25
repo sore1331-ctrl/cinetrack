@@ -471,6 +471,17 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain("warmUpcomingCacheForBadge({ force: true, reason: 'daily' })");
   });
 
+  test('airing today checks reuse the upcoming cache during render passes', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+
+    expect(app).toContain('function airingTodayChecker(cache = readUpcomingCache())');
+    expect(app).toContain('function filtered(upcomingCache = readUpcomingCache())');
+    expect(app).toContain('const upcomingCache = readUpcomingCache();');
+    expect(app).toContain('const checkAiringToday = airingTodayChecker(upcomingCache);');
+    expect(app).toContain('const list = filtered(upcomingCache);');
+    expect(app).toContain('getAiringTodaySignal(local, todayStr, upcomingCache)');
+  });
+
   test('tracked calendar only renders confirmed future dates', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
     const tvmazeApi = fs.readFileSync(path.join(root, 'api', 'tvmaze-calendar.js'), 'utf8');

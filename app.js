@@ -1965,8 +1965,11 @@ function seriesStatusBucket(m) {
   return 'unknown';
 }
 
-function filtered() {
-  return filterModel.apply(movies, currentFilterState(), { seriesStatusBucket, isAiringToday });
+function filtered(upcomingCache = readUpcomingCache()) {
+  return filterModel.apply(movies, currentFilterState(), {
+    seriesStatusBucket,
+    isAiringToday: airingTodayChecker(upcomingCache),
+  });
 }
 
 // ── Helpers ─────────────────────────────────────────────
@@ -2570,15 +2573,20 @@ function hasUnwatchedAiringEpisodeToday(m, episode, todayStr = todayDateString()
   return calendarModel.hasUnwatchedAiringEpisodeToday(m, episode, todayStr);
 }
 
-function getAiringTodaySignal(m, todayStr = todayDateString()) {
-  return calendarModel.airingTodaySignal(m, readUpcomingCache(), todayStr);
+function getAiringTodaySignal(m, todayStr = todayDateString(), cache = readUpcomingCache()) {
+  return calendarModel.airingTodaySignal(m, cache, todayStr);
 }
 
 // True when the given local entry has something happening today according
 // to the upcoming cache (next episode airing, or theatrical release).
 // Returns false if the cache is missing — we fail closed.
-function isAiringToday(m) {
-  return Boolean(getAiringTodaySignal(m));
+function isAiringToday(m, cache = readUpcomingCache()) {
+  return Boolean(getAiringTodaySignal(m, todayDateString(), cache));
+}
+
+function airingTodayChecker(cache = readUpcomingCache()) {
+  const todayStr = todayDateString();
+  return m => Boolean(getAiringTodaySignal(m, todayStr, cache));
 }
 
 // Updates the small "airing today" indicator on the Calendar nav tab.
@@ -2587,15 +2595,15 @@ function isAiringToday(m) {
 function updateCalendarAiringBadge() {
   const tab = document.querySelector('.type-tab[data-type="calendar"]');
   if (!tab) return;
-  const todayStr = todayDateString();
   const cache = readUpcomingCache();
   let count = 0;
   if (cache?.byId) {
+    const checkAiringToday = airingTodayChecker(cache);
     for (const m of movies) {
       if (!m.tmdbId) continue;
       const isShow  = m.mediaType === 'tv' || m.mediaType === 'anime';
       const isMovie = m.mediaType === 'movie';
-      if ((isShow || isMovie) && getAiringTodaySignal(m, todayStr)) count += 1;
+      if ((isShow || isMovie) && checkAiringToday(m)) count += 1;
     }
   }
   tab.classList.toggle('has-airing', count > 0);
@@ -2915,8 +2923,9 @@ async function renderCalendarTracked(body, { force = false } = {}) {
   // Keep the Calendar consistent with library card highlights. If a card is
   // pinned/highlighted because a new episode is available today, Calendar
   // should always show that same title under Today.
+  const upcomingCache = readUpcomingCache();
   for (const local of tracked) {
-    const signal = getAiringTodaySignal(local, todayStr);
+    const signal = getAiringTodaySignal(local, todayStr, upcomingCache);
     if (!signal) continue;
     if (signal.type === 'episode') {
       const ne = signal.episode;
@@ -4687,7 +4696,9 @@ function renderPagination(totalItems) {
 function render() {
   if (activeView !== 'content') return;
 
-  const list = filtered();
+  const upcomingCache = readUpcomingCache();
+  const checkAiringToday = airingTodayChecker(upcomingCache);
+  const list = filtered(upcomingCache);
 
   const visibleIds = new Set(list.map(m => m.id));
   for (const id of selectedIds) {
@@ -4717,7 +4728,7 @@ function render() {
   pageList.forEach(m => {
     const card = document.createElement('div');
     const checked = selectedIds.has(m.id);
-    const airingToday = isAiringToday(m);
+    const airingToday = checkAiringToday(m);
     card.className = 'movie-card'
       + (checked ? ' selected' : '')
       + (airingToday ? ' card-airing-today' : '');
