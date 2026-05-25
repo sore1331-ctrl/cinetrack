@@ -154,6 +154,98 @@
     return Number(visibleCount || 0) < Math.max(1, Math.ceil(Number(visibleLimit || 10) * 0.7));
   }
 
+  function dismissedProfile(dismissedIds = new Set(), results = []) {
+    const dismissed = dismissedIds instanceof Set ? dismissedIds : new Set(dismissedIds || []);
+    const profile = { genres: {}, mediaTypes: {} };
+    for (const rec of results || []) {
+      if (!dismissed.has(String(rec?.id))) continue;
+      const type = mediaType(rec);
+      if (type) profile.mediaTypes[type] = (profile.mediaTypes[type] || 0) + 1;
+      String(rec?.genre || '')
+        .split(',')
+        .map(genre => genre.trim())
+        .filter(Boolean)
+        .forEach(genre => { profile.genres[genre] = (profile.genres[genre] || 0) + 1; });
+    }
+    return profile;
+  }
+
+  function identity(rec, {
+    normaliseTitle = value => String(value || '').trim().toLowerCase(),
+    normaliseYear = value => String(value || '').trim(),
+  } = {}) {
+    return `${normaliseTitle(rec?.title)}:${normaliseYear(rec?.year)}:${mediaType(rec) || ''}`;
+  }
+
+  function visibleResults(results = [], {
+    scope = 'all',
+    dismissedIds = new Set(),
+    visibleLimit = 10,
+    isTracked = () => false,
+    identityFor = identity,
+  } = {}) {
+    const dismissed = dismissedIds instanceof Set ? dismissedIds : new Set(dismissedIds || []);
+    const seen = new Set();
+    const recs = [];
+    for (const rawRec of results || []) {
+      const rec = normaliseForScope(rawRec, scope);
+      const key = identityFor(rec);
+      if (scope !== 'all' && mediaType(rec) !== scope) continue;
+      if (dismissed.has(String(rec.id)) || isTracked(rec) || seen.has(key)) continue;
+      seen.add(key);
+      recs.push(rec);
+      if (recs.length >= visibleLimit) break;
+    }
+    return recs;
+  }
+
+  function visibleCount(results = [], options = {}) {
+    return visibleResults(results, { ...options, visibleLimit: Number.MAX_SAFE_INTEGER }).length;
+  }
+
+  function displayMeta(genreCounts = {}, scope = 'all') {
+    const topGenres = Object.entries(genreCounts || {})
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(entry => entry[0]);
+    const scopeLabel = scope === 'movie' ? 'films' : scope === 'tv' ? 'TV shows' : scope === 'anime' ? 'anime' : 'what';
+    return {
+      topGenres,
+      genreLabel: topGenres.length ? topGenres.join(', ') : 'your watch history',
+      scopeLabel,
+    };
+  }
+
+  function seedRequest(seededPool = [], {
+    refreshIndex = 0,
+    force = false,
+    limit = 8,
+  } = {}) {
+    const tmdbSeededPool = (seededPool || []).filter(entry => entry?._recTmdbId);
+    const sample = selectSeeds(tmdbSeededPool, Math.min(limit, tmdbSeededPool.length), refreshIndex, force);
+    return {
+      tmdbSeededPool,
+      sample,
+      idParam: sample.map(entry => `${entry._recTmdbId}:${entry.mediaType}`).join(','),
+    };
+  }
+
+  function mergeAnimeResults({
+    anilistResults = [],
+    tmdbResults = [],
+    scope = 'anime',
+    visibleLimit = 10,
+    sourceKeyFor = sourceKey,
+    identityFor = identity,
+  } = {}) {
+    const seenAnime = new Set((anilistResults || []).map(rec => sourceKeyFor(rec) || identityFor(rec)));
+    const tmdbFallback = (tmdbResults || [])
+      .map(rec => normaliseForScope(rec, scope))
+      .filter(rec => !seenAnime.has(sourceKeyFor(rec) || identityFor(rec)))
+      .slice(0, Math.max(0, visibleLimit - anilistResults.length));
+    return [...anilistResults, ...tmdbFallback];
+  }
+
   function actionFromDataset(dataset = {}) {
     const id = dataset.recId || '';
     const source = dataset.recSource || 'tmdb';
@@ -222,6 +314,13 @@
     requestKey,
     isCacheUsable,
     shouldTopUpRecommendations,
+    dismissedProfile,
+    identity,
+    visibleResults,
+    visibleCount,
+    displayMeta,
+    seedRequest,
+    mergeAnimeResults,
     actionFromDataset,
     watchlistEntryFromAction,
     detailsFetchTarget,

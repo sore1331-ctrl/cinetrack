@@ -640,19 +640,16 @@ async function loadUserData(options = {}) {
 
     if (row?.exists && Array.isArray(row.movies)) {
       const backedUpLocal = writeLocalLibraryBackup(force ? 'before-force-cloud-load' : 'before-cloud-load', movies);
-      if (!backedUpLocal && force) {
-        throw new Error('Could not create a local safety backup before applying cloud data.');
-      }
-      if (!backedUpLocal) {
-        logAppError('backup.local', 'Local safety backup could not be written; continuing with cloud refresh.', { force }, 'warn');
-      }
+      const applyPlan = syncModel.cloudApplyPlan({ row, force, backupWritten: backedUpLocal });
+      if (applyPlan.error) throw new Error(applyPlan.error);
+      if (!applyPlan.shouldApply) return { ok: true, changed: false };
       applyingRemoteData = true;
       replaceLibrary(row.movies);
       persistLocalLibrary();
       applyingRemoteData = false;
-      lastCloudUpdatedAt = row.updated_at || lastCloudUpdatedAt;
-      lastCloudVersion = Number(row.version || lastCloudVersion || 0);
-      lastCloudItemCount = row.item_count ?? row.movies.length;
+      lastCloudUpdatedAt = applyPlan.next.lastCloudUpdatedAt || lastCloudUpdatedAt;
+      lastCloudVersion = applyPlan.next.lastCloudVersion || lastCloudVersion;
+      lastCloudItemCount = applyPlan.next.lastCloudItemCount;
       updateSyncDetails();
       lastSavedLocalVersion = localChangeVersion;
       clearPendingSyncMarker();
@@ -3073,18 +3070,7 @@ function dismissedRecProfile() {
   const dismissed = getDismissedRecs();
   const cache = readRecsCache();
   const results = Array.isArray(cache?.results) ? cache.results : [];
-  const profile = { genres: {}, mediaTypes: {} };
-  for (const rec of results) {
-    if (!dismissed.has(String(rec.id))) continue;
-    const type = recMediaType(rec);
-    if (type) profile.mediaTypes[type] = (profile.mediaTypes[type] || 0) + 1;
-    String(rec.genre || '')
-      .split(',')
-      .map(g => g.trim())
-      .filter(Boolean)
-      .forEach(g => { profile.genres[g] = (profile.genres[g] || 0) + 1; });
-  }
-  return profile;
+  return recommendationModel.dismissedProfile(dismissed, results);
 }
 
 function recommendationScopeType() {
@@ -3092,7 +3078,10 @@ function recommendationScopeType() {
 }
 
 function recIdentity({ title, year, media_type }) {
-  return `${normaliseDuplicateTitle(title)}:${normaliseDuplicateYear(year)}:${media_type || ''}`;
+  return recommendationModel.identity({ title, year, media_type }, {
+    normaliseTitle: normaliseDuplicateTitle,
+    normaliseYear: normaliseDuplicateYear,
+  });
 }
 
 function recMediaType(rec) {
@@ -3169,10 +3158,6 @@ function normaliseAnilistRecommendation(media) {
   return recommendationModel.normaliseAnilist(media);
 }
 
-function seedKeyForMovie(movie) {
-  return recommendationModel.seedKey(movie);
-}
-
 function recommendationRefreshIndex(scope, force = false) {
   const key = `${RECS_REFRESH_KEY}:${scope}`;
   const current = Number(localStorage.getItem(key) || 0);
@@ -3180,10 +3165,6 @@ function recommendationRefreshIndex(scope, force = false) {
   const next = current + 1;
   localStorage.setItem(key, String(next));
   return next;
-}
-
-function rotateList(items, offset) {
-  return recommendationModel.rotateList(items, offset);
 }
 
 function selectRecommendationSeeds(scored, limit = 8, rotationIndex = 0, force = false) {
@@ -3209,20 +3190,6 @@ async function fetchAnilistRecommendationResults(seededPool, { force = false } =
   return (anilistData.results || []).map(normaliseAnilistRecommendation);
 }
 
-// Fisher–Yates partial shuffle: take n items at random from arr.
-function pickRandom(arr, n) {
-  const copy = [...arr];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy.slice(0, n);
-}
-
-function scoreRecommendation(rec, { genreCounts = {}, dismissedProfile = {}, scope = 'all' } = {}) {
-  return recommendationModel.score(rec, { genreCounts, dismissedProfile, scope });
-}
-
 function rankRecommendationResults(results, context) {
   return recommendationModel.rank(results, context);
 }
@@ -3244,18 +3211,12 @@ function recommendationDetailsFetchTarget(action) {
 }
 
 function visibleRecommendationCount(results, scope) {
-  const dismissed = getDismissedRecs();
-  const seen = new Set();
-  let count = 0;
-  for (const rawRec of results || []) {
-    const rec = normaliseRecommendationForScope(rawRec, scope);
-    const key = recIdentity(rec);
-    if (scope !== 'all' && rec.media_type !== scope) continue;
-    if (dismissed.has(String(rec.id)) || findTrackedRecommendationMatch(rec) || seen.has(key)) continue;
-    seen.add(key);
-    count += 1;
-  }
-  return count;
+  return recommendationModel.visibleCount(results, {
+    scope,
+    dismissedIds: getDismissedRecs(),
+    isTracked: findTrackedRecommendationMatch,
+    identityFor: recIdentity,
+  });
 }
 
 async function fetchRecommendationJson({ scope, idParam, force = false }) {
@@ -3345,14 +3306,15 @@ async function loadRecommendations({ force = false } = {}) {
     }
   }
 
-  const tmdbSeededPool = seededPool.filter(m => m._recTmdbId);
+  const { tmdbSeededPool, idParam } = recommendationModel.seedRequest(seededPool, {
+    refreshIndex,
+    force,
+    limit: 8,
+  });
   if (!tmdbSeededPool.length) {
     section.innerHTML = `<p class="recs-empty">No ${scope === 'anime' ? 'anime ' : ''}recommendations found yet. Try marking a few more titles as watched or in progress.</p>`;
     return;
   }
-
-  const sample = selectRecommendationSeeds(tmdbSeededPool, Math.min(8, tmdbSeededPool.length), refreshIndex, force);
-  const idParam = sample.map(m => `${m._recTmdbId}:${m.mediaType}`).join(',');
 
   let data;
   try {
@@ -3374,12 +3336,14 @@ async function loadRecommendations({ force = false } = {}) {
   if (scope === 'anime') {
     try {
       const anilistResults = await fetchAnilistRecommendationResults(seededPool, { force });
-      const seenAnime = new Set(anilistResults.map(rec => recommendationSourceKey(rec) || recIdentity(rec)));
-      const tmdbFallback = results
-        .map(rec => normaliseRecommendationForScope(rec, scope))
-        .filter(rec => !seenAnime.has(recommendationSourceKey(rec) || recIdentity(rec)))
-        .slice(0, Math.max(0, RECS_VISIBLE_LIMIT - anilistResults.length));
-      results = [...anilistResults, ...tmdbFallback];
+      results = recommendationModel.mergeAnimeResults({
+        anilistResults,
+        tmdbResults: results,
+        scope,
+        visibleLimit: RECS_VISIBLE_LIMIT,
+        sourceKeyFor: recommendationSourceKey,
+        identityFor: recIdentity,
+      });
     } catch {
       results = results.map(rec => normaliseRecommendationForScope(rec, scope));
     }
@@ -3396,22 +3360,13 @@ async function loadRecommendations({ force = false } = {}) {
 }
 
 function renderRecsCards(section, results, genreCounts, scope = 'all') {
-  const dismissed      = getDismissedRecs();
-  const seen = new Set();
-  const recs = [];
-  for (const rawRec of results) {
-    const r = normaliseRecommendationForScope(rawRec, scope);
-    const key = recIdentity(r);
-    if (scope !== 'all' && r.media_type !== scope) continue;
-    if (
-      dismissed.has(String(r.id)) ||
-      findTrackedRecommendationMatch(r) ||
-      seen.has(key)
-    ) continue;
-    seen.add(key);
-    recs.push(r);
-    if (recs.length >= RECS_VISIBLE_LIMIT) break;
-  }
+  const recs = recommendationModel.visibleResults(results, {
+    scope,
+    dismissedIds: getDismissedRecs(),
+    visibleLimit: RECS_VISIBLE_LIMIT,
+    isTracked: findTrackedRecommendationMatch,
+    identityFor: recIdentity,
+  });
 
   if (!recs.length) {
     section.innerHTML = `
@@ -3428,9 +3383,7 @@ function renderRecsCards(section, results, genreCounts, scope = 'all') {
     return;
   }
 
-  const topGenres = Object.entries(genreCounts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(e => e[0]);
-  const genreLabel = topGenres.length ? topGenres.join(', ') : 'your watch history';
-  const scopeLabel = scope === 'movie' ? 'films' : scope === 'tv' ? 'TV shows' : scope === 'anime' ? 'anime' : 'what';
+  const { genreLabel, scopeLabel } = recommendationModel.displayMeta(genreCounts, scope);
 
   section.innerHTML = `
     <div class="recs-heading-row">

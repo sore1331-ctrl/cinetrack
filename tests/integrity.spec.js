@@ -1083,7 +1083,7 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain("action: 'match'");
     expect(app).toContain('async function fetchAnilistRecommendationResults');
     expect(app).toContain("'anilist-first'");
-    expect(app.indexOf("if (scope === 'anime')")).toBeLessThan(app.indexOf('const tmdbSeededPool = seededPool.filter'));
+    expect(app.indexOf("if (scope === 'anime')")).toBeLessThan(app.indexOf('recommendationModel.seedRequest(seededPool'));
   });
 
   test('recommendations use controlled seeds and post-fetch scoring', () => {
@@ -1091,12 +1091,15 @@ test.describe('tracker data integrity', () => {
 
     expect(app).toContain('function selectRecommendationSeeds');
     expect(app).toContain('function rankRecommendationResults');
-    expect(app).toContain('function scoreRecommendation');
+    expect(fs.readFileSync(path.join(root, 'scripts', 'recommendation-model.js'), 'utf8'))
+      .toContain('function score(rec');
     expect(app).toContain('function dismissedRecProfile');
     expect(app).toContain('function visibleRecommendationCount');
     expect(app).toContain('recommendationModel.isCacheUsable');
     expect(app).toContain('recommendationModel.seedProfile(movies, scope)');
-    expect(app).toContain('const sample = selectRecommendationSeeds');
+    expect(app).toContain('recommendationModel.seedRequest(seededPool');
+    expect(app).toContain('recommendationModel.visibleResults(results');
+    expect(app).toContain('recommendationModel.dismissedProfile(dismissed, results)');
     expect(app).not.toContain('const sample = pickRandom');
   });
 
@@ -1127,7 +1130,9 @@ test.describe('tracker data integrity', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 
     expect(app).toContain('const RECS_VISIBLE_LIMIT = 10;');
-    expect(app).toContain('if (recs.length >= RECS_VISIBLE_LIMIT) break;');
+    expect(app).toContain('visibleLimit: RECS_VISIBLE_LIMIT');
+    expect(fs.readFileSync(path.join(root, 'scripts', 'recommendation-model.js'), 'utf8'))
+      .toContain('if (recs.length >= visibleLimit) break;');
     expect(app).not.toContain('if (recs.length >= 18) break;');
   });
 
@@ -1140,7 +1145,8 @@ test.describe('tracker data integrity', () => {
     expect(saveFallback).not.toContain('saveUserDataDirect(payload)');
     expect(backupFn).not.toContain('catch');
     expect(api).toContain('Date.parse(existingRow?.updated_at');
-    expect(app).toContain('if (!backedUpLocal && force)');
+    expect(app).toContain('const applyPlan = syncModel.cloudApplyPlan({ row, force, backupWritten: backedUpLocal });');
+    expect(app).toContain('if (applyPlan.error) throw new Error(applyPlan.error);');
     expect(api).toContain("await supabaseRequest('progress_events'");
   });
 
@@ -1580,6 +1586,33 @@ test.describe('tracker data integrity', () => {
       minVisible: 6,
     })).toBe(true);
     expect(model.shouldTopUpRecommendations({ visibleCount: 5, visibleLimit: 10 })).toBe(true);
+    expect(model.dismissedProfile(new Set(['1']), [
+      { id: 1, media_type: 'tv', genre: 'Action, Drama' },
+      { id: 2, media_type: 'movie', genre: 'Comedy' },
+    ])).toEqual({ genres: { Action: 1, Drama: 1 }, mediaTypes: { tv: 1 } });
+    expect(model.visibleResults([
+      { id: 1, media_type: 'movie', title: 'Seen', year: 2020 },
+      { id: 2, media_type: 'movie', title: 'New', year: 2021 },
+      { id: 3, media_type: 'tv', title: 'Wrong', year: 2022 },
+      { id: 4, media_type: 'movie', title: 'New', year: 2021 },
+    ], {
+      scope: 'movie',
+      dismissedIds: new Set(['1']),
+      visibleLimit: 10,
+    }).map(item => item.id)).toEqual([2]);
+    expect(model.displayMeta({ Drama: 2, Comedy: 3 }, 'tv')).toEqual(expect.objectContaining({
+      genreLabel: 'Comedy, Drama',
+      scopeLabel: 'TV shows',
+    }));
+    expect(model.seedRequest([
+      { _recTmdbId: 10, mediaType: 'movie' },
+      { _recAnilistId: 20, mediaType: 'anime' },
+    ]).idParam).toBe('10:movie');
+    expect(model.mergeAnimeResults({
+      anilistResults: [{ id: 20, source: 'anilist', externalId: 20, title: 'Anime' }],
+      tmdbResults: [{ id: 20, source: 'anilist', externalId: 20, title: 'Anime' }, { id: 30, media_type: 'tv', title: 'Fallback' }],
+      visibleLimit: 2,
+    }).map(item => item.id)).toEqual([20, 30]);
   });
 
   test('recommendation model builds watchlist actions and enrichment targets', () => {
@@ -2035,6 +2068,25 @@ test.describe('tracker data integrity', () => {
       result: { ok: false, pendingLocal: true, error: 'Skipped cloud load because new local changes appeared during the load.' },
     });
     expect(model.cloudLoadDecision({ row: { updated_at: '2026-05-23T11:00:00.000Z' } }).action).toBe('apply');
+    expect(model.cloudApplyPlan({
+      row: { exists: true, movies: [{ id: 'a' }], updated_at: '2026-05-23T11:00:00.000Z', version: 7 },
+      backupWritten: true,
+    })).toEqual({
+      shouldApply: true,
+      changed: true,
+      next: {
+        lastCloudUpdatedAt: '2026-05-23T11:00:00.000Z',
+        lastCloudVersion: 7,
+        lastCloudItemCount: 1,
+      },
+    });
+    expect(model.cloudApplyPlan({
+      row: { exists: true, movies: [{ id: 'a' }] },
+      backupWritten: false,
+    })).toEqual(expect.objectContaining({
+      shouldApply: false,
+      error: 'Could not create a local safety backup before refreshing cloud data.',
+    }));
     expect(model.cloudRefreshDecision({
       hasClient: true,
       hasUser: true,

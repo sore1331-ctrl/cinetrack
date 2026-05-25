@@ -108,6 +108,34 @@
     };
   }
 
+  function cloudApplyPlan({
+    row = null,
+    force = false,
+    backupWritten = false,
+  } = {}) {
+    if (!row?.exists || !Array.isArray(row.movies)) {
+      return { shouldApply: false, changed: false, error: '' };
+    }
+    if (!backupWritten) {
+      return {
+        shouldApply: false,
+        changed: false,
+        error: force
+          ? 'Could not create a local safety backup before applying cloud data.'
+          : 'Could not create a local safety backup before refreshing cloud data.',
+      };
+    }
+    return {
+      shouldApply: true,
+      changed: true,
+      next: {
+        lastCloudUpdatedAt: row.updated_at || null,
+        lastCloudVersion: Number(row.version || 0),
+        lastCloudItemCount: row.item_count ?? row.movies.length,
+      },
+    };
+  }
+
   function normaliseUserDataRow(row) {
     return {
       movies: Array.isArray(row?.movies) ? row.movies : [],
@@ -329,6 +357,7 @@
     buildSavePayload,
     shouldSaveUserData,
     saveSuccessState,
+    cloudApplyPlan,
     normaliseUserDataRow,
     assertApiLoadResponse,
     assertApiSaveResponse,
