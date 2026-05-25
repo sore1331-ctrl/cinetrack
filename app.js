@@ -2628,10 +2628,7 @@ async function warmUpcomingCacheForBadge({ force = false, reason = 'badge' } = {
 }
 
 function trackedCalendarEntries() {
-  return movies.filter(m => calendarKeyForEntry(m) && (
-    ((m.mediaType === 'tv' || m.mediaType === 'anime') && (m.status === 'in_progress' || m.status === 'watchlist')) ||
-    (m.mediaType === 'movie' && m.status === 'watchlist')
-  ));
+  return calendarModel.trackedEntries(movies, calendarKeyForEntry);
 }
 
 async function refreshTrackedCalendarSources({ force = false } = {}) {
@@ -2785,105 +2782,31 @@ async function renderCalendarTracked(body, { force = false } = {}) {
   }
 
   try {
-    // Index local entries so we can read user posters / titles back
-    const localByKey = new Map(tracked.map(m => [calendarKeyForEntry(m), m]));
+    const dated = calendarModel.trackedRows({
+      tracked,
+      upcoming,
+      cache: readUpcomingCache(),
+      todayStr,
+      tvHorizonStr,
+      movieHorizonStr,
+      posterBase: POSTER_BASE,
+      keyFor: calendarKeyForEntry,
+      infoUrlForEntry,
+    });
 
-    // Normalize each upcoming entry into a unified row descriptor. Tracked
-    // Calendar only shows confirmed future dates; undated shows belong in
-    // library health/status checks, not the schedule.
-    const dated   = [];
-    const calendarRowKeys = new Set();
-
-  function addCalendarRow(row) {
-    if (!row.date) return;
-    const key = `${row.kind}:${row.tmdbId || row.title}:${row.date}`;
-    if (calendarRowKeys.has(key)) return;
-    calendarRowKeys.add(key);
-    dated.push(row);
-  }
-
-  for (const u of upcoming) {
-    const key   = u.sourceKey || `${u.type}:${u.tmdbId}`;
-    const local = localByKey.get(key);
-
-    if (u.type === 'movie') {
-      const rd = u.releaseDate;
-      if (rd && rd >= todayStr && rd <= movieHorizonStr) {
-        addCalendarRow({
-          date: rd,
-          kind: 'movie',
-          tmdbId: u.tmdbId,
-          title:   local?.title || u.title,
-          poster:  local?.posterUrl || u.poster_url || (u.poster_path ? POSTER_BASE + u.poster_path : ''),
-          sublabel: '🎬 Theatrical release',
-          tmdbUrl:  u.externalUrl || `https://www.themoviedb.org/movie/${u.tmdbId}`,
-        });
-      }
-      continue;
+    if (!dated.length) {
+      body.querySelector('.calendar-list').innerHTML =
+        `<p class="recs-empty">Nothing confirmed on the horizon. Calendar only shows titles with a future episode or release date from connected sources.</p>`;
+      return;
     }
 
-    // TV / anime
-    const ne = u.nextEpisode;
-    if (ne && ne.airDate && ne.airDate >= todayStr && ne.airDate <= tvHorizonStr) {
-      addCalendarRow({
-        date: ne.airDate,
-        kind: local?.mediaType === 'anime' ? 'anime' : 'tv',
-        tmdbId: u.tmdbId || u.externalId || '',
-        title:  local?.title || u.title,
-        poster: local?.posterUrl || u.poster_url || (u.poster_path ? POSTER_BASE + u.poster_path : ''),
-        sublabel: `S${ne.season}E${ne.episode}${ne.name ? ` · ${esc(ne.name)}` : ''}`,
-        tmdbUrl:  u.externalUrl || `https://www.themoviedb.org/tv/${u.tmdbId}`,
-      });
-    }
-  }
+    const groups = calendarModel.groupRowsByDate(dated);
 
-  // Keep the Calendar consistent with library card highlights. If a card is
-  // pinned/highlighted because a new episode is available today, Calendar
-  // should always show that same title under Today.
-  const upcomingCache = readUpcomingCache();
-  for (const local of tracked) {
-    const signal = getAiringTodaySignal(local, todayStr, upcomingCache);
-    if (!signal) continue;
-    if (signal.type === 'episode') {
-      const ne = signal.episode;
-      addCalendarRow({
-        date: todayStr,
-        kind: local.mediaType === 'anime' ? 'anime' : 'tv',
-        tmdbId: local.tmdbId || local.externalId || '',
-        title: local.title,
-        poster: local.posterUrl || '',
-        sublabel: `S${ne.season}E${ne.episode}${ne.name ? ` · ${esc(ne.name)}` : ''}`,
-        tmdbUrl: infoUrlForEntry(local),
-      });
-    } else if (signal.type === 'movie') {
-      addCalendarRow({
-        date: todayStr,
-        kind: 'movie',
-        tmdbId: local.tmdbId || '',
-        title: local.title,
-        poster: local.posterUrl || '',
-        sublabel: '🎬 Theatrical release',
-        tmdbUrl: infoUrlForEntry(local),
-      });
-    }
-  }
-
-  if (!dated.length) {
-    body.querySelector('.calendar-list').innerHTML =
-      `<p class="recs-empty">Nothing confirmed on the horizon. Calendar only shows titles with a future episode or release date from connected sources.</p>`;
-    return;
-  }
-
-  // Group by date
-  dated.sort((a, b) => a.date.localeCompare(b.date));
-  const groups = {};
-  for (const r of dated) (groups[r.date] ||= []).push(r);
-
-  const groupHTML = Object.keys(groups).sort().map(date => {
-    const isToday = date === todayStr;
-    const rows = groups[date].map(r => calRow(r, { airingToday: isToday })).join('');
-    const count = groups[date].length;
-    return `
+    const groupHTML = Object.keys(groups).sort().map(date => {
+      const isToday = date === todayStr;
+      const rows = groups[date].map(r => calRow(r, { airingToday: isToday })).join('');
+      const count = groups[date].length;
+      return `
       <div class="cal-group${isToday ? ' cal-group-today' : ''}">
         <div class="cal-group-head">
           <h3 class="cal-group-date">${esc(relativeDayLabel(date))}</h3>
@@ -2893,11 +2816,11 @@ async function renderCalendarTracked(body, { force = false } = {}) {
         ${rows}
       </div>
     `;
-  }).join('');
+    }).join('');
 
-  body.querySelector('.calendar-list').innerHTML = groupHTML;
+    body.querySelector('.calendar-list').innerHTML = groupHTML;
 
-  // Refresh the nav-tab dot using the freshly-fetched cache
+    // Refresh the nav-tab dot using the freshly-fetched cache
     updateCalendarAiringBadge();
   } catch (e) {
     showCalendarError(e);
@@ -2906,12 +2829,12 @@ async function renderCalendarTracked(body, { force = false } = {}) {
   function calRow(r, opts = {}) {
     const fallback = r.kind === 'movie' ? '🎬' : r.kind === 'anime' ? '🎌' : '📺';
     const poster = r.poster
-      ? `<img class="cal-poster" src="${r.poster}" alt="${esc(r.title)}" loading="lazy" />`
+      ? `<img class="cal-poster" src="${esc(r.poster)}" alt="${esc(r.title)}" loading="lazy" />`
       : `<div class="cal-poster cal-poster-emoji">${fallback}</div>`;
-    const sub = r.sublabel;
+    const sub = esc(r.sublabel || '');
     const kindLabel = r.kind === 'movie' ? 'Film' : r.kind === 'anime' ? 'Anime' : 'TV';
     return `
-      <a class="cal-row${opts.airingToday ? ' cal-row-today' : ''}" href="${r.tmdbUrl}" target="_blank" rel="noopener noreferrer" title="View on TMDB">
+      <a class="cal-row${opts.airingToday ? ' cal-row-today' : ''}" href="${esc(r.tmdbUrl || '#')}" target="_blank" rel="noopener noreferrer" title="View on TMDB">
         ${poster}
         <div class="cal-info">
           <div class="cal-title">${esc(r.title)}</div>

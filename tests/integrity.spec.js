@@ -474,22 +474,26 @@ test.describe('tracker data integrity', () => {
 
   test('airing today checks reuse the upcoming cache during render passes', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const calendarModel = fs.readFileSync(path.join(root, 'scripts', 'calendar-model.js'), 'utf8');
 
     expect(app).toContain('function airingTodayChecker(cache = readUpcomingCache())');
     expect(app).toContain('function filtered(upcomingCache = readUpcomingCache())');
     expect(app).toContain('const upcomingCache = readUpcomingCache();');
     expect(app).toContain('const checkAiringToday = airingTodayChecker(upcomingCache);');
     expect(app).toContain('const list = filtered(upcomingCache);');
-    expect(app).toContain('getAiringTodaySignal(local, todayStr, upcomingCache)');
+    expect(app).toContain('calendarModel.trackedRows({');
+    expect(calendarModel).toContain('airingTodaySignal(local, cache, todayStr)');
   });
 
   test('tracked calendar only renders confirmed future dates', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const calendarModel = fs.readFileSync(path.join(root, 'scripts', 'calendar-model.js'), 'utf8');
     const tvmazeApi = fs.readFileSync(path.join(root, 'api', 'tvmaze-calendar.js'), 'utf8');
 
-    expect(app).toContain('Calendar only shows confirmed future dates');
-    expect(app).toContain('if (!row.date) return;');
-    expect(app).toContain('ne.airDate >= todayStr && ne.airDate <= tvHorizonStr');
+    expect(app).toContain('calendarModel.trackedRows({');
+    expect(app).toContain('calendarModel.groupRowsByDate(dated)');
+    expect(calendarModel).toContain('if (!row?.date) return;');
+    expect(calendarModel).toContain('episode.airDate >= todayStr && episode.airDate <= tvHorizonStr');
     expect(app).not.toContain('Between seasons / no date yet');
     expect(app).not.toContain('No date scheduled');
     expect(tvmazeApi).toContain('if (!episode) return null;');
@@ -541,6 +545,41 @@ test.describe('tracker data integrity', () => {
       status: 'watchlist',
       tmdbId: 20,
     }, cache, '2026-05-23')).toEqual({ type: 'movie', releaseDate: '2026-05-23' });
+
+    const tracked = model.trackedEntries([
+      { mediaType: 'tv', status: 'in_progress', tmdbId: 10, title: 'Local Show', posterUrl: 'local-show.jpg' },
+      { mediaType: 'movie', status: 'watchlist', tmdbId: 20, title: 'Local Film' },
+      { mediaType: 'tv', status: 'watched', tmdbId: 30, title: 'Finished' },
+    ]);
+    expect(tracked.map(entry => entry.title)).toEqual(['Local Show', 'Local Film']);
+
+    const rows = model.trackedRows({
+      tracked,
+      upcoming: [
+        { type: 'tv', sourceKey: 'tv:10', tmdbId: 10, title: 'Remote Show', nextEpisode: { season: 1, episode: 2, name: 'Pilot', airDate: '2026-05-24' } },
+        { type: 'movie', sourceKey: 'movie:20', tmdbId: 20, title: 'Remote Film', poster_path: '/film.jpg', releaseDate: '2026-06-01' },
+        { type: 'movie', sourceKey: 'movie:99', tmdbId: 99, title: 'Too Late', releaseDate: '2026-09-01' },
+      ],
+      todayStr: '2026-05-23',
+      tvHorizonStr: '2026-06-06',
+      movieHorizonStr: '2026-07-22',
+      posterBase: 'poster:',
+      cache: { byId: {} },
+      infoUrlForEntry: entry => `/title/${entry.tmdbId}`,
+    });
+    expect(rows.map(row => row.title)).toEqual(['Local Show', 'Local Film']);
+    expect(rows[0]).toEqual(expect.objectContaining({
+      date: '2026-05-24',
+      kind: 'tv',
+      poster: 'local-show.jpg',
+      sublabel: 'S1E2 \u00B7 Pilot',
+    }));
+    expect(rows[1]).toEqual(expect.objectContaining({
+      date: '2026-06-01',
+      kind: 'movie',
+      poster: 'poster:/film.jpg',
+    }));
+    expect(model.groupRowsByDate(rows)['2026-05-24']).toHaveLength(1);
   });
 
   test('calendar model plans cache warming without duplicate network work', () => {

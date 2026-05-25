@@ -188,6 +188,107 @@
     return { ids: [...new Set(ids)], tvEntries };
   }
 
+  function trackedEntries(library = [], keyFor = keyForEntry) {
+    return (library || []).filter(entry => keyFor(entry) && (
+      ((entry.mediaType === 'tv' || entry.mediaType === 'anime') && (entry.status === 'in_progress' || entry.status === 'watchlist')) ||
+      (entry.mediaType === 'movie' && entry.status === 'watchlist')
+    ));
+  }
+
+  function addUniqueRow(rows, seen, row) {
+    if (!row?.date) return;
+    const key = `${row.kind}:${row.tmdbId || row.title}:${row.date}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    rows.push(row);
+  }
+
+  function trackedRows({
+    upcoming = [],
+    tracked = [],
+    cache = null,
+    todayStr = dateString(),
+    tvHorizonStr = addDaysString(14),
+    movieHorizonStr = addDaysString(60),
+    posterBase = '',
+    keyFor = keyForEntry,
+    infoUrlForEntry = () => '',
+  } = {}) {
+    const localByKey = new Map((tracked || []).map(entry => [keyFor(entry), entry]));
+    const rows = [];
+    const seen = new Set();
+
+    for (const item of upcoming || []) {
+      const key = item?.sourceKey || `${item?.type}:${item?.tmdbId}`;
+      const local = localByKey.get(key);
+
+      if (item?.type === 'movie') {
+        const releaseDate = item.releaseDate;
+        if (releaseDate && releaseDate >= todayStr && releaseDate <= movieHorizonStr) {
+          addUniqueRow(rows, seen, {
+            date: releaseDate,
+            kind: 'movie',
+            tmdbId: item.tmdbId,
+            title: local?.title || item.title,
+            poster: local?.posterUrl || item.poster_url || (item.poster_path ? posterBase + item.poster_path : ''),
+            sublabel: '\u{1F3AC} Theatrical release',
+            tmdbUrl: item.externalUrl || `https://www.themoviedb.org/movie/${item.tmdbId}`,
+          });
+        }
+        continue;
+      }
+
+      const episode = item?.nextEpisode;
+      if (episode?.airDate && episode.airDate >= todayStr && episode.airDate <= tvHorizonStr) {
+        addUniqueRow(rows, seen, {
+          date: episode.airDate,
+          kind: local?.mediaType === 'anime' ? 'anime' : 'tv',
+          tmdbId: item.tmdbId || item.externalId || '',
+          title: local?.title || item.title,
+          poster: local?.posterUrl || item.poster_url || (item.poster_path ? posterBase + item.poster_path : ''),
+          sublabel: `S${episode.season}E${episode.episode}${episode.name ? ` \u00B7 ${episode.name}` : ''}`,
+          tmdbUrl: item.externalUrl || `https://www.themoviedb.org/tv/${item.tmdbId}`,
+        });
+      }
+    }
+
+    for (const local of tracked || []) {
+      const signal = airingTodaySignal(local, cache, todayStr);
+      if (!signal) continue;
+      if (signal.type === 'episode') {
+        const episode = signal.episode;
+        addUniqueRow(rows, seen, {
+          date: todayStr,
+          kind: local.mediaType === 'anime' ? 'anime' : 'tv',
+          tmdbId: local.tmdbId || local.externalId || '',
+          title: local.title,
+          poster: local.posterUrl || '',
+          sublabel: `S${episode.season}E${episode.episode}${episode.name ? ` \u00B7 ${episode.name}` : ''}`,
+          tmdbUrl: infoUrlForEntry(local),
+        });
+      } else if (signal.type === 'movie') {
+        addUniqueRow(rows, seen, {
+          date: todayStr,
+          kind: 'movie',
+          tmdbId: local.tmdbId || '',
+          title: local.title,
+          poster: local.posterUrl || '',
+          sublabel: '\u{1F3AC} Theatrical release',
+          tmdbUrl: infoUrlForEntry(local),
+        });
+      }
+    }
+
+    return rows.sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  function groupRowsByDate(rows = []) {
+    return (rows || []).reduce((groups, row) => {
+      (groups[row.date] ||= []).push(row);
+      return groups;
+    }, {});
+  }
+
   root.calendar = {
     dateString,
     addDaysString,
@@ -205,5 +306,8 @@
     pruneTimestampCache,
     discoverWatchlistEntry,
     warmKeysForEntries,
+    trackedEntries,
+    trackedRows,
+    groupRowsByDate,
   };
 })();
