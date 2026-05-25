@@ -752,16 +752,20 @@ test.describe('tracker data integrity', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
     const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
     const cardView = fs.readFileSync(path.join(root, 'scripts', 'card-view.js'), 'utf8');
+    const cardController = fs.readFileSync(path.join(root, 'scripts', 'card-controller.js'), 'utf8');
 
     expect(index).toContain('scripts/card-model.js');
     expect(index).toContain('scripts/card-view.js');
+    expect(index).toContain('scripts/card-controller.js');
     expect(app).toContain('const cardModel = window.CineTrack?.cards;');
     expect(app).toContain('cardViewRenderer.renderLibraryCard');
+    expect(app).toContain('cardController.attachGridActions');
     expect(app).toContain('cardView: cardModel.view');
     expect(cardView).toContain('function renderLibraryCard');
     expect(cardView).toContain('const infoUrl = cardView.infoUrl;');
-    expect(app).toContain('updateLibraryEntry(epIncId, libraryModel.incrementEpisode');
-    expect(app).toContain('updateLibraryEntry(toggleId, libraryModel.cycleCardStatus');
+    expect(cardController).toContain('function attachGridActions');
+    expect(cardController).toContain('updateLibraryEntry?.(epIncId, libraryModel?.incrementEpisode');
+    expect(cardController).toContain('updateLibraryEntry?.(toggleId, libraryModel?.cycleCardStatus');
   });
 
   test('split stylesheets load directly without the CSS import hub', () => {
