@@ -252,6 +252,7 @@ const profileController = window.CineTrack?.profileController;
 const calendarModel = window.CineTrack?.calendar;
 const statsModel = window.CineTrack?.stats;
 const cardModel = window.CineTrack?.cards;
+const cardViewRenderer = window.CineTrack?.cardView;
 const filterModel = window.CineTrack?.filters;
 const paginationModel = window.CineTrack?.pagination;
 const randomPickerModel = window.CineTrack?.randomPicker;
@@ -3805,86 +3806,14 @@ function render() {
       + (checked ? ' selected' : '')
       + (airingToday ? ' card-airing-today' : '');
     card.dataset.id = m.id;
-    const cardView = cardModel.view(m, { activeSeason, posterEmoji, formatRuntime, infoUrlForEntry });
-    const isTV    = cardView.isTV;
-    const isShow  = cardView.isShow;
-    const fallbackPosterHTML = `<div class="card-poster-emoji">${cardView.fallbackPosterLabel}</div>`;
-    const posterHTML = m.posterUrl
-      ? `${fallbackPosterHTML}<img class="card-poster-img" src="${esc(m.posterUrl)}" alt="${esc(m.title)}" loading="lazy" onerror="this.remove()" />`
-      : fallbackPosterHTML;
-    const runtimeStr = cardView.runtime;
-    const episodeState = cardView.episode;
-
-    const epHTML = (isShow && episodeState.total > 0)
-      ? `<div class="ep-progress" title="${esc(episodeState.title)}">
-           <div class="ep-progress-bar"><div class="ep-progress-fill" style="width:${episodeState.pct}%"></div></div>
-           <div class="ep-progress-label">${episodeState.label}</div>
-         </div>`
-      : '';
-    const epIncBtn = cardView.primaryAction?.type === 'episode'
-      ? `<button class="btn-sm btn-ep-inc" data-ep-inc="${m.id}" title="${cardView.primaryAction.title}"${mutationDisabled}>
-           <span class="lbl-md lbl-lg">${cardView.primaryAction.labelMd}</span><span class="lbl-sm">${cardView.primaryAction.labelSm}</span>
-         </button>`
-      : '';
-
-    const titleLabel = esc(m.title);
-    const infoUrl = cardView.infoUrl;
-    const toggleActionLabel = cardView.primaryAction?.title || '';
-    const primaryActionHTML = epIncBtn || ((cardView.primaryAction?.type === 'toggle') ? `
-        <button class="btn-sm btn-primary-action" data-toggle="${m.id}" title="${toggleActionLabel} ${titleLabel}" aria-label="${toggleActionLabel} ${titleLabel}"${mutationDisabled}>
-          <span class="lbl-lg">${cardView.primaryAction.labelLg}</span>
-          <span class="lbl-md">${cardView.primaryAction.labelMd}</span>
-          <span class="lbl-sm">${cardView.primaryAction.labelSm}</span>
-        </button>` : '');
-    const actionRowClass = primaryActionHTML ? 'card-actions' : 'card-actions card-actions-compact';
-    const hoverInfoParts = [
-      m.genre    && `<div class="chi-genre">${esc(m.genre)}</div>`,
-      m.director && `<div class="chi-dir">${isTV ? 'Created by' : 'Dir.'} ${esc(m.director)}</div>`,
-      m.country  && `<div class="chi-loc">🌍 ${esc(m.country)}</div>`,
-    ].filter(Boolean);
-    const hoverInfoHTML = hoverInfoParts.length
-      ? `<div class="card-hover-info">${hoverInfoParts.join('')}</div>`
-      : '';
-
-    card.innerHTML = `
-      <div class="card-poster">
-        ${posterHTML}
-        ${hoverInfoHTML}
-        <label class="card-checkbox" title="Select">
-          <input type="checkbox" data-check="${m.id}" ${checked ? 'checked' : ''}${mutationDisabled} />
-          <span class="card-checkbox-box"></span>
-        </label>
-      </div>
-      <span class="badge badge-${m.status} card-status-badge">
-        ${cardView.statusLabel}
-      </span>
-      ${airingToday ? `<span class="card-airing-pill" title="${m.mediaType === 'movie' ? 'Theatrical release today' : 'New episode airs today'}">● Today</span>` : ''}
-      ${infoUrl
-        ? `<a class="card-title card-title-link" href="${infoUrl}" target="_blank" rel="noopener noreferrer" title="${titleLabel}">${titleLabel}</a>`
-        : `<div class="card-title" title="${titleLabel}">${titleLabel}</div>`}
-      <div class="card-meta">
-        ${m.year       ? `<span class="meta-year">${m.year}</span>` : ''}
-        ${m.country    ? `<span class="meta-country">🌍 ${esc(m.country)}</span>` : ''}
-        ${m.genre      ? `<span class="meta-genre">${esc(m.genre)}</span>` : ''}
-        ${m.director   ? `<span class="meta-director">${isTV ? 'Created by' : 'Dir.'} ${esc(m.director)}</span>` : ''}
-        ${runtimeStr   ? `<span class="meta-runtime">⏱ ${runtimeStr}</span>` : ''}
-      </div>
-      ${m.rating ? starsHTML(m.rating) : ''}
-      ${epHTML}
-      ${m.notes ? `<div class="card-notes">${esc(m.notes)}</div>` : ''}
-      <div class="${actionRowClass}">
-        <button class="btn-sm btn-icon" data-edit="${m.id}" title="Edit ${titleLabel}" aria-label="Edit ${titleLabel}"${mutationDisabled}>
-          ✎
-        </button>
-        ${primaryActionHTML}
-        <div class="card-more-wrap">
-          <button class="btn-sm btn-icon card-more-btn" data-action-menu="${m.id}" title="More actions for ${titleLabel}" aria-label="More actions for ${titleLabel}" aria-expanded="false"${mutationDisabled}>⋯</button>
-          <div class="card-action-menu" role="menu" hidden>
-            <button type="button" class="card-menu-item danger" data-delete="${m.id}" role="menuitem"${mutationDisabled}>Delete</button>
-          </div>
-        </div>
-      </div>
-    `;
+    card.innerHTML = cardViewRenderer.renderLibraryCard(m, {
+      checked,
+      airingToday,
+      mutationDisabled,
+      cardView: cardModel.view(m, { activeSeason, posterEmoji, formatRuntime, infoUrlForEntry }),
+      esc,
+      starsHTML,
+    });
     const deleteBtn = card.querySelector('[data-delete]');
     if (deleteBtn) {
       deleteBtn.title = `Delete ${m.title}`;
