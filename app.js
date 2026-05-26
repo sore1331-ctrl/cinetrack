@@ -266,6 +266,7 @@ const modalController = window.CineTrack?.modalController;
 const duplicateModel = window.CineTrack?.duplicates;
 const errorLog = window.CineTrack?.errors;
 const syncModel = window.CineTrack?.sync;
+const syncController = window.CineTrack?.syncController;
 
 function logAppError(area, error, meta = {}, severity = 'error') {
   const entry = errorLog?.record({ area, error, meta, severity });
@@ -4051,57 +4052,44 @@ function showAuthOverlay(mode = 'form') { authUi.showAuthOverlay(mode); }
 function hideAuthOverlay() { authUi.hideAuthOverlay(); }
 function updateUserMenu() { authUi.updateUserMenu(); }
 function closeUsernameForm() { authUi.closeUsernameForm(); }
-// ── Reload from cloud ───────────────────────────────────
-reloadCloudBtn.addEventListener('click', async () => {
-  const reloadPlan = syncModel.reloadFromCloudPlan();
-  if (reloadPlan.hideUserDropdown) document.getElementById('user-dropdown').classList.add('hidden');
-  if (reloadPlan.clearPendingSave) {
-    clearTimeout(cloudSyncTimer);
-    cloudSyncTimer = null;
-  }
-  reloadCloudBtn.disabled = true;
-  reloadCloudBtn.textContent = reloadPlan.button.busyText;
-  const result = await loadUserData(reloadPlan.loadOptions);
-  reloadCloudBtn.disabled = false;
-  reloadCloudBtn.textContent = reloadPlan.button.idleText;
-  const resultPlan = syncModel.reloadFromCloudResultPlan(result);
-  if (resultPlan.toast) showToast(resultPlan.toast);
-});
+// ── Cloud controls ─────────────────────────────────
+function clearPendingCloudSave() {
+  clearTimeout(cloudSyncTimer);
+  cloudSyncTimer = null;
+}
 
-// ── Sync now (push pending + pull latest) ──────────────
-const syncNowBtn = document.getElementById('sync-now-btn');
-syncNowBtn.addEventListener('click', async () => {
-  const syncStartPlan = syncModel.manualSyncStartPlan({ offlineMode, hasCurrentUser: Boolean(currentUser) });
-  if (syncStartPlan.hideUserDropdown) document.getElementById('user-dropdown').classList.add('hidden');
-  if (!syncStartPlan.canSync) {
-    showToast(syncStartPlan.toast.message, syncStartPlan.toast.isError);
-    return;
-  }
-  syncNowBtn.disabled = true;
-  syncNowBtn.textContent = syncStartPlan.button.busyText;
-  // Cancel any pending debounce so we don't double-write
-  if (syncStartPlan.clearPendingSave) {
-    clearTimeout(cloudSyncTimer);
-    cloudSyncTimer = null;
-  }
-  try {
-    const syncWorkPlan = syncModel.manualSyncWorkPlan({ hasLocalChanges: hasUnsyncedLocalChanges() });
-    if (syncWorkPlan.saveFirst) {
-      const saveResult = await saveUserData();
-      if (!saveResult?.ok) throw new Error(saveResult?.error || syncWorkPlan.saveError);
-    }
-    const loadResult = await loadUserData(syncWorkPlan.loadOptions);
-    if (!loadResult?.ok) throw new Error(loadResult?.error || syncWorkPlan.loadError);
-    showToast(syncWorkPlan.successToast);
-  } catch (e) {
-    logAppError('sync.manual', e);
-    const errorToast = syncModel.manualSyncErrorToast(e);
-    showToast(errorToast.message, errorToast.isError);
-  }
-  syncNowBtn.disabled = false;
-  syncNowBtn.textContent = syncStartPlan.button.idleText;
+syncController.createCloudControlsController({
+  syncModel,
+  getSupabase: () => sb,
+  getStorageKey: () => STORAGE_KEY,
+  getMovies: () => movies,
+  getOfflineMode: () => offlineMode,
+  getCurrentUser: () => currentUser,
+  hasUnsyncedLocalChanges,
+  loadUserData,
+  saveUserData,
+  signOut: () => sb.auth.signOut(),
+  stopCloudPolling,
+  writeLocalLibraryBackup,
+  applySignOutReset: reset => {
+    currentUser = reset.currentUser;
+    currentUsername = reset.currentUsername;
+    sharingEnabled = reset.sharingEnabled;
+    replaceLibrary([]);
+    initialLibrarySyncPending = reset.initialLibrarySyncPending;
+    lastCloudUpdatedAt = reset.lastCloudUpdatedAt;
+    lastCloudItemCount = reset.lastCloudItemCount;
+    localChangeVersion = reset.localChangeVersion;
+    lastSavedLocalVersion = reset.lastSavedLocalVersion;
+  },
+  clearPendingSyncMarker,
+  clearPendingSave: clearPendingCloudSave,
+  updateUserMenu,
+  updateMutationLockUI,
+  showAuthOverlay,
+  showToast,
+  logAppError,
 });
-
 // ── Refresh metadata ────────────────────────────────────
 const tmdbRefreshBtn = document.getElementById('tmdb-refresh-btn');
 metadataController.createBulkMetadataRefreshController({

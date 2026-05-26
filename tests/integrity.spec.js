@@ -2417,12 +2417,17 @@ test.describe('tracker data integrity', () => {
 
   test('sign-out cleanup is routed through the sync model', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const controller = fs.readFileSync(path.join(root, 'scripts', 'sync-controller.js'), 'utf8');
+    const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 
-    expect(app).toContain('const signOutPlan = syncModel.signOutCleanupPlan({ storageKey: STORAGE_KEY });');
-    expect(app).toContain('writeLocalLibraryBackup(signOutPlan.backupReason, movies);');
-    expect(app).toContain('currentUser = signOutPlan.reset.currentUser;');
-    expect(app).toContain('signOutPlan.clearStorageKeys.forEach(key => localStorage.removeItem(key));');
-    expect(app).toContain('showAuthOverlay(signOutPlan.nextAuthMode);');
+    expect(index).toContain('scripts/sync-controller.js');
+    expect(app).toContain('const syncController = window.CineTrack?.syncController;');
+    expect(app).toContain('syncController.createCloudControlsController({');
+    expect(controller).toContain('const signOutPlan = syncModel.signOutCleanupPlan({ storageKey: getStorageKey() });');
+    expect(controller).toContain('writeLocalLibraryBackup(signOutPlan.backupReason, getMovies());');
+    expect(controller).toContain('applySignOutReset(signOutPlan.reset);');
+    expect(controller).toContain('signOutPlan.clearStorageKeys.forEach(key => localStorage.removeItem(key));');
+    expect(controller).toContain('showAuthOverlay(signOutPlan.nextAuthMode);');
   });
 
   test('auth state changes are routed through the sync model', () => {
@@ -2452,14 +2457,16 @@ test.describe('tracker data integrity', () => {
 
   test('manual cloud controls are routed through the sync model', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const controller = fs.readFileSync(path.join(root, 'scripts', 'sync-controller.js'), 'utf8');
 
-    expect(app).toContain('const reloadPlan = syncModel.reloadFromCloudPlan();');
-    expect(app).toContain('const result = await loadUserData(reloadPlan.loadOptions);');
-    expect(app).toContain('const resultPlan = syncModel.reloadFromCloudResultPlan(result);');
-    expect(app).toContain('const syncStartPlan = syncModel.manualSyncStartPlan({ offlineMode, hasCurrentUser: Boolean(currentUser) });');
-    expect(app).toContain('showToast(syncStartPlan.toast.message, syncStartPlan.toast.isError);');
-    expect(app).toContain('const syncWorkPlan = syncModel.manualSyncWorkPlan({ hasLocalChanges: hasUnsyncedLocalChanges() });');
-    expect(app).toContain('const loadResult = await loadUserData(syncWorkPlan.loadOptions);');
-    expect(app).toContain('const errorToast = syncModel.manualSyncErrorToast(e);');
+    expect(app).toContain('clearPendingSave: clearPendingCloudSave');
+    expect(controller).toContain('const reloadPlan = syncModel.reloadFromCloudPlan();');
+    expect(controller).toContain('const result = await loadUserData(reloadPlan.loadOptions);');
+    expect(controller).toContain('const resultPlan = syncModel.reloadFromCloudResultPlan(result);');
+    expect(controller).toContain('const syncStartPlan = syncModel.manualSyncStartPlan({');
+    expect(controller).toContain('showToast(syncStartPlan.toast.message, syncStartPlan.toast.isError);');
+    expect(controller).toContain('const syncWorkPlan = syncModel.manualSyncWorkPlan({ hasLocalChanges: hasUnsyncedLocalChanges() });');
+    expect(controller).toContain('const loadResult = await loadUserData(syncWorkPlan.loadOptions);');
+    expect(controller).toContain('const errorToast = syncModel.manualSyncErrorToast(e);');
   });
 });
