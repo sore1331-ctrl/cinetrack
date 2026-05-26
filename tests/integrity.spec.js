@@ -1207,6 +1207,7 @@ test.describe('tracker data integrity', () => {
     const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
     const profileView = fs.readFileSync(path.join(root, 'scripts', 'profile-view.js'), 'utf8');
     const profileController = fs.readFileSync(path.join(root, 'scripts', 'profile-controller.js'), 'utf8');
+    const authController = fs.readFileSync(path.join(root, 'scripts', 'auth-controller.js'), 'utf8');
     const profileCss = fs.readFileSync(path.join(root, 'styles', 'profile.css'), 'utf8');
     const skinCss = fs.readFileSync(path.join(root, 'styles', 'skin.css'), 'utf8');
 
@@ -1222,10 +1223,11 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('function currentUserDisplayName()');
     expect(app).toContain('function userInitial');
     expect(profileView).toContain('<div class="profile-avatar-lg">${esc(initial)}</div>');
-    expect(app).toContain('userAvatar.textContent  = userInitial(displayName);');
+    expect(authController).toContain('userAvatar.textContent = userInitial(displayName);');
     expect(index).toContain('scripts/profile-model.js');
     expect(index).toContain('scripts/profile-view.js');
     expect(index).toContain('scripts/profile-controller.js');
+    expect(index).toContain('scripts/auth-controller.js');
     expect(index).toContain('<span id="user-avatar">?</span>');
     expect(index).not.toContain('account-control.png');
     expect(profileCss).toContain('.profile-sharing-badge');
@@ -1357,16 +1359,16 @@ test.describe('tracker data integrity', () => {
   });
 
   test('profile preference saves are routed through the profile model', () => {
-    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const controller = fs.readFileSync(path.join(root, 'scripts', 'auth-controller.js'), 'utf8');
 
-    expect(app).toContain('const saveStart = profileModel.usernameSaveStart({');
-    expect(app).toContain('const result = await saveProfile(saveStart.updates);');
-    expect(app).toContain('const saveResult = profileModel.usernameSaveResult({');
-    expect(app).toContain('showToast(saveResult.toast.message, saveResult.toast.isError);');
-    expect(app).toContain('const toggleStart = profileModel.sharingToggleStart({ checked: e.target.checked });');
-    expect(app).toContain('const result = await saveProfile(toggleStart.updates);');
-    expect(app).toContain('const toggleResult = profileModel.sharingToggleResult({');
-    expect(app).toContain('e.target.checked = toggleResult.checkboxChecked;');
+    expect(controller).toContain('const saveStart = profileModel.usernameSaveStart({');
+    expect(controller).toContain('const result = await saveProfile(saveStart.updates);');
+    expect(controller).toContain('const saveResult = profileModel.usernameSaveResult({');
+    expect(controller).toContain('showToast(saveResult.toast.message, saveResult.toast.isError);');
+    expect(controller).toContain('const toggleStart = profileModel.sharingToggleStart({ checked: e.target.checked });');
+    expect(controller).toContain('const result = await saveProfile(toggleStart.updates);');
+    expect(controller).toContain('const toggleResult = profileModel.sharingToggleResult({');
+    expect(controller).toContain('e.target.checked = toggleResult.checkboxChecked;');
   });
 
   test('profile load and preference helpers are routed through the profile model', () => {
@@ -1805,6 +1807,21 @@ test.describe('tracker data integrity', () => {
     expect(controller).toContain('const rows = csvModel.parse(event.target.result);');
     expect(controller).toContain('const result = await processRow(row, { title });');
     expect(controller).toContain('showToast(parts.join');
+  });
+
+  test('auth ui flow is routed through the auth controller', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+    const controller = fs.readFileSync(path.join(root, 'scripts', 'auth-controller.js'), 'utf8');
+
+    expect(index).toContain('scripts/auth-controller.js');
+    expect(app).toContain('const authController = window.CineTrack?.authController;');
+    expect(app).toContain('const authUi = authController.createAuthController({');
+    expect(app).toContain("function updateUserMenu() { authUi.updateUserMenu(); }");
+    expect(controller).toContain('function createAuthController');
+    expect(controller).toContain("sb.auth.signInWithPassword({ email, password })");
+    expect(controller).toContain("profileModel.usernameSaveStart({");
+    expect(controller).toContain("profileModel.sharingToggleStart({ checked: e.target.checked })");
   });
 
   test('library model sanitizes invalid title data before persistence', () => {

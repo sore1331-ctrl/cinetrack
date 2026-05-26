@@ -250,6 +250,7 @@ const libraryModel = window.CineTrack?.library;
 const profileModel = window.CineTrack?.profile;
 const profileView = window.CineTrack?.profileView;
 const profileController = window.CineTrack?.profileController;
+const authController = window.CineTrack?.authController;
 const calendarModel = window.CineTrack?.calendar;
 const statsModel = window.CineTrack?.stats;
 const cardModel = window.CineTrack?.cards;
@@ -4020,203 +4021,36 @@ csvController.createCsvImportController({
 const TEMPLATE_URL = URL.createObjectURL(new Blob([csvModel.TEMPLATE_CSV], { type: 'text/csv' }));
 
 // ── Auth UI ──────────────────────────────────────────────
-const authOverlay  = document.getElementById('auth-overlay');
-const authLoading  = document.getElementById('auth-loading');
-const authFormWrap = document.getElementById('auth-form-wrap');
-const authForm     = document.getElementById('auth-form');
-const authEmail    = document.getElementById('auth-email');
-const authPassword = document.getElementById('auth-password');
-const authError    = document.getElementById('auth-error');
-const authSuccess  = document.getElementById('auth-success');
-const authSubmit   = document.getElementById('auth-submit');
-const authOffline  = document.getElementById('auth-offline');
-const userMenu     = document.getElementById('user-menu');
-const userAvatar   = document.getElementById('user-avatar');
-const userEmailEl  = document.getElementById('user-email');
 const signoutBtn      = document.getElementById('signout-btn');
 const reloadCloudBtn  = document.getElementById('reload-cloud-btn');
 
-let authMode = 'signin';
-
-document.querySelectorAll('.auth-tab').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.auth-tab').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    authMode = btn.dataset.tab;
-    authSubmit.textContent = authMode === 'signin' ? 'Sign In' : 'Create Account';
-    authError.classList.add('hidden');
-    authSuccess.classList.add('hidden');
-  });
+const authUi = authController.createAuthController({
+  getSupabase: () => sb,
+  profileModel,
+  showToast,
+  setSyncState,
+  updateCountryDropdown,
+  render,
+  switchView,
+  renderProfile,
+  setCurrentPage: value => { currentPage = value; },
+  getActiveView: () => activeView,
+  getCurrentUser: () => currentUser,
+  setOfflineMode: value => { offlineMode = value; },
+  getCurrentUsername: () => currentUsername,
+  setCurrentUsername: value => { currentUsername = value; },
+  getSharingEnabled: () => sharingEnabled,
+  setSharingEnabled: value => { sharingEnabled = value; },
+  currentUserDisplayName,
+  userInitial,
+  setStoredUsername,
+  saveProfile,
 });
 
-authForm.addEventListener('submit', async e => {
-  e.preventDefault();
-  const email    = authEmail.value.trim();
-  const password = authPassword.value;
-  authError.classList.add('hidden');
-  authSuccess.classList.add('hidden');
-  authSubmit.disabled = true;
-  authSubmit.textContent = '…';
-
-  try {
-    if (authMode === 'signin') {
-      const { error } = await sb.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-    } else {
-      const { error } = await sb.auth.signUp({ email, password });
-      if (error) throw error;
-      authSuccess.textContent = 'Account created! Check your email to confirm, then sign in.';
-      authSuccess.classList.remove('hidden');
-      authSubmit.disabled = false;
-      authSubmit.textContent = 'Create Account';
-      return;
-    }
-  } catch (err) {
-    authError.textContent = err.message;
-    authError.classList.remove('hidden');
-  }
-  authSubmit.disabled = false;
-  authSubmit.textContent = authMode === 'signin' ? 'Sign In' : 'Create Account';
-});
-
-authOffline.addEventListener('click', () => {
-  offlineMode = true;
-  hideAuthOverlay();
-  setSyncState('error', 'Offline mode — changes saved locally only');
-  updateCountryDropdown();
-  render();
-});
-
-function showAuthOverlay(mode = 'form') {
-  authOverlay.classList.remove('hidden');
-  if (mode === 'loading') {
-    authLoading.classList.remove('hidden');
-    authFormWrap.classList.add('hidden');
-  } else {
-    authLoading.classList.add('hidden');
-    authFormWrap.classList.remove('hidden');
-  }
-}
-
-function hideAuthOverlay() {
-  authOverlay.classList.add('hidden');
-}
-
-function updateUserMenu() {
-  if (!currentUser) { userMenu.classList.add('hidden'); return; }
-  userMenu.classList.remove('hidden');
-  const displayName = currentUserDisplayName();
-  userAvatar.textContent  = userInitial(displayName);
-  userEmailEl.textContent = currentUser.email;
-  const usernameDisplay = document.getElementById('username-display');
-  if (usernameDisplay) {
-    usernameDisplay.textContent = currentUsername || 'Set username';
-    usernameDisplay.classList.toggle('username-placeholder', !currentUsername);
-  }
-  const sharingToggle = document.getElementById('sharing-toggle');
-  if (sharingToggle) sharingToggle.checked = sharingEnabled;
-}
-
-// ── User dropdown toggle ────────────────────────────────
-document.getElementById('user-avatar-btn').addEventListener('click', e => {
-  e.stopPropagation();
-  document.getElementById('user-dropdown').classList.toggle('hidden');
-});
-
-document.addEventListener('click', e => {
-  if (!e.target.closest('#user-menu')) {
-    document.getElementById('user-dropdown').classList.add('hidden');
-    closeUsernameForm();
-  }
-});
-
-// ── Username edit ───────────────────────────────────────
-function closeUsernameForm() {
-  document.getElementById('username-form')?.classList.add('hidden');
-}
-
-document.getElementById('username-edit-btn').addEventListener('click', e => {
-  e.stopPropagation();
-  const form = document.getElementById('username-form');
-  form.classList.toggle('hidden');
-  if (!form.classList.contains('hidden')) {
-    const input = document.getElementById('username-input');
-    input.value = currentUsername || '';
-    input.focus();
-  }
-});
-
-document.getElementById('username-save-btn').addEventListener('click', async e => {
-  e.stopPropagation();
-  const saveStart = profileModel.usernameSaveStart({
-    value: document.getElementById('username-input').value,
-    currentUsername,
-  });
-  if (!saveStart.canSave) return;
-  currentUsername = saveStart.optimisticUsername;
-  setStoredUsername(saveStart.optimisticUsername);
-  if (saveStart.updateUserMenu) updateUserMenu();
-  if (saveStart.closeForm) closeUsernameForm();
-  const result = await saveProfile(saveStart.updates);
-  const saveResult = profileModel.usernameSaveResult({
-    result,
-    previousUsername: saveStart.previousUsername,
-    optimisticUsername: saveStart.optimisticUsername,
-  });
-  currentUsername = saveResult.username;
-  setStoredUsername(saveResult.username);
-  if (saveResult.updateUserMenu) updateUserMenu();
-  if (!saveResult.ok) {
-    showToast(saveResult.toast.message, saveResult.toast.isError);
-    return;
-  }
-  if (saveResult.renderProfile && activeView === 'profile') renderProfile();
-  showToast(saveResult.toast.message, saveResult.toast.isError);
-});
-
-document.querySelectorAll('.mobile-nav-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const target = btn.dataset.mobileView;
-    document.querySelectorAll('.type-tab').forEach(tab => {
-      tab.classList.toggle('active', tab.dataset.type === target);
-    });
-    currentPage = 0;
-    if (target === 'stats') switchView('stats');
-    else if (target === 'profile') switchView('profile');
-    else if (target === 'calendar') switchView('calendar');
-    else if (target === 'community') switchView('community');
-    else switchView('content', target);
-  });
-});
-
-document.getElementById('username-input').addEventListener('keydown', async e => {
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    document.getElementById('username-save-btn').click();
-  }
-});
-
-// ── Sharing toggle ──────────────────────────────────────
-document.getElementById('sharing-toggle').addEventListener('change', async e => {
-  const previousSharing = sharingEnabled;
-  const toggleStart = profileModel.sharingToggleStart({ checked: e.target.checked });
-  sharingEnabled = toggleStart.sharingEnabled;
-  localStorage.setItem('cinetrack_sharing', toggleStart.storageValue);
-  const result = await saveProfile(toggleStart.updates);
-  const toggleResult = profileModel.sharingToggleResult({
-    result,
-    previousSharing,
-    optimisticSharing: toggleStart.sharingEnabled,
-  });
-  sharingEnabled = toggleResult.sharingEnabled;
-  localStorage.setItem('cinetrack_sharing', toggleResult.storageValue);
-  if (!toggleResult.ok) {
-    e.target.checked = toggleResult.checkboxChecked;
-    showToast(toggleResult.toast.message, toggleResult.toast.isError);
-  }
-  if (toggleResult.renderProfile && activeView === 'profile') renderProfile();
-});
-
+function showAuthOverlay(mode = 'form') { authUi.showAuthOverlay(mode); }
+function hideAuthOverlay() { authUi.hideAuthOverlay(); }
+function updateUserMenu() { authUi.updateUserMenu(); }
+function closeUsernameForm() { authUi.closeUsernameForm(); }
 // ── Reload from cloud ───────────────────────────────────
 reloadCloudBtn.addEventListener('click', async () => {
   const reloadPlan = syncModel.reloadFromCloudPlan();
