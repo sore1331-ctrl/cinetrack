@@ -255,6 +255,7 @@ const cardModel = window.CineTrack?.cards;
 const cardViewRenderer = window.CineTrack?.cardView;
 const cardController = window.CineTrack?.cardController;
 const bulkController = window.CineTrack?.bulkController;
+const metadataController = window.CineTrack?.metadataController;
 const filterModel = window.CineTrack?.filters;
 const paginationModel = window.CineTrack?.pagination;
 const randomPickerModel = window.CineTrack?.randomPicker;
@@ -4301,40 +4302,33 @@ syncNowBtn.addEventListener('click', async () => {
 
 // ── Refresh metadata ────────────────────────────────────
 const tmdbRefreshBtn = document.getElementById('tmdb-refresh-btn');
-let cancelTmdbRefresh = false;
-
-tmdbRefreshBtn.addEventListener('click', async () => {
-  document.getElementById('user-dropdown').classList.add('hidden');
-  const targets = movies.filter(m => m.tmdbId || m.externalId);
-  if (!targets.length) { showToast('No source-linked titles to refresh.'); return; }
-
-  cancelTmdbRefresh = false;
-  importProgress.classList.remove('hidden');
-  const refreshState = libraryModel.bulkMetadataRefreshState();
-  for (let i = 0; i < targets.length; i++) {
-    if (cancelTmdbRefresh) break;
-    const m = targets[i];
-    progressText.textContent = `Refreshing "${m.title}" (${i + 1} of ${targets.length})…`;
-    progressBar.style.width = `${Math.round((i / targets.length) * 100)}%`;
+metadataController.createBulkMetadataRefreshController({
+  button: tmdbRefreshBtn,
+  progressContainer: importProgress,
+  progressBar,
+  progressText,
+  cancelButton: progressCancel,
+  userDropdown: document.getElementById('user-dropdown'),
+  getTargets: () => movies.filter(m => m.tmdbId || m.externalId),
+  refreshEntry: async m => {
     try {
       const d = await fetchDetailsForEntry(m);
       const before = libraryModel.clone(m);
       const result = applyMetadataRefresh(m, d);
       updateLibraryEntry(m.id, libraryModel.protectProgress(before, m), { allowDowngrade: false });
-      libraryModel.recordBulkMetadataRefresh(refreshState, { demoted: result?.demoted, title: m.title });
+      return result;
     } catch (e) {
-      libraryModel.recordBulkMetadataRefresh(refreshState, { failed: true });
       logAppError('metadata.bulk_refresh', e, { title: m.title, id: m.id }, 'warn');
+      throw e;
     }
-  }
-  progressBar.style.width = '100%';
-  importProgress.classList.add('hidden');
-  save(); updateCountryDropdown(); render();
-  showToast(libraryModel.bulkMetadataRefreshSummary(refreshState, { cancelled: cancelTmdbRefresh }));
+  },
+  libraryModel,
+  save,
+  updateCountryDropdown,
+  render,
+  showToast,
 });
 
-// Reuse the import-progress cancel button for metadata refresh too
-progressCancel.addEventListener('click', () => { cancelTmdbRefresh = true; });
 
 // ── Sign out ────────────────────────────────────────────
 signoutBtn.addEventListener('click', async () => {

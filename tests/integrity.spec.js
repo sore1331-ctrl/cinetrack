@@ -1973,11 +1973,17 @@ test.describe('tracker data integrity', () => {
 
   test('bulk metadata refresh results are routed through the library model', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const controller = fs.readFileSync(path.join(root, 'scripts', 'metadata-controller.js'), 'utf8');
+    const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 
-    expect(app).toContain('const refreshState = libraryModel.bulkMetadataRefreshState();');
-    expect(app).toContain('libraryModel.recordBulkMetadataRefresh(refreshState, { demoted: result?.demoted, title: m.title });');
-    expect(app).toContain('libraryModel.recordBulkMetadataRefresh(refreshState, { failed: true });');
-    expect(app).toContain('libraryModel.bulkMetadataRefreshSummary(refreshState, { cancelled: cancelTmdbRefresh })');
+    expect(index).toContain('scripts/metadata-controller.js');
+    expect(app).toContain('const metadataController = window.CineTrack?.metadataController;');
+    expect(app).toContain('metadataController.createBulkMetadataRefreshController({');
+    expect(app).toContain('refreshEntry: async m => {');
+    expect(controller).toContain('const refreshState = libraryModel.bulkMetadataRefreshState();');
+    expect(controller).toContain('libraryModel.recordBulkMetadataRefresh(refreshState, {');
+    expect(controller).toContain('libraryModel.recordBulkMetadataRefresh(refreshState, { failed: true });');
+    expect(controller).toContain('libraryModel.bulkMetadataRefreshSummary(refreshState, { cancelled })');
   });
 
   test('library model compares and restores from backup snapshots', () => {
