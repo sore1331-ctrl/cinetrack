@@ -1809,6 +1809,22 @@ test.describe('tracker data integrity', () => {
     expect(controller).toContain('showToast(parts.join');
   });
 
+  test('community panel flow is routed through the community controller', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+    const controller = fs.readFileSync(path.join(root, 'scripts', 'community-controller.js'), 'utf8');
+
+    expect(index).toContain('scripts/community-controller.js');
+    expect(app).toContain('const communityController = window.CineTrack?.communityController;');
+    expect(app).toContain('const communityUi = communityController.createCommunityController({');
+    expect(app).toContain('return communityUi.renderCommunity();');
+    expect(controller).toContain('function createCommunityController');
+    expect(controller).toContain('communityView.cardData(');
+    expect(controller).toContain('communityGrid.onclick = e => {');
+    expect(controller).toContain('const SETUP_SQL = `CREATE TABLE IF NOT EXISTS public.profiles');
+    expect(controller).toContain('/api/community?currentUserId=');
+  });
+
   test('auth ui flow is routed through the auth controller', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
     const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');

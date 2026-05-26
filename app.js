@@ -242,6 +242,7 @@ const progressModel = window.CineTrack?.progress;
 const recommendationModel = window.CineTrack?.recommendations;
 const recommendationView = window.CineTrack?.recommendationView;
 const communityView = window.CineTrack?.communityView;
+const communityController = window.CineTrack?.communityController;
 const formatModel = window.CineTrack?.format;
 const networkModel = window.CineTrack?.network;
 const csvModel = window.CineTrack?.csv;
@@ -3248,206 +3249,33 @@ function renderBarChart(entries, maxVal, color, action = null) {
   }).join('');
 }
 
-// ── Community: compatibility score ──────────────────────
+// -- Community panel -------------------------------------
 function computeCompatibility(myMovies, theirMovies) {
   return communityView.compatibility(myMovies, theirMovies);
 }
 
-// ── Community: profile modal ────────────────────────────
+const communityUi = communityController.createCommunityController({
+  communityView,
+  getCurrentUser: () => currentUser,
+  getOfflineMode: () => offlineMode,
+  getSharingEnabled: () => sharingEnabled,
+  getMovies: () => movies,
+  getSupabaseAccessToken,
+  fetchJsonWithTimeout,
+  logAppError,
+  esc,
+  actualWatchedMinutes,
+  formatTimeSpent,
+  renderBarChart,
+});
+
 function openCommunityProfile(profile, userMovies) {
-  const body  = document.getElementById('community-profile-body');
-  const modal = document.getElementById('community-profile-modal');
-  if (!body || !modal) return;
-
-  body.innerHTML = communityView.profileModalHtml(profile, userMovies, {
-    myMovies: movies,
-    esc,
-    actualWatchedMinutes,
-    formatTimeSpent,
-    renderBarChart,
-  });
-  modal.classList.remove('hidden');
+  communityUi.openProfile(profile, userMovies);
 }
-document.getElementById('community-profile-close')?.addEventListener('click', () => {
-  document.getElementById('community-profile-modal')?.classList.add('hidden');
-});
-document.getElementById('community-profile-modal')?.addEventListener('click', e => {
-  if (e.target.id === 'community-profile-modal') {
-    e.currentTarget.classList.add('hidden');
-  }
-});
 
-// ── Community panel ─────────────────────────────────────
 async function renderCommunity() {
-  const sharingToggle = document.getElementById('sharing-toggle');
-  if (sharingToggle) sharingToggle.checked = sharingEnabled;
-
-  const communityGrid = document.getElementById('community-grid');
-  if (!communityGrid) return;
-
-  if (!currentUser || offlineMode) {
-    communityGrid.innerHTML = '<p class="community-empty">Sign in to see the community.</p>';
-    return;
-  }
-
-  communityGrid.innerHTML = '<p class="community-loading">Loading community…</p>';
-
-  const SETUP_SQL = `CREATE TABLE IF NOT EXISTS public.profiles (
-  user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  username text,
-  sharing_enabled boolean DEFAULT false,
-  preferences jsonb DEFAULT '{}'::jsonb,
-  updated_at timestamptz DEFAULT now()
-);
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS username text;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS preferences jsonb DEFAULT '{}'::jsonb;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS sharing_enabled boolean DEFAULT false;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
-CREATE TABLE IF NOT EXISTS public.user_data (
-  user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  movies jsonb DEFAULT '[]'::jsonb,
-  updated_at timestamptz DEFAULT now()
-);
-ALTER TABLE public.user_data ADD COLUMN IF NOT EXISTS movies jsonb DEFAULT '[]'::jsonb;
-ALTER TABLE public.user_data ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.user_data ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "profiles_select" ON public.profiles;
-DROP POLICY IF EXISTS "profiles_modify" ON public.profiles;
-DROP POLICY IF EXISTS "Anyone can read profiles" ON public.profiles;
-DROP POLICY IF EXISTS "Users manage their own profile" ON public.profiles;
-DROP POLICY IF EXISTS "profiles_select_authenticated" ON public.profiles;
-DROP POLICY IF EXISTS "profiles_insert_own" ON public.profiles;
-DROP POLICY IF EXISTS "profiles_update_own" ON public.profiles;
-DROP POLICY IF EXISTS "profiles_delete_own" ON public.profiles;
-DROP POLICY IF EXISTS "user_data_own" ON public.user_data;
-DROP POLICY IF EXISTS "user_data_shared" ON public.user_data;
-DROP POLICY IF EXISTS "Community read shared data" ON public.user_data;
-DROP POLICY IF EXISTS "Users manage their own data" ON public.user_data;
-DROP POLICY IF EXISTS "user_data_select_own" ON public.user_data;
-DROP POLICY IF EXISTS "user_data_insert_own" ON public.user_data;
-DROP POLICY IF EXISTS "user_data_update_own" ON public.user_data;
-DROP POLICY IF EXISTS "user_data_delete_own" ON public.user_data;
-DROP POLICY IF EXISTS "user_data_select_shared" ON public.user_data;
-DROP POLICY IF EXISTS "user_data_select_authenticated" ON public.user_data;
-CREATE POLICY "profiles_select_authenticated" ON public.profiles FOR SELECT TO authenticated USING (true);
-CREATE POLICY "profiles_insert_own" ON public.profiles FOR INSERT TO authenticated WITH CHECK ((select auth.uid()) = user_id);
-CREATE POLICY "profiles_update_own" ON public.profiles FOR UPDATE TO authenticated USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
-CREATE POLICY "profiles_delete_own" ON public.profiles FOR DELETE TO authenticated USING ((select auth.uid()) = user_id);
-CREATE POLICY "user_data_select_authenticated" ON public.user_data FOR SELECT TO authenticated USING (
-  ((select auth.uid()) = user_id)
-  OR EXISTS (
-    SELECT 1 FROM public.profiles p
-    WHERE p.user_id = user_data.user_id
-      AND p.sharing_enabled = true
-  )
-);
-CREATE POLICY "user_data_insert_own" ON public.user_data FOR INSERT TO authenticated WITH CHECK ((select auth.uid()) = user_id);
-CREATE POLICY "user_data_update_own" ON public.user_data FOR UPDATE TO authenticated USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
-CREATE POLICY "user_data_delete_own" ON public.user_data FOR DELETE TO authenticated USING ((select auth.uid()) = user_id);
-REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM anon;
-REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM authenticated;`;
-
-  // Slow-query hint only. Do not replace the community panel with setup SQL
-  // unless the actual Supabase request fails below.
-  const slowTimer = setTimeout(() => {
-    if (!communityGrid.textContent.includes('Loading community')) return;
-    communityGrid.innerHTML = '<p class="community-loading">Still connecting to Supabase… this can take a moment on a cold project.</p>';
-  }, 8000);
-
-  try {
-    const token = await getSupabaseAccessToken();
-    if (!token) throw new Error('Missing Supabase session token. Sign out and sign in again.');
-
-    const { response: communityRes, data: community } = await fetchJsonWithTimeout(
-      `/api/community?currentUserId=${encodeURIComponent(currentUser.id)}`,
-      {
-        cache: 'no-store',
-        headers: { Authorization: `Bearer ${token}` },
-      },
-      'Community load'
-    );
-    if (!communityRes.ok) throw new Error(community?.error || `Community API failed (${communityRes.status})`);
-
-    const sharingProfiles = community.profiles || [];
-
-    if (!sharingProfiles?.length) {
-      communityGrid.innerHTML = `
-        <div class="community-empty-state">
-          <div class="community-empty-icon">👥</div>
-          <p>No one is sharing their watchlist yet.</p>
-          <p class="community-empty-hint">Enable sharing above to let others see what you're watching!</p>
-        </div>`;
-      return;
-    }
-
-    const { dataMap, cards: cardData } = communityView.cardData(
-      sharingProfiles,
-      community.sharedData || [],
-      movies
-    );
-
-    const controlsEl = document.getElementById('community-controls');
-    if (controlsEl) controlsEl.classList.remove('hidden');
-
-    const renderCards = () => {
-      const q = (document.getElementById('community-search')?.value || '').trim().toLowerCase();
-      const sort = document.getElementById('community-sort')?.value || 'recent';
-      const list = communityView.filterCards(cardData, { query: q, sort });
-      communityGrid.innerHTML = communityView.cardsHtml(list, { esc });
-    };
-
-    renderCards();
-
-    const searchEl = document.getElementById('community-search');
-    const sortEl = document.getElementById('community-sort');
-    if (searchEl) searchEl.oninput = renderCards;
-    if (sortEl) sortEl.onchange = renderCards;
-    // Wire click → open profile modal (replace handler).
-    communityGrid.onclick = e => {
-      const card = e.target.closest('.community-card[data-user-id]');
-      if (!card) return;
-      const userId  = card.dataset.userId;
-      const profile = sharingProfiles.find(p => p.user_id === userId);
-      const userMovies = dataMap[userId] || [];
-      if (profile) openCommunityProfile(profile, userMovies);
-    };
-
-  } catch (e) {
-    logAppError('community.load', e);
-    let diagnosis = '';
-    try {
-      const hr = await fetch('/api/supabase-health', { cache: 'no-store' });
-      const health = await hr.json();
-      if (!health.env?.hasUrl || !health.env?.hasAnonKey) {
-        diagnosis = '<p class="setup-error-body"><strong>Diagnosis:</strong> Vercel is missing <code>SUPABASE_URL</code> or <code>SUPABASE_ANON_KEY</code>.</p>';
-      } else if (health.reachable) {
-        diagnosis = '<p class="setup-error-body"><strong>Diagnosis:</strong> Supabase config is present and reachable. The failed query above is probably table/RLS related.</p>';
-      } else {
-        diagnosis = `<p class="setup-error-body"><strong>Diagnosis:</strong> Supabase config exists, but the server could not reach Supabase${health.error ? ` (${esc(health.error)})` : ''}.</p>`;
-      }
-    } catch {}
-    communityGrid.innerHTML = `
-      <div class="supabase-setup-error">
-        <p class="setup-error-title">⚠️ Community failed to load</p>
-        <p class="setup-error-body"><strong>Error:</strong> ${esc(String(e?.message || e))}</p>
-        ${diagnosis}
-        <p class="setup-error-body">If this mentions RLS or missing tables, run the SQL below in Supabase → SQL Editor.</p>
-        <pre class="setup-sql-block" id="setup-sql-pre">${esc(SETUP_SQL)}</pre>
-        <button class="setup-copy-btn" id="setup-copy-btn">Copy SQL</button>
-      </div>`;
-    document.getElementById('setup-copy-btn')?.addEventListener('click', () => {
-      navigator.clipboard.writeText(SETUP_SQL).then(() => {
-        const btn = document.getElementById('setup-copy-btn');
-        if (btn) { btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Copy SQL'; }, 2000); }
-      });
-    });
-  } finally {
-    clearTimeout(slowTimer);
-  }
+  return communityUi.renderCommunity();
 }
-
 // ── Profile panel ───────────────────────────────────────
 function renderProfile() {
   const panel = document.getElementById('profile-panel');
