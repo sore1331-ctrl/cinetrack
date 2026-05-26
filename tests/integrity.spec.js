@@ -1001,9 +1001,14 @@ test.describe('tracker data integrity', () => {
     expect(index).toContain('scripts/modal-controller.js');
     expect(app).toContain('const modalModel = window.CineTrack?.modal;');
     expect(app).toContain('const modalController = window.CineTrack?.modalController;');
-    expect(app).toContain('modalModel.mediaTypeForOpen(movie, activeType)');
-    expect(app).toContain('modalModel.formValues(movie)');
-    expect(app).toContain('modalModel.typeUiState(activeMediaType)');
+    expect(app).toContain('const modalType = modalController.createTypeController({');
+    expect(app).toContain('const modalOpen = modalController.createOpenController({');
+    expect(app).toContain('const openState = modalOpen.beginOpen(movie, activeType)');
+    expect(controller).toContain('function createTypeController');
+    expect(controller).toContain('modalModel.typeUiState(currentMediaType)');
+    expect(controller).toContain('function createOpenController');
+    expect(controller).toContain('modalModel.mediaTypeForOpen(entry, activeType)');
+    expect(controller).toContain('modalModel.formValues(entry)');
     expect(app).toContain('modalSeasons.initFromEntry(movie)');
     expect(app).toContain('modalSeasons.applySelection(details');
     expect(controller).toContain('function createSeasonController');

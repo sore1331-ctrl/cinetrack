@@ -512,11 +512,113 @@
     return { applySelection, reset, hideDropdown };
   }
 
+  function createTypeController(options = {}) {
+    const {
+      buttons = [],
+      searchLabel,
+      query,
+      directorLabel,
+      directorInput,
+      epFields,
+      modalModel,
+      onChange = () => {},
+    } = options;
+
+    let currentMediaType = 'movie';
+
+    function applyTypeUi(mediaType = currentMediaType) {
+      currentMediaType = mediaType;
+      const state = modalModel.typeUiState(currentMediaType);
+      if (searchLabel?.childNodes?.[0]) searchLabel.childNodes[0].textContent = state.searchLabel;
+      if (query) query.placeholder = state.searchPlaceholder;
+      if (directorLabel?.childNodes?.[0]) directorLabel.childNodes[0].textContent = state.directorLabel;
+      if (directorInput) directorInput.placeholder = state.directorPlaceholder;
+      epFields?.classList.toggle('hidden', !state.isShow);
+    }
+
+    function activate(mediaType = 'movie') {
+      currentMediaType = mediaType;
+      buttons.forEach(button => {
+        button.classList.toggle('active', button.dataset.type === currentMediaType);
+      });
+      applyTypeUi(currentMediaType);
+    }
+
+    buttons.forEach(button => {
+      button.addEventListener('click', () => {
+        activate(button.dataset.type);
+        onChange(currentMediaType);
+      });
+    });
+
+    return {
+      activate,
+      current: () => currentMediaType,
+    };
+  }
+
+  function createOpenController(options = {}) {
+    const {
+      modalTitle,
+      droppedOption,
+      refreshButton,
+      fields = {},
+      modalModel,
+      typeController,
+      populateYearSelect = () => {},
+      sourceForEntry = () => 'manual',
+      metadataRefreshLabel = () => 'Refresh metadata',
+      resetUi = () => {},
+    } = options;
+
+    function refreshTitle(entry) {
+      if (!refreshButton) return;
+      refreshButton.classList.toggle('hidden', !(entry?.tmdbId || entry?.externalId));
+      refreshButton.textContent = entry ? `↻ ${metadataRefreshLabel(entry)}` : '↻ Refresh metadata';
+      const source = sourceForEntry(entry);
+      refreshButton.title = entry
+        ? `Re-fetch metadata from ${source === 'tmdb' ? 'TMDB' : source === 'anilist' ? 'AniList' : 'TMDB when available'} while preserving watch progress`
+        : 'Re-fetch metadata from this title source while preserving watch progress';
+    }
+
+    function populateFields(entry) {
+      const values = modalModel.formValues(entry);
+      if (fields.title) fields.title.value = values.title;
+      populateYearSelect(values.year);
+      if (fields.genre) fields.genre.value = values.genre;
+      if (fields.director) fields.director.value = values.director;
+      if (fields.country) fields.country.value = values.country;
+      if (fields.status) fields.status.value = values.status;
+      if (fields.runtime) fields.runtime.value = values.runtime;
+      if (fields.notes) fields.notes.value = values.notes;
+      return values;
+    }
+
+    function beginOpen(entry = null, activeType = 'movie') {
+      if (modalTitle) modalTitle.textContent = entry ? 'Edit Title' : 'Add Title';
+      if (droppedOption) droppedOption.hidden = !entry?.id;
+      const mediaType = modalModel.mediaTypeForOpen(entry, activeType);
+      typeController.activate(mediaType);
+      resetUi();
+      refreshTitle(entry);
+      const values = populateFields(entry);
+      return {
+        editingId: entry?.id || null,
+        mediaType,
+        rating: values.rating,
+      };
+    }
+
+    return { beginOpen };
+  }
+
   root.modalController = {
     createSeasonController,
     createRewatchController,
     createProviderController,
     createSubmitController,
     createSearchController,
+    createTypeController,
+    createOpenController,
   };
 })();

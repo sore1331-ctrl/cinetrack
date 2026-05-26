@@ -1647,26 +1647,6 @@ function applyMetadataRefresh(movie, details) {
   return { demoted: previousStatus === 'watched' && movie.status === 'in_progress' };
 }
 
-// ── Media type toggle (modal) ───────────────────────────
-document.querySelectorAll('.type-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    activeMediaType = btn.dataset.type;
-    updateModalForType();
-    resetTMDBUI();
-  });
-});
-
-function updateModalForType() {
-  const state = modalModel.typeUiState(activeMediaType);
-  tmdbSearchLabel.childNodes[0].textContent = state.searchLabel;
-  tmdbQuery.placeholder = state.searchPlaceholder;
-  directorLabel.childNodes[0].textContent = state.directorLabel;
-  document.getElementById('f-director').placeholder = state.directorPlaceholder;
-  document.getElementById('ep-fields').classList.toggle('hidden', !state.isShow);
-}
-
 function applyTMDBSelection(details) {
   tmdbSelection = details;
   modalSearch.applySelection(details);
@@ -3771,38 +3751,47 @@ const modalSearch = modalController.createSearchController({
   onClear: () => { tmdbSelection = null; },
   logError: logAppError,
 });
+const modalType = modalController.createTypeController({
+  buttons: Array.from(document.querySelectorAll('.type-btn')),
+  searchLabel: tmdbSearchLabel,
+  query: tmdbQuery,
+  directorLabel,
+  directorInput: document.getElementById('f-director'),
+  epFields: document.getElementById('ep-fields'),
+  modalModel,
+  onChange: mediaType => {
+    activeMediaType = mediaType;
+    resetTMDBUI();
+  },
+});
+const modalOpen = modalController.createOpenController({
+  modalTitle,
+  droppedOption: document.getElementById('f-status-dropped-opt'),
+  refreshButton: modalTmdbRefreshBtn,
+  fields: {
+    title: document.getElementById('f-title'),
+    genre: document.getElementById('f-genre'),
+    director: document.getElementById('f-director'),
+    country: document.getElementById('f-country'),
+    status: document.getElementById('f-status'),
+    runtime: document.getElementById('f-runtime'),
+    notes: document.getElementById('f-notes'),
+  },
+  modalModel,
+  typeController: modalType,
+  populateYearSelect,
+  sourceForEntry,
+  metadataRefreshLabel,
+  resetUi: resetTMDBUI,
+});
 
 function openModal(movie = null) {
-  editingId = movie ? movie.id : null;
-  modalTitle.textContent = movie ? 'Edit Title' : 'Add Title';
-
-  const droppedOpt = document.getElementById('f-status-dropped-opt');
-  if (droppedOpt) droppedOpt.hidden = !editingId;
-
-  activeMediaType = modalModel.mediaTypeForOpen(movie, activeType);
-  document.querySelectorAll('.type-btn').forEach(b =>
-    b.classList.toggle('active', b.dataset.type === activeMediaType)
-  );
-  updateModalForType();
-  resetTMDBUI();
-  modalTmdbRefreshBtn.classList.toggle('hidden', !(movie?.tmdbId || movie?.externalId));
-  modalTmdbRefreshBtn.textContent = movie ? `↻ ${metadataRefreshLabel(movie)}` : '↻ Refresh metadata';
-  modalTmdbRefreshBtn.title = movie
-    ? `Re-fetch metadata from ${sourceForEntry(movie) === 'tmdb' ? 'TMDB' : sourceForEntry(movie) === 'anilist' ? 'AniList' : 'TMDB when available'} while preserving watch progress`
-    : 'Re-fetch metadata from this title source while preserving watch progress';
-
-  const values = modalModel.formValues(movie);
-  document.getElementById('f-title').value    = values.title;
-  populateYearSelect(values.year);
-  document.getElementById('f-genre').value    = values.genre;
-  document.getElementById('f-director').value = values.director;
-  document.getElementById('f-country').value  = values.country;
-  document.getElementById('f-status').value   = values.status;
-  document.getElementById('f-runtime').value  = values.runtime;
-  document.getElementById('f-notes').value    = values.notes;
+  const openState = modalOpen.beginOpen(movie, activeType);
+  editingId = openState.editingId;
+  activeMediaType = openState.mediaType;
 
   modalSeasons.initFromEntry(movie);
-  selectedRating = values.rating;
+  selectedRating = openState.rating;
 
   modalRewatch.initFromEntry(movie);
 
@@ -3814,6 +3803,7 @@ function openModal(movie = null) {
   // Auto-load streaming providers for entries with a TMDB id
   if (movie?.tmdbId) modalProviders.loadForEntry(movie);
 }
+
 
 function closeModal() {
   modal.classList.add('hidden');
