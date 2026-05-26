@@ -1792,6 +1792,21 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('a.download = payload.filename;');
   });
 
+  test('csv import flow is routed through the csv controller', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+    const controller = fs.readFileSync(path.join(root, 'scripts', 'csv-controller.js'), 'utf8');
+
+    expect(index).toContain('scripts/csv-controller.js');
+    expect(app).toContain('const csvController = window.CineTrack?.csvController;');
+    expect(app).toContain('csvController.createCsvImportController({');
+    expect(app).toContain('processRow: processImportedRow');
+    expect(controller).toContain('function createCsvImportController');
+    expect(controller).toContain('const rows = csvModel.parse(event.target.result);');
+    expect(controller).toContain('const result = await processRow(row, { title });');
+    expect(controller).toContain('showToast(parts.join');
+  });
+
   test('library model sanitizes invalid title data before persistence', () => {
     const model = loadLibraryModel();
     const library = model.sanitiseLibrary([{

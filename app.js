@@ -245,6 +245,7 @@ const communityView = window.CineTrack?.communityView;
 const formatModel = window.CineTrack?.format;
 const networkModel = window.CineTrack?.network;
 const csvModel = window.CineTrack?.csv;
+const csvController = window.CineTrack?.csvController;
 const libraryModel = window.CineTrack?.library;
 const profileModel = window.CineTrack?.profile;
 const profileView = window.CineTrack?.profileView;
@@ -3955,12 +3956,6 @@ const progressBar    = document.getElementById('progress-bar');
 const progressText   = document.getElementById('progress-text');
 const progressCancel = document.getElementById('progress-cancel');
 
-let cancelImport = false;
-
-function parseCSV(text) {
-  return csvModel.parse(text);
-}
-
 function showToast(msg, isError = false) {
   importToast.textContent = msg;
   importToast.className = 'import-toast' + (isError ? ' error' : '');
@@ -3984,69 +3979,42 @@ async function matchWithTMDB(title, year, mediaType) {
   } catch { return null; }
 }
 
-async function importRows(rows) {
-  cancelImport = false;
-  importProgress.classList.remove('hidden');
-  let imported = 0, skipped = 0, unmatched = 0;
-  const total = rows.length;
-
-  for (let i = 0; i < total; i++) {
-    if (cancelImport) break;
-    const row = rows[i];
-    const title = row.title?.trim();
-    if (!title) { skipped++; continue; }
-    const { mediaType, status, rating, year, runtime, totalEpisodes, watchedEpisodes } = normaliseRow(row);
-    const dup = movies.some(m => m.title.toLowerCase() === title.toLowerCase() && m.mediaType === mediaType && (m.year || '') === year);
-    if (dup) { skipped++; continue; }
-    progressText.textContent = `Matching "${title}" (${i + 1} of ${total})…`;
-    progressBar.style.width = `${Math.round((i / total) * 100)}%`;
-    const tmdb = await matchWithTMDB(title, year, mediaType);
-    const source = tmdb ? 'tmdb' : 'manual';
-    const externalId = tmdb?.tmdbId ? String(tmdb.tmdbId) : '';
-    const duplicate = findDuplicateTitle({
-      title: tmdb?.title || title,
-      year: tmdb?.year || year,
-      mediaType,
-      source,
-      externalId,
-    });
-    if (duplicate) { skipped++; continue; }
-    const isShow      = mediaType === 'tv' || mediaType === 'anime';
-    const epTotalUsed = isShow ? (totalEpisodes || (tmdb?.total_episodes || 0)) : 0;
-    const epWatchUsed = isShow ? Math.min(watchedEpisodes, epTotalUsed || watchedEpisodes) : 0;
-    if (tmdb) {
-      movies.push({ id: genId(), addedAt: Date.now(), title: tmdb.title, year: tmdb.year, genre: tmdb.genre, director: tmdb.director, country: tmdb.country, notes: row.notes || tmdb.overview || '', posterUrl: tmdb.poster_path ? `https://image.tmdb.org/t/p/w200${tmdb.poster_path}` : '', tmdbId: tmdb.tmdbId, runtime: tmdb.runtime || runtime, mediaType, status, rating, totalEpisodes: epTotalUsed, watchedEpisodes: epWatchUsed });
-    } else {
-      unmatched++;
-      movies.push({ id: genId(), addedAt: Date.now(), title, year, genre: row.genre || '', director: row.director || '', country: row.country || '', notes: row.notes || '', posterUrl: row.posterUrl || '', tmdbId: null, runtime, mediaType, status, rating, totalEpisodes: epTotalUsed, watchedEpisodes: epWatchUsed });
-    }
-    imported++;
+async function processImportedRow(row, { title }) {
+  const { mediaType, status, rating, year, runtime, totalEpisodes, watchedEpisodes } = normaliseRow(row);
+  const dup = movies.some(m => m.title.toLowerCase() === title.toLowerCase() && m.mediaType === mediaType && (m.year || '') === year);
+  if (dup) return { skipped: true };
+  const tmdb = await matchWithTMDB(title, year, mediaType);
+  const source = tmdb ? 'tmdb' : 'manual';
+  const externalId = tmdb?.tmdbId ? String(tmdb.tmdbId) : '';
+  const duplicate = findDuplicateTitle({
+    title: tmdb?.title || title,
+    year: tmdb?.year || year,
+    mediaType,
+    source,
+    externalId,
+  });
+  if (duplicate) return { skipped: true };
+  const isShow      = mediaType === 'tv' || mediaType === 'anime';
+  const epTotalUsed = isShow ? (totalEpisodes || (tmdb?.total_episodes || 0)) : 0;
+  const epWatchUsed = isShow ? Math.min(watchedEpisodes, epTotalUsed || watchedEpisodes) : 0;
+  if (tmdb) {
+    movies.push({ id: genId(), addedAt: Date.now(), title: tmdb.title, year: tmdb.year, genre: tmdb.genre, director: tmdb.director, country: tmdb.country, notes: row.notes || tmdb.overview || '', posterUrl: tmdb.poster_path ? `https://image.tmdb.org/t/p/w200${tmdb.poster_path}` : '', tmdbId: tmdb.tmdbId, runtime: tmdb.runtime || runtime, mediaType, status, rating, totalEpisodes: epTotalUsed, watchedEpisodes: epWatchUsed });
+    return { imported: true };
   }
-
-  progressBar.style.width = '100%';
-  importProgress.classList.add('hidden');
-  save(); updateCountryDropdown(); render();
-  const parts = [`Imported ${imported} title${imported !== 1 ? 's' : ''}`];
-  if (skipped)   parts.push(`${skipped} skipped`);
-  if (unmatched) parts.push(`${unmatched} not on TMDB`);
-  if (cancelImport) parts.push('cancelled');
-  showToast(parts.join(' · '));
+  movies.push({ id: genId(), addedAt: Date.now(), title, year, genre: row.genre || '', director: row.director || '', country: row.country || '', notes: row.notes || '', posterUrl: row.posterUrl || '', tmdbId: null, runtime, mediaType, status, rating, totalEpisodes: epTotalUsed, watchedEpisodes: epWatchUsed });
+  return { imported: true, unmatched: true };
 }
 
-progressCancel.addEventListener('click', () => { cancelImport = true; });
-csvInput.addEventListener('change', () => {
-  const file = csvInput.files[0];
-  if (!file) return;
-  csvInput.value = '';
-  const reader = new FileReader();
-  reader.onload = e => {
-    try {
-      const rows = parseCSV(e.target.result);
-      if (!rows.length) { showToast('CSV appears empty or has no valid rows.', true); return; }
-      importRows(rows);
-    } catch { showToast('Failed to parse CSV. Check the file format.', true); }
-  };
-  reader.readAsText(file);
+csvController.createCsvImportController({
+  input: csvInput,
+  progressContainer: importProgress,
+  progressBar,
+  progressText,
+  cancelButton: progressCancel,
+  csvModel,
+  processRow: processImportedRow,
+  afterImport: () => { save(); updateCountryDropdown(); render(); },
+  showToast,
 });
 
 const TEMPLATE_URL = URL.createObjectURL(new Blob([csvModel.TEMPLATE_CSV], { type: 'text/csv' }));
