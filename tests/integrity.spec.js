@@ -569,6 +569,7 @@ test.describe('tracker data integrity', () => {
       tracked,
       upcoming: [
         { type: 'tv', sourceKey: 'tv:10', tmdbId: 10, title: 'Remote Show', nextEpisode: { season: 1, episode: 2, name: 'Pilot', airDate: '2026-05-24' } },
+        { type: 'tv', sourceKey: 'tv:10', tmdbId: 10, title: 'Remote Show', nextEpisode: { season: 1, episode: 2, name: 'Pilot', airDate: '2026-05-24' } },
         { type: 'movie', sourceKey: 'movie:20', tmdbId: 20, title: 'Remote Film', poster_path: '/film.jpg', releaseDate: '2026-06-01' },
         { type: 'movie', sourceKey: 'movie:99', tmdbId: 99, title: 'Too Late', releaseDate: '2026-09-01' },
       ],
@@ -592,6 +593,24 @@ test.describe('tracker data integrity', () => {
       poster: 'poster:/film.jpg',
     }));
     expect(model.groupRowsByDate(rows)['2026-05-24']).toHaveLength(1);
+
+    const animeRows = model.trackedRows({
+      tracked: [{ mediaType: 'anime', status: 'in_progress', externalSource: 'anilist', externalId: '777', title: 'Anime Local' }],
+      upcoming: [
+        { type: 'tv', sourceKey: 'anilist:777', title: 'Anime Local', nextEpisode: { season: 1, episode: 9, airDate: '2026-05-23' } },
+      ],
+      cache: {
+        byId: {
+          'anilist:777': { nextEpisode: { season: 1, episode: 9, airDate: '2026-05-23' } },
+        },
+      },
+      todayStr: '2026-05-23',
+      tvHorizonStr: '2026-06-06',
+      keyFor: model.keyForEntry,
+      infoUrlForEntry: entry => `/anime/${entry.externalId}`,
+    });
+    expect(animeRows).toHaveLength(1);
+    expect(animeRows[0]).toEqual(expect.objectContaining({ kind: 'anime', title: 'Anime Local' }));
   });
 
   test('calendar model plans cache warming without duplicate network work', () => {

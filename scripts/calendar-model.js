@@ -201,7 +201,7 @@
 
   function addUniqueRow(rows, seen, row) {
     if (!row?.date) return;
-    const key = `${row.kind}:${row.tmdbId || row.title}:${row.date}`;
+    const key = `${row.kind}:${row.uniqueKey || row.tmdbId || row.title}:${row.date}:${row.sublabel || ''}`;
     if (seen.has(key)) return;
     seen.add(key);
     rows.push(row);
@@ -229,10 +229,11 @@
       if (item?.type === 'movie') {
         const releaseDate = item.releaseDate;
         if (releaseDate && releaseDate >= todayStr && releaseDate <= movieHorizonStr) {
-          addUniqueRow(rows, seen, {
-            date: releaseDate,
-            kind: 'movie',
-            tmdbId: item.tmdbId,
+        addUniqueRow(rows, seen, {
+          uniqueKey: key,
+          date: releaseDate,
+          kind: 'movie',
+          tmdbId: item.tmdbId,
             title: local?.title || item.title,
             poster: local?.posterUrl || item.poster_url || (item.poster_path ? posterBase + item.poster_path : ''),
             sublabel: '\u{1F3AC} Theatrical release',
@@ -245,6 +246,7 @@
       const episode = item?.nextEpisode;
       if (episode?.airDate && episode.airDate >= todayStr && episode.airDate <= tvHorizonStr) {
         addUniqueRow(rows, seen, {
+          uniqueKey: key,
           date: episode.airDate,
           kind: local?.mediaType === 'anime' ? 'anime' : 'tv',
           tmdbId: item.tmdbId || item.externalId || '',
@@ -262,6 +264,7 @@
       if (signal.type === 'episode') {
         const episode = signal.episode;
         addUniqueRow(rows, seen, {
+          uniqueKey: keyFor(local),
           date: todayStr,
           kind: local.mediaType === 'anime' ? 'anime' : 'tv',
           tmdbId: local.tmdbId || local.externalId || '',
@@ -272,6 +275,7 @@
         });
       } else if (signal.type === 'movie') {
         addUniqueRow(rows, seen, {
+          uniqueKey: keyFor(local),
           date: todayStr,
           kind: 'movie',
           tmdbId: local.tmdbId || '',
