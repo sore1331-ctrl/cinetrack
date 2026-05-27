@@ -36,16 +36,27 @@
     }
 
     reloadCloudBtn?.addEventListener('click', async () => {
-      const reloadPlan = syncModel.reloadFromCloudPlan();
+      const reloadPlan = syncModel.reloadFromCloudPlan({ hasLocalChanges: hasUnsyncedLocalChanges() });
       if (reloadPlan.hideUserDropdown) hideUserDropdown();
       if (reloadPlan.clearPendingSave) clearPendingSave();
       reloadCloudBtn.disabled = true;
       reloadCloudBtn.textContent = reloadPlan.button.busyText;
-      const result = await loadUserData(reloadPlan.loadOptions);
+      try {
+        if (reloadPlan.saveFirst) {
+          const saveResult = await saveUserData();
+          if (!saveResult?.ok) throw new Error(saveResult?.error || reloadPlan.saveError);
+        }
+        const result = await loadUserData(reloadPlan.loadOptions);
+        if (!result?.ok) throw new Error(result?.error || reloadPlan.loadError);
+        const resultPlan = syncModel.reloadFromCloudResultPlan(result);
+        if (resultPlan.toast) showToast(resultPlan.toast);
+      } catch (e) {
+        logAppError('sync.reload', e);
+        const errorToast = syncModel.manualSyncErrorToast(e);
+        showToast(errorToast.message, errorToast.isError);
+      }
       reloadCloudBtn.disabled = false;
       reloadCloudBtn.textContent = reloadPlan.button.idleText;
-      const resultPlan = syncModel.reloadFromCloudResultPlan(result);
-      if (resultPlan.toast) showToast(resultPlan.toast);
     });
 
     syncNowBtn?.addEventListener('click', async () => {

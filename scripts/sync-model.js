@@ -295,15 +295,18 @@
     };
   }
 
-  function reloadFromCloudPlan() {
+  function reloadFromCloudPlan({ hasLocalChanges = false } = {}) {
     return {
       hideUserDropdown: true,
       clearPendingSave: true,
+      saveFirst: Boolean(hasLocalChanges),
       button: {
         busyText: '\u21bb Loading\u2026',
         idleText: '\u21bb Reload from cloud',
       },
       loadOptions: { force: true },
+      saveError: 'Cloud save failed',
+      loadError: 'Cloud reload failed',
       successToast: 'Reloaded from cloud \u2713',
     };
   }

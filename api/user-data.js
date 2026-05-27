@@ -482,15 +482,21 @@ export default async function handler(req, res) {
         });
       }
 
-      const eventCount = await writeProgressEvents({
-        token,
-        userId,
-        beforeMovies: existingRow?.movies || [],
-        afterMovies: mergedMovies,
-        saveId,
-        source: staleClient ? 'stale-merge-save' : 'cloud-save',
-        signal: controller.signal,
-      });
+      let eventCount = 0;
+      let eventWarning = '';
+      try {
+        eventCount = await writeProgressEvents({
+          token,
+          userId,
+          beforeMovies: existingRow?.movies || [],
+          afterMovies: mergedMovies,
+          saveId,
+          source: staleClient ? 'stale-merge-save' : 'cloud-save',
+          signal: controller.signal,
+        });
+      } catch (eventError) {
+        eventWarning = eventError?.message || String(eventError);
+      }
 
       return json(res, 200, {
         ok: true,
@@ -500,6 +506,7 @@ export default async function handler(req, res) {
         merged: Boolean(existingRow),
         stale_client: staleClient,
         event_count: eventCount,
+        event_warning: eventWarning || undefined,
       });
     }
 

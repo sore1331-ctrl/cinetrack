@@ -235,7 +235,7 @@ const VOLATILE_STORAGE_KEYS = [
 ];
 const POSTER_BASE = 'https://image.tmdb.org/t/p/w200';
 const SESSION_TIMEOUT_MS = 20000;
-const CLOUD_TIMEOUT_MS = 30000;
+const CLOUD_TIMEOUT_MS = 15000;
 const storageModel = window.CineTrack?.storage;
 const sourceModel = window.CineTrack?.sources;
 const progressModel = window.CineTrack?.progress;
@@ -390,7 +390,12 @@ let currentSyncTitle = 'Loading…';
 
 function setSyncState(state, detail = '') {
   currentSyncState = state;
-  currentSyncTitle = { loading: 'Loading…', saving: 'Saving…', saved: 'Synced ✓', error: detail || 'Offline — saved locally' }[state] || '';
+  currentSyncTitle = {
+    loading: detail || 'Loading cloud…',
+    saving: detail || 'Saved locally — uploading…',
+    saved: detail || 'Cloud saved ✓',
+    error: detail || 'Offline — saved locally',
+  }[state] || '';
   const el = document.getElementById('sync-indicator');
   if (el) {
     el.dataset.state = state;
@@ -611,7 +616,13 @@ async function saveUserDataWithFallback(payload) {
   } catch (firstError) {
     logAppError('sync.save.primary', firstError, { fallback: true }, 'warn');
     currentAccessToken = '';
-    return saveUserDataViaApi(payload);
+    try {
+      return await saveUserDataViaApi(payload);
+    } catch (secondError) {
+      logAppError('sync.save.retry', secondError, { fallback: true }, 'warn');
+      await new Promise(resolve => setTimeout(resolve, 600));
+      return saveUserDataViaApi(payload);
+    }
   }
 }
 

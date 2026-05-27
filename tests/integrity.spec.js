@@ -450,6 +450,15 @@ test.describe('tracker data integrity', () => {
     expect(events[0].after_value).toEqual(expect.objectContaining({ status: 'watched', watchedEpisodes: 8 }));
   });
 
+  test('progress event failures do not fail the saved library response', () => {
+    const api = fs.readFileSync(path.join(root, 'api', 'user-data.js'), 'utf8');
+
+    expect(api).toContain('let eventWarning =');
+    expect(api).toContain('} catch (eventError) {');
+    expect(api).toContain('event_warning: eventWarning || undefined');
+    expect(api.indexOf('rows = await supabaseRequest(')).toBeLessThan(api.indexOf('let eventCount = 0;'));
+  });
+
   test('tracked TV calendar uses TVMaze data for card highlights', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
     const tvmazeApi = fs.readFileSync(path.join(root, 'api', 'tvmaze-calendar.js'), 'utf8');
@@ -2339,9 +2348,13 @@ test.describe('tracker data integrity', () => {
     expect(model.reloadFromCloudPlan()).toEqual(expect.objectContaining({
       hideUserDropdown: true,
       clearPendingSave: true,
+      saveFirst: false,
       loadOptions: { force: true },
+      saveError: 'Cloud save failed',
+      loadError: 'Cloud reload failed',
       successToast: expect.any(String),
     }));
+    expect(model.reloadFromCloudPlan({ hasLocalChanges: true }).saveFirst).toBe(true);
     expect(model.reloadFromCloudResultPlan({ ok: true }).toast).toBe(model.reloadFromCloudPlan().successToast);
     expect(model.reloadFromCloudResultPlan({ ok: false }).toast).toBe('');
     expect(model.manualSyncStartPlan({ offlineMode: true, hasCurrentUser: true })).toEqual({
@@ -2507,7 +2520,8 @@ test.describe('tracker data integrity', () => {
     const controller = fs.readFileSync(path.join(root, 'scripts', 'sync-controller.js'), 'utf8');
 
     expect(app).toContain('clearPendingSave: clearPendingCloudSave');
-    expect(controller).toContain('const reloadPlan = syncModel.reloadFromCloudPlan();');
+    expect(controller).toContain('const reloadPlan = syncModel.reloadFromCloudPlan({ hasLocalChanges: hasUnsyncedLocalChanges() });');
+    expect(controller).toContain('const saveResult = await saveUserData();');
     expect(controller).toContain('const result = await loadUserData(reloadPlan.loadOptions);');
     expect(controller).toContain('const resultPlan = syncModel.reloadFromCloudResultPlan(result);');
     expect(controller).toContain('const syncStartPlan = syncModel.manualSyncStartPlan({');
