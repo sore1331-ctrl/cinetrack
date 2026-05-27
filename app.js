@@ -2344,7 +2344,6 @@ function updateCalendarAiringBadge() {
   if (cache?.byId) {
     const checkAiringToday = airingTodayChecker(cache);
     for (const m of movies) {
-      if (!m.tmdbId) continue;
       const isShow  = m.mediaType === 'tv' || m.mediaType === 'anime';
       const isMovie = m.mediaType === 'movie';
       if ((isShow || isMovie) && checkAiringToday(m)) count += 1;
@@ -2412,9 +2411,9 @@ function calendarWarmKeysForEntries(entries = movies) {
 }
 
 async function warmUpcomingCacheForBadge({ force = false, reason = 'badge' } = {}) {
-  const { ids, tvEntries } = calendarWarmKeysForEntries();
+  const { ids, tvEntries, externalEntries } = calendarWarmKeysForEntries();
   const plan = calendarModel.cacheWarmPlan({
-    keys: ids,
+    keys: [...ids, ...externalEntries.map(calendarKeyForEntry).filter(Boolean)],
     cache: readUpcomingCache(),
     ttlMs: UPCOMING_TTL_MS,
     now: Date.now(),
@@ -2432,6 +2431,7 @@ async function warmUpcomingCacheForBadge({ force = false, reason = 'badge' } = {
   lastUpcomingWarmAt = Date.now();
   try {
     try { await fetchUpcoming(ids, { force }); } catch (e) { logAppError('calendar.warm_tmdb', e, { reason, force }, 'warn'); }
+    try { mergeUpcomingCache(await fetchExternalUpcomingForEntries(externalEntries)); } catch (e) { logAppError('calendar.warm_external', e, { reason, force }, 'warn'); }
     try { await fetchTvmazeCalendarForEntries(tvEntries, { force }); } catch (e) { logAppError('calendar.warm_tvmaze', e, { reason, force }, 'warn'); }
     updateCalendarAiringBadge();
     // Re-render the content grid so any "Today" highlights appear without

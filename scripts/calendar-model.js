@@ -65,12 +65,13 @@
   }
 
   function airingTodaySignal(entry, cache, todayStr = dateString()) {
-    if (!entry?.tmdbId || !cache?.byId) return null;
+    if (!entry || !cache?.byId) return null;
     const isShow = entry.mediaType === 'tv' || entry.mediaType === 'anime';
     const isMovie = entry.mediaType === 'movie';
 
     if (isShow && (entry.status === 'in_progress' || entry.status === 'watchlist')) {
-      const episode = cache.byId[`tv:${entry.tmdbId}`]?.nextEpisode;
+      const key = keyForEntry(entry);
+      const episode = key ? cache.byId[key]?.nextEpisode : null;
       if (hasUnwatchedAiringEpisodeToday(entry, episode, todayStr)) {
         return { type: 'episode', episode };
       }
@@ -175,17 +176,20 @@
   function warmKeysForEntries(entries = []) {
     const ids = [];
     const tvEntries = [];
+    const externalEntries = [];
     for (const entry of entries || []) {
-      if (!entry?.tmdbId) continue;
       const isShow = entry.mediaType === 'tv' || entry.mediaType === 'anime';
       if (isShow && (entry.status === 'in_progress' || entry.status === 'watchlist')) {
-        ids.push(`tv:${entry.tmdbId}`);
+        if (entry.tmdbId) ids.push(`tv:${entry.tmdbId}`);
+        if (entry.externalSource === 'anilist' && entry.externalId) {
+          externalEntries.push(entry);
+        }
         if (entry.mediaType === 'tv') tvEntries.push(entry);
-      } else if (entry.mediaType === 'movie' && entry.status === 'watchlist') {
+      } else if (entry.mediaType === 'movie' && entry.status === 'watchlist' && entry.tmdbId) {
         ids.push(`movie:${entry.tmdbId}`);
       }
     }
-    return { ids: [...new Set(ids)], tvEntries };
+    return { ids: [...new Set(ids)], tvEntries, externalEntries };
   }
 
   function trackedEntries(library = [], keyFor = keyForEntry) {

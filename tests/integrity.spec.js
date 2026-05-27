@@ -482,7 +482,9 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('const checkAiringToday = airingTodayChecker(upcomingCache);');
     expect(app).toContain('const list = filtered(upcomingCache);');
     expect(app).toContain('calendarModel.trackedRows({');
+    expect(app).toContain('mergeUpcomingCache(await fetchExternalUpcomingForEntries(externalEntries));');
     expect(calendarModel).toContain('airingTodaySignal(local, cache, todayStr)');
+    expect(calendarModel).toContain('const key = keyForEntry(entry);');
   });
 
   test('tracked calendar only renders confirmed future dates', () => {
@@ -508,12 +510,14 @@ test.describe('tracker data integrity', () => {
     expect(model.warmKeysForEntries([
       { mediaType: 'tv', status: 'in_progress', tmdbId: 10 },
       { mediaType: 'anime', status: 'watchlist', tmdbId: 11 },
+      { mediaType: 'anime', status: 'in_progress', externalSource: 'anilist', externalId: '777' },
       { mediaType: 'movie', status: 'watchlist', tmdbId: 12 },
       { mediaType: 'movie', status: 'watched', tmdbId: 13 },
       { mediaType: 'tv', status: 'watched', tmdbId: 14 },
     ])).toEqual({
       ids: ['tv:10', 'tv:11', 'movie:12'],
       tvEntries: [{ mediaType: 'tv', status: 'in_progress', tmdbId: 10 }],
+      externalEntries: [{ mediaType: 'anime', status: 'in_progress', externalSource: 'anilist', externalId: '777' }],
     });
     expect(model.keyForEntry({ mediaType: 'anime', tmdbId: 10 })).toBe('tv:10');
     expect(model.keyForEntry({ mediaType: 'movie', tmdbId: 20 })).toBe('movie:20');
@@ -529,6 +533,7 @@ test.describe('tracker data integrity', () => {
     const cache = {
       byId: {
         'tv:10': { nextEpisode: { season: 2, episode: 3, airDate: '2026-05-23' } },
+        'anilist:777': { nextEpisode: { season: 1, episode: 4, airDate: '2026-05-23' } },
         'movie:20': { releaseDate: '2026-05-23' },
       },
     };
@@ -539,6 +544,13 @@ test.describe('tracker data integrity', () => {
       tmdbId: 10,
       watchedEpisodes: 12,
       seasons: [{ number: 1, total: 10 }, { number: 2, total: 8 }],
+    }, cache, '2026-05-23')).toEqual(expect.objectContaining({ type: 'episode' }));
+    expect(model.airingTodaySignal({
+      mediaType: 'anime',
+      status: 'in_progress',
+      externalSource: 'anilist',
+      externalId: '777',
+      watchedEpisodes: 3,
     }, cache, '2026-05-23')).toEqual(expect.objectContaining({ type: 'episode' }));
     expect(model.airingTodaySignal({
       mediaType: 'movie',
