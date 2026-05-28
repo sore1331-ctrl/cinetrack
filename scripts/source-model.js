@@ -21,6 +21,9 @@
     if (entry.externalSource === 'anilist' && entry.externalId) {
       return `https://anilist.co/anime/${encodeURIComponent(entry.externalId)}`;
     }
+    if (entry.externalSource === 'tvmaze' && entry.externalId) {
+      return `https://www.tvmaze.com/shows/${encodeURIComponent(entry.externalId)}`;
+    }
     return '';
   }
 

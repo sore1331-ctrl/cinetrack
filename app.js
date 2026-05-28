@@ -57,6 +57,7 @@ const DENSITY_OPTIONS = ['comfortable', 'compact'];
 const MOTION_OPTIONS  = ['full', 'reduced'];
 const POSTERS_OPTIONS = ['shown', 'hidden'];
 const NOTIF_OPTIONS   = ['off', 'on'];
+const CALENDAR_WATCHED_OPTIONS = ['hide', 'dim', 'show'];
 const THEME_PRESETS = {
   cinema:    { label: 'Cinema',    theme: 'dark',  bg: 'default',  glass: 'medium', accent: 'default', orbs: 'static',   density: 'comfortable', motion: 'full' },
   neon:      { label: 'Neon',      theme: 'dark',  bg: 'cyber',    glass: 'vivid',  accent: 'cyan',    orbs: 'animated', density: 'comfortable', motion: 'full' },
@@ -115,6 +116,7 @@ const SYNC_PREF_KEYS = [
   'cinetrack_motion',
   'cinetrack_posters',
   'cinetrack_notif',
+  'cinetrack_calendar_watched',
   'cinetrack_appearance_open',
   'cinetrack_provider_region',
   'cinetrack_grid',
@@ -216,6 +218,21 @@ function applyAllAppearance() {
   applyMotion(localStorage.getItem('cinetrack_motion') || 'full');
   applyPosters(localStorage.getItem('cinetrack_posters') || 'shown');
   applyEpisodeNotif(localStorage.getItem('cinetrack_notif') || 'off');
+}
+
+function calendarWatchedMode() {
+  const value = localStorage.getItem('cinetrack_calendar_watched') || 'dim';
+  return CALENDAR_WATCHED_OPTIONS.includes(value) ? value : 'dim';
+}
+
+function applyCalendarWatchedMode(value) {
+  const next = CALENDAR_WATCHED_OPTIONS.includes(value) ? value : 'dim';
+  localStorage.setItem('cinetrack_calendar_watched', next);
+  scheduleSavePrefs?.();
+  updateCalendarAiringBadge?.();
+  if (activeView === 'calendar') renderCalendar();
+  else if (activeView === 'content') render();
+  return true;
 }
 
 // ── State ──────────────────────────────────────────────
@@ -2423,32 +2440,51 @@ function calendarWarmKeysForEntries(entries = movies) {
 
 async function warmUpcomingCacheForBadge({ force = false, reason = 'badge' } = {}) {
   const { ids, tvEntries, externalEntries } = calendarWarmKeysForEntries();
-  const plan = calendarModel.cacheWarmPlan({
-    keys: [...ids, ...externalEntries.map(calendarKeyForEntry).filter(Boolean)],
+  const externalKeys = externalEntries.map(calendarKeyForEntry).filter(Boolean);
+  const tvmazeKeys = tvEntries.map(calendarKeyForEntry).filter(Boolean);
+  const cache = readUpcomingCache();
+  const now = Date.now();
+  const primaryPlan = calendarModel.cacheWarmPlan({
+    keys: [...ids, ...externalKeys],
     cache: readUpcomingCache(),
     ttlMs: UPCOMING_TTL_MS,
-    now: Date.now(),
+    now,
     force,
     inFlight: upcomingWarmInFlight,
     lastWarmAt: lastUpcomingWarmAt,
     minIntervalMs: UPCOMING_WARM_MIN_MS,
   });
-  if (!plan.shouldWarm) {
+  const tvmazePlan = calendarModel.cacheWarmPlan({
+    keys: tvmazeKeys,
+    cache,
+    ttlMs: UPCOMING_TTL_MS,
+    now,
+    force,
+    inFlight: upcomingWarmInFlight,
+    lastWarmAt: lastUpcomingWarmAt,
+    minIntervalMs: UPCOMING_WARM_MIN_MS,
+    requiredSource: 'tvmaze',
+  });
+  if (!primaryPlan.shouldWarm && !tvmazePlan.shouldWarm) {
     updateCalendarAiringBadge();
-    return plan;
+    return { ...primaryPlan, tvmazeReason: tvmazePlan.reason };
   }
 
   upcomingWarmInFlight = true;
   lastUpcomingWarmAt = Date.now();
   try {
-    try { await fetchUpcoming(ids, { force }); } catch (e) { logAppError('calendar.warm_tmdb', e, { reason, force }, 'warn'); }
-    try { mergeUpcomingCache(await fetchExternalUpcomingForEntries(externalEntries)); } catch (e) { logAppError('calendar.warm_external', e, { reason, force }, 'warn'); }
-    try { await fetchTvmazeCalendarForEntries(tvEntries, { force }); } catch (e) { logAppError('calendar.warm_tvmaze', e, { reason, force }, 'warn'); }
+    if (primaryPlan.shouldWarm) {
+      try { await fetchUpcoming(ids, { force }); } catch (e) { logAppError('calendar.warm_tmdb', e, { reason, force }, 'warn'); }
+      try { mergeUpcomingCache(await fetchExternalUpcomingForEntries(externalEntries)); } catch (e) { logAppError('calendar.warm_external', e, { reason, force }, 'warn'); }
+    }
+    if (tvmazePlan.shouldWarm) {
+      try { await fetchTvmazeCalendarForEntries(tvEntries, { force }); } catch (e) { logAppError('calendar.warm_tvmaze', e, { reason, force }, 'warn'); }
+    }
     updateCalendarAiringBadge();
     // Re-render the content grid so any "Today" highlights appear without
     // waiting for the next user interaction.
     if (activeView === 'content') render();
-    return plan;
+    return { ...primaryPlan, tvmazeReason: tvmazePlan.reason, tvmazeWarmed: tvmazePlan.shouldWarm };
   } finally {
     upcomingWarmInFlight = false;
   }
@@ -2619,6 +2655,7 @@ async function renderCalendarTracked(body, { force = false } = {}) {
       posterBase: POSTER_BASE,
       keyFor: calendarKeyForEntry,
       infoUrlForEntry,
+      watchedMode: calendarWatchedMode(),
     });
 
     if (!dated.length) {
@@ -2631,7 +2668,7 @@ async function renderCalendarTracked(body, { force = false } = {}) {
 
     const groupHTML = Object.keys(groups).sort().map(date => {
       const isToday = date === todayStr;
-      const rows = groups[date].map(r => calRow(r, { airingToday: isToday })).join('');
+      const rows = groups[date].map(r => calRow(r, { airingToday: isToday && !r.watched })).join('');
       const count = groups[date].length;
       return `
       <div class="cal-group${isToday ? ' cal-group-today' : ''}">
@@ -2661,14 +2698,14 @@ async function renderCalendarTracked(body, { force = false } = {}) {
     const sub = esc(r.sublabel || '');
     const kindLabel = r.kind === 'movie' ? 'Film' : r.kind === 'anime' ? 'Anime' : 'TV';
     return `
-      <a class="cal-row${opts.airingToday ? ' cal-row-today' : ''}" href="${esc(r.tmdbUrl || '#')}" target="_blank" rel="noopener noreferrer" title="View on TMDB">
+      <a class="cal-row${opts.airingToday ? ' cal-row-today' : ''}${r.dimWatched ? ' cal-row-watched-dim' : ''}" href="${esc(r.tmdbUrl || '#')}" target="_blank" rel="noopener noreferrer" title="View on TMDB">
         ${poster}
         <div class="cal-info">
           <div class="cal-title">${esc(r.title)}</div>
           <div class="cal-ep">${sub}</div>
         </div>
         <span class="cal-kind cal-kind-${r.kind}">${kindLabel}</span>
-        ${opts.airingToday ? '<span class="cal-row-pill">● Today</span>' : ''}
+        ${r.watched ? '<span class="cal-row-pill cal-row-pill-watched">✓ Watched</span>' : (opts.airingToday ? '<span class="cal-row-pill">● Today</span>' : '')}
       </a>
     `;
   }
@@ -3342,7 +3379,7 @@ function renderProfile() {
     currentSyncState, currentSyncTitle, maxGenre, maxCountry, maxRating, esc,
     formatTimeSpent, renderBarChart, profileModel, compareLibraryBackup, THEME_PRESETS,
     BG_PRESETS, GLASS_PRESETS, GLASS_LABELS, ACCENT_PRESETS, DENSITY_OPTIONS,
-    POSTERS_OPTIONS, ORBS_OPTIONS, MOTION_OPTIONS, NOTIF_OPTIONS,
+    POSTERS_OPTIONS, ORBS_OPTIONS, MOTION_OPTIONS, NOTIF_OPTIONS, CALENDAR_WATCHED_OPTIONS,
   });
 
   applyTheme(document.documentElement.classList.contains('light') ? 'light' : 'dark');
@@ -3373,6 +3410,7 @@ function renderProfile() {
     applyPosters,
     applyEpisodeNotif,
     setEpisodeNotifPref,
+    applyCalendarWatchedMode,
   });
 }
 

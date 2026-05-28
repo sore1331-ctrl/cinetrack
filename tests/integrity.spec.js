@@ -484,16 +484,20 @@ test.describe('tracker data integrity', () => {
   test('airing today checks reuse the upcoming cache during render passes', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
     const calendarModel = fs.readFileSync(path.join(root, 'scripts', 'calendar-model.js'), 'utf8');
+    const profileView = fs.readFileSync(path.join(root, 'scripts', 'profile-view.js'), 'utf8');
 
     expect(app).toContain('function airingTodayChecker(cache = readUpcomingCache())');
+    expect(app).toContain('function calendarWatchedMode()');
     expect(app).toContain('function filtered(upcomingCache = readUpcomingCache())');
     expect(app).toContain('const upcomingCache = readUpcomingCache();');
     expect(app).toContain('const checkAiringToday = airingTodayChecker(upcomingCache);');
     expect(app).toContain('const list = filtered(upcomingCache);');
     expect(app).toContain('calendarModel.trackedRows({');
     expect(app).toContain('mergeUpcomingCache(await fetchExternalUpcomingForEntries(externalEntries));');
-    expect(calendarModel).toContain('airingTodaySignal(local, cache, todayStr)');
+    expect(calendarModel).toContain('airingTodaySignal(local, cache, todayStr, { watchedMode })');
     expect(calendarModel).toContain('const key = keyForEntry(entry);');
+    expect(profileView).toContain('Calendar watched episodes');
+    expect(profileView).toContain('data-pref="calendarWatched"');
   });
 
   test('tracked calendar only renders confirmed future dates', () => {
@@ -518,6 +522,7 @@ test.describe('tracker data integrity', () => {
     expect(model.addDaysString(14, base)).toBe('2026-06-06');
     expect(model.warmKeysForEntries([
       { mediaType: 'tv', status: 'in_progress', tmdbId: 10 },
+      { mediaType: 'tv', status: 'in_progress', externalSource: 'tvmaze', externalId: '90839' },
       { mediaType: 'anime', status: 'watchlist', tmdbId: 11 },
       { mediaType: 'anime', status: 'in_progress', externalSource: 'anilist', externalId: '777' },
       { mediaType: 'movie', status: 'watchlist', tmdbId: 12 },
@@ -525,12 +530,16 @@ test.describe('tracker data integrity', () => {
       { mediaType: 'tv', status: 'watched', tmdbId: 14 },
     ])).toEqual({
       ids: ['tv:10', 'tv:11', 'movie:12'],
-      tvEntries: [{ mediaType: 'tv', status: 'in_progress', tmdbId: 10 }],
+      tvEntries: [
+        { mediaType: 'tv', status: 'in_progress', tmdbId: 10 },
+        { mediaType: 'tv', status: 'in_progress', externalSource: 'tvmaze', externalId: '90839' },
+      ],
       externalEntries: [{ mediaType: 'anime', status: 'in_progress', externalSource: 'anilist', externalId: '777' }],
     });
     expect(model.keyForEntry({ mediaType: 'anime', tmdbId: 10 })).toBe('tv:10');
     expect(model.keyForEntry({ mediaType: 'movie', tmdbId: 20 })).toBe('movie:20');
     expect(model.keyForEntry({ externalSource: 'anilist', externalId: '777' })).toBe('anilist:777');
+    expect(model.keyForEntry({ mediaType: 'tv', externalSource: 'tvmaze', externalId: '90839' })).toBe('tvmaze:90839');
     expect(model.relativeDayLabel('2026-05-24', base)).toBe('Tomorrow');
     expect(model.episodeOrdinalForProgress({
       seasons: [
@@ -555,6 +564,20 @@ test.describe('tracker data integrity', () => {
       seasons: [{ number: 1, total: 10 }, { number: 2, total: 8 }],
     }, cache, '2026-05-23')).toEqual(expect.objectContaining({ type: 'episode' }));
     expect(model.airingTodaySignal({
+      mediaType: 'tv',
+      status: 'in_progress',
+      tmdbId: 10,
+      watchedEpisodes: 13,
+      seasons: [{ number: 1, total: 10 }, { number: 2, total: 8 }],
+    }, cache, '2026-05-23')).toBeNull();
+    expect(model.airingTodaySignal({
+      mediaType: 'tv',
+      status: 'in_progress',
+      tmdbId: 10,
+      watchedEpisodes: 13,
+      seasons: [{ number: 1, total: 10 }, { number: 2, total: 8 }],
+    }, cache, '2026-05-23', { watchedMode: 'dim' })).toEqual(expect.objectContaining({ type: 'episode', watched: true, dim: true }));
+    expect(model.airingTodaySignal({
       mediaType: 'anime',
       status: 'in_progress',
       externalSource: 'anilist',
@@ -569,16 +592,18 @@ test.describe('tracker data integrity', () => {
 
     const tracked = model.trackedEntries([
       { mediaType: 'tv', status: 'in_progress', tmdbId: 10, title: 'Local Show', posterUrl: 'local-show.jpg' },
+      { mediaType: 'tv', status: 'in_progress', externalSource: 'tvmaze', externalId: '90839', title: 'TVMaze Show' },
       { mediaType: 'movie', status: 'watchlist', tmdbId: 20, title: 'Local Film' },
       { mediaType: 'tv', status: 'watched', tmdbId: 30, title: 'Finished' },
     ]);
-    expect(tracked.map(entry => entry.title)).toEqual(['Local Show', 'Local Film']);
+    expect(tracked.map(entry => entry.title)).toEqual(['Local Show', 'TVMaze Show', 'Local Film']);
 
     const rows = model.trackedRows({
       tracked,
       upcoming: [
         { type: 'tv', sourceKey: 'tv:10', tmdbId: 10, title: 'Remote Show', nextEpisode: { season: 1, episode: 2, name: 'Pilot', airDate: '2026-05-24' } },
         { type: 'tv', sourceKey: 'tv:10', tmdbId: 10, title: 'Remote Show', nextEpisode: { season: 1, episode: 2, name: 'Pilot', airDate: '2026-05-24' } },
+        { type: 'tv', sourceKey: 'tvmaze:90839', externalId: 90839, title: 'TVMaze Remote', nextEpisode: { season: 1, episode: 12, name: 'Episode 12', airDate: '2026-05-28' } },
         { type: 'movie', sourceKey: 'movie:20', tmdbId: 20, title: 'Remote Film', poster_path: '/film.jpg', releaseDate: '2026-06-01' },
         { type: 'movie', sourceKey: 'movie:99', tmdbId: 99, title: 'Too Late', releaseDate: '2026-09-01' },
       ],
@@ -587,9 +612,9 @@ test.describe('tracker data integrity', () => {
       movieHorizonStr: '2026-07-22',
       posterBase: 'poster:',
       cache: { byId: {} },
-      infoUrlForEntry: entry => `/title/${entry.tmdbId}`,
+      infoUrlForEntry: entry => entry.externalSource === 'tvmaze' ? `/tvmaze/${entry.externalId}` : `/title/${entry.tmdbId}`,
     });
-    expect(rows.map(row => row.title)).toEqual(['Local Show', 'Local Film']);
+    expect(rows.map(row => row.title)).toEqual(['Local Show', 'TVMaze Show', 'Local Film']);
     expect(rows[0]).toEqual(expect.objectContaining({
       date: '2026-05-24',
       kind: 'tv',
@@ -597,6 +622,13 @@ test.describe('tracker data integrity', () => {
       sublabel: 'S1E2 \u00B7 Pilot',
     }));
     expect(rows[1]).toEqual(expect.objectContaining({
+      date: '2026-05-28',
+      kind: 'tv',
+      title: 'TVMaze Show',
+      tmdbUrl: '/tvmaze/90839',
+      sublabel: 'S1E12 \u00B7 Episode 12',
+    }));
+    expect(rows[2]).toEqual(expect.objectContaining({
       date: '2026-06-01',
       kind: 'movie',
       poster: 'poster:/film.jpg',
@@ -620,6 +652,19 @@ test.describe('tracker data integrity', () => {
     });
     expect(animeRows).toHaveLength(1);
     expect(animeRows[0]).toEqual(expect.objectContaining({ kind: 'anime', title: 'Anime Local' }));
+
+    const watchedRows = model.trackedRows({
+      tracked: [{ mediaType: 'tv', status: 'in_progress', tmdbId: 10, title: 'Watched Today', watchedEpisodes: 13, seasons: [{ number: 1, total: 10 }, { number: 2, total: 8 }] }],
+      upcoming: [
+        { type: 'tv', sourceKey: 'tv:10', tmdbId: 10, title: 'Watched Today', nextEpisode: { season: 2, episode: 3, airDate: '2026-05-23' } },
+      ],
+      cache,
+      todayStr: '2026-05-23',
+      tvHorizonStr: '2026-06-06',
+      watchedMode: 'dim',
+    });
+    expect(watchedRows).toHaveLength(1);
+    expect(watchedRows[0]).toEqual(expect.objectContaining({ watched: true, dimWatched: true }));
   });
 
   test('calendar model plans cache warming without duplicate network work', () => {
@@ -656,6 +701,13 @@ test.describe('tracker data integrity', () => {
       now,
       requiredSource: 'tvmaze',
     })).toBe(false);
+    expect(model.cacheWarmPlan({
+      keys: ['tv:4'],
+      cache: { fetchedAt: now, byId: { 'tv:4': { source: 'tmdb' } } },
+      ttlMs: 60000,
+      now,
+      requiredSource: 'tvmaze',
+    })).toMatchObject({ shouldWarm: true, reason: 'stale-or-missing' });
   });
 
   test('calendar model builds discover watchlist entries', () => {
@@ -1400,6 +1452,7 @@ test.describe('tracker data integrity', () => {
 
   test('profile preference saves are routed through the profile model', () => {
     const controller = fs.readFileSync(path.join(root, 'scripts', 'auth-controller.js'), 'utf8');
+    const profileController = fs.readFileSync(path.join(root, 'scripts', 'profile-controller.js'), 'utf8');
 
     expect(controller).toContain('const saveStart = profileModel.usernameSaveStart({');
     expect(controller).toContain('const result = await saveProfile(saveStart.updates);');
@@ -1409,6 +1462,7 @@ test.describe('tracker data integrity', () => {
     expect(controller).toContain('const result = await saveProfile(toggleStart.updates);');
     expect(controller).toContain('const toggleResult = profileModel.sharingToggleResult({');
     expect(controller).toContain('e.target.checked = toggleResult.checkboxChecked;');
+    expect(profileController).toContain('calendarWatched: { fn: applyCalendarWatchedMode, key: \'cinetrack_calendar_watched\' }');
   });
 
   test('profile load and preference helpers are routed through the profile model', () => {
@@ -1417,6 +1471,7 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('const errorPlan = profileModel.preferenceSaveErrorPlan({ error: e, alreadyWarned: prefMigrationWarned });');
     expect(app).toContain('if (profileModel.isMissingPreferencesColumn(error)) {');
     expect(app).toContain('const prefsPlan = profileModel.preferencesApplyPlan({');
+    expect(app).toContain('cinetrack_calendar_watched');
     expect(app).toContain('prefsPlan.storageWrites.forEach(([key, value]) => localStorage.setItem(key, value));');
     expect(app).toContain('const localPlan = profileModel.profileLoadLocalPlan({ localUsername, currentUsername });');
     expect(app).toContain('const dataPlan = profileModel.profileLoadDataPlan({ data, localUsername });');
@@ -1596,6 +1651,7 @@ test.describe('tracker data integrity', () => {
     expect(model.sourceForEntry({ externalSource: 'anilist' })).toBe('anilist');
     expect(model.infoUrlForEntry({ tmdbId: 42, mediaType: 'movie' })).toBe('https://www.themoviedb.org/movie/42');
     expect(model.infoUrlForEntry({ externalSource: 'anilist', externalId: '123 45' })).toBe('https://anilist.co/anime/123%2045');
+    expect(model.infoUrlForEntry({ externalSource: 'tvmaze', externalId: '90839' })).toBe('https://www.tvmaze.com/shows/90839');
     expect(model.metadataRefreshLabel({ externalSource: 'anilist' })).toBe('Refresh from AniList');
   });
 

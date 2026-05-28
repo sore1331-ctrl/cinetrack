@@ -30,6 +30,7 @@
       applyPosters,
       applyEpisodeNotif,
       setEpisodeNotifPref,
+      applyCalendarWatchedMode,
     } = ctx;
 
     panel.querySelectorAll('.profile-recent-card[data-edit]').forEach(card => {
@@ -123,6 +124,7 @@
       motion: { fn: applyMotion, key: 'cinetrack_motion' },
       posters: { fn: applyPosters, key: 'cinetrack_posters' },
       notif: { fn: applyEpisodeNotif, key: 'cinetrack_notif', custom: setEpisodeNotifPref },
+      calendarWatched: { fn: applyCalendarWatchedMode, key: 'cinetrack_calendar_watched' },
     };
     panel.querySelectorAll('.pill-group[data-pref]').forEach(group => {
       const pref = group.dataset.pref;

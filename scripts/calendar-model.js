@@ -18,6 +18,9 @@
     if (!entry) return '';
     const isShow = entry.mediaType === 'tv' || entry.mediaType === 'anime';
     if (entry.tmdbId) return `${isShow ? 'tv' : 'movie'}:${entry.tmdbId}`;
+    if (entry.externalSource === 'tvmaze' && entry.externalId) {
+      return `tvmaze:${entry.externalId}`;
+    }
     if (entry.externalSource === 'anilist' && entry.externalId) {
       return `${entry.externalSource}:${entry.externalId}`;
     }
@@ -64,7 +67,7 @@
     return (entry.watchedEpisodes || 0) < ordinal;
   }
 
-  function airingTodaySignal(entry, cache, todayStr = dateString()) {
+  function airingTodaySignal(entry, cache, todayStr = dateString(), { watchedMode = 'hide' } = {}) {
     if (!entry || !cache?.byId) return null;
     const isShow = entry.mediaType === 'tv' || entry.mediaType === 'anime';
     const isMovie = entry.mediaType === 'movie';
@@ -72,9 +75,9 @@
     if (isShow && (entry.status === 'in_progress' || entry.status === 'watchlist')) {
       const key = keyForEntry(entry);
       const episode = key ? cache.byId[key]?.nextEpisode : null;
-      if (hasUnwatchedAiringEpisodeToday(entry, episode, todayStr)) {
-        return { type: 'episode', episode };
-      }
+      if (!episode || episode.airDate !== todayStr) return null;
+      if (hasUnwatchedAiringEpisodeToday(entry, episode, todayStr)) return { type: 'episode', episode, watched: false };
+      if (watchedMode !== 'hide') return { type: 'episode', episode, watched: true, dim: watchedMode === 'dim' };
     }
 
     if (isMovie && entry.status === 'watchlist') {
@@ -111,6 +114,7 @@
     inFlight = false,
     lastWarmAt = 0,
     minIntervalMs = 30000,
+    requiredSource = '',
   } = {}) {
     const uniqueKeys = [...new Set((keys || []).filter(Boolean))];
     if (!uniqueKeys.length) return { shouldWarm: false, reason: 'empty', keys: uniqueKeys };
@@ -118,7 +122,7 @@
     if (!force && Number(now || 0) - Number(lastWarmAt || 0) < Number(minIntervalMs || 0)) {
       return { shouldWarm: false, reason: 'throttled', keys: uniqueKeys };
     }
-    if (!force && cacheHasFreshKeys({ cache, keys: uniqueKeys, ttlMs, now })) {
+    if (!force && cacheHasFreshKeys({ cache, keys: uniqueKeys, ttlMs, now, requiredSource })) {
       return { shouldWarm: false, reason: 'fresh', keys: uniqueKeys };
     }
     return { shouldWarm: true, reason: force ? 'forced' : 'stale-or-missing', keys: uniqueKeys };
@@ -217,6 +221,7 @@
     posterBase = '',
     keyFor = keyForEntry,
     infoUrlForEntry = () => '',
+    watchedMode = 'hide',
   } = {}) {
     const localByKey = new Map((tracked || []).map(entry => [keyFor(entry), entry]));
     const rows = [];
@@ -245,6 +250,8 @@
 
       const episode = item?.nextEpisode;
       if (episode?.airDate && episode.airDate >= todayStr && episode.airDate <= tvHorizonStr) {
+        const watchedToday = local && episode.airDate === todayStr && !hasUnwatchedAiringEpisodeToday(local, episode, todayStr);
+        if (watchedToday && watchedMode === 'hide') continue;
         addUniqueRow(rows, seen, {
           uniqueKey: key,
           date: episode.airDate,
@@ -253,13 +260,15 @@
           title: local?.title || item.title,
           poster: local?.posterUrl || item.poster_url || (item.poster_path ? posterBase + item.poster_path : ''),
           sublabel: `S${episode.season}E${episode.episode}${episode.name ? ` \u00B7 ${episode.name}` : ''}`,
-          tmdbUrl: item.externalUrl || `https://www.themoviedb.org/tv/${item.tmdbId}`,
+          tmdbUrl: item.externalUrl || (local ? infoUrlForEntry(local) : '') || (item.tmdbId ? `https://www.themoviedb.org/tv/${item.tmdbId}` : ''),
+          watched: Boolean(watchedToday),
+          dimWatched: Boolean(watchedToday && watchedMode === 'dim'),
         });
       }
     }
 
     for (const local of tracked || []) {
-      const signal = airingTodaySignal(local, cache, todayStr);
+      const signal = airingTodaySignal(local, cache, todayStr, { watchedMode });
       if (!signal) continue;
       if (signal.type === 'episode') {
         const episode = signal.episode;
@@ -272,6 +281,8 @@
           poster: local.posterUrl || '',
           sublabel: `S${episode.season}E${episode.episode}${episode.name ? ` \u00B7 ${episode.name}` : ''}`,
           tmdbUrl: infoUrlForEntry(local),
+          watched: Boolean(signal.watched),
+          dimWatched: Boolean(signal.dim),
         });
       } else if (signal.type === 'movie') {
         addUniqueRow(rows, seen, {

@@ -10,7 +10,7 @@
       maxCountry = 1, maxRating = 1, esc, formatTimeSpent, renderBarChart,
       profileModel, compareLibraryBackup, THEME_PRESETS, BG_PRESETS, GLASS_PRESETS,
       GLASS_LABELS, ACCENT_PRESETS, DENSITY_OPTIONS, POSTERS_OPTIONS, ORBS_OPTIONS,
-      MOTION_OPTIONS, NOTIF_OPTIONS,
+      MOTION_OPTIONS, NOTIF_OPTIONS, CALENDAR_WATCHED_OPTIONS,
     } = ctx;
 
   return `
@@ -229,6 +229,16 @@
                 ${NOTIF_OPTIONS.map(name => {
                   const current = localStorage.getItem('cinetrack_notif') || 'off';
                   const label = name === 'off' ? 'Off' : 'On';
+                  return `<button type="button" class="pill-btn ${name === current ? 'active' : ''}" data-value="${name}">${label}</button>`;
+                }).join('')}
+              </div>
+            </div>
+            <div class="appearance-row">
+              <div class="appearance-label">Calendar watched episodes</div>
+              <div class="pill-group" data-pref="calendarWatched">
+                ${CALENDAR_WATCHED_OPTIONS.map(name => {
+                  const current = localStorage.getItem('cinetrack_calendar_watched') || 'dim';
+                  const label = name === 'hide' ? 'Hide' : name === 'dim' ? 'Dim today' : 'Show today';
                   return `<button type="button" class="pill-btn ${name === current ? 'active' : ''}" data-value="${name}">${label}</button>`;
                 }).join('')}
               </div>
