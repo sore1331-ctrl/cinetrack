@@ -2241,6 +2241,43 @@ async function fetchUpcoming(ids, { force = false } = {}) {
   return keys.map(k => byId[k]).filter(Boolean);
 }
 
+async function fetchTmdbEpisodeTitleHints(entries, { force = false } = {}) {
+  const keys = [...new Set((entries || [])
+    .filter(m => m?.mediaType === 'tv' && m.tmdbId)
+    .map(m => `tv:${m.tmdbId}`))];
+  if (!keys.length) return [];
+  const options = force ? { cache: 'no-store' } : {};
+  const r = await fetch(`/api/upcoming?ids=${encodeURIComponent(keys.join(','))}`, options);
+  if (!r.ok) return [];
+  const data = await r.json().catch(() => null);
+  return Array.isArray(data?.results) ? data.results : [];
+}
+
+function isGenericEpisodeName(name = '', episodeNo = 0) {
+  const clean = String(name || '').trim();
+  if (!clean) return true;
+  return /^episode\s+\d+$/i.test(clean) && Number(clean.match(/\d+/)?.[0] || 0) === Number(episodeNo || 0);
+}
+
+function enrichTvmazeEpisodeNames(tvmazeItems = [], tmdbHints = []) {
+  const hints = new Map();
+  for (const item of tmdbHints || []) {
+    const ne = item?.nextEpisode;
+    if (item?.type !== 'tv' || !item.tmdbId || !ne?.season || !ne?.episode || !ne.name) continue;
+    if (isGenericEpisodeName(ne.name, ne.episode)) continue;
+    hints.set(`${item.tmdbId}:S${ne.season}E${ne.episode}`, ne.name);
+  }
+  if (!hints.size) return tvmazeItems;
+  return (tvmazeItems || []).map(item => {
+    const ne = item?.nextEpisode;
+    if (item?.source !== 'tvmaze' || !item.tmdbId || !ne?.season || !ne?.episode) return item;
+    if (!isGenericEpisodeName(ne.name, ne.episode)) return item;
+    const name = hints.get(`${item.tmdbId}:S${ne.season}E${ne.episode}`);
+    if (!name) return item;
+    return { ...item, nextEpisode: { ...ne, name } };
+  });
+}
+
 function calendarKeyForEntry(m) {
   return calendarModel.keyForEntry(m);
 }
@@ -2440,12 +2477,13 @@ function calendarWarmKeysForEntries(entries = movies) {
 
 async function warmUpcomingCacheForBadge({ force = false, reason = 'badge' } = {}) {
   const { ids, tvEntries, externalEntries } = calendarWarmKeysForEntries();
+  const tmdbCalendarIds = ids.filter(id => String(id).startsWith('movie:'));
   const externalKeys = externalEntries.map(calendarKeyForEntry).filter(Boolean);
   const tvmazeKeys = tvEntries.map(calendarKeyForEntry).filter(Boolean);
   const cache = readUpcomingCache();
   const now = Date.now();
   const primaryPlan = calendarModel.cacheWarmPlan({
-    keys: [...ids, ...externalKeys],
+    keys: [...tmdbCalendarIds, ...externalKeys],
     cache: readUpcomingCache(),
     ttlMs: UPCOMING_TTL_MS,
     now,
@@ -2474,7 +2512,7 @@ async function warmUpcomingCacheForBadge({ force = false, reason = 'badge' } = {
   lastUpcomingWarmAt = Date.now();
   try {
     if (primaryPlan.shouldWarm) {
-      try { await fetchUpcoming(ids, { force }); } catch (e) { logAppError('calendar.warm_tmdb', e, { reason, force }, 'warn'); }
+      try { await fetchUpcoming(tmdbCalendarIds, { force }); } catch (e) { logAppError('calendar.warm_tmdb', e, { reason, force }, 'warn'); }
       try { mergeUpcomingCache(await fetchExternalUpcomingForEntries(externalEntries)); } catch (e) { logAppError('calendar.warm_external', e, { reason, force }, 'warn'); }
     }
     if (tvmazePlan.shouldWarm) {
@@ -2505,14 +2543,17 @@ async function refreshTrackedCalendarSources({ force = false } = {}) {
     return key.startsWith('anilist:');
   });
 
-  const [tmdbUpcoming, externalUpcoming] = await Promise.all([
+  const [tmdbUpcoming, externalUpcoming, tmdbEpisodeHints] = await Promise.all([
     fetchUpcoming(tmdbIds, { force }),
     fetchExternalUpcomingForEntries(externalEntries),
+    fetchTmdbEpisodeTitleHints(tracked, { force }),
   ]);
   mergeUpcomingCache(externalUpcoming);
   let tvmazeUpcoming = [];
   try {
     tvmazeUpcoming = await fetchTvmazeCalendarForEntries(tracked, { force });
+    tvmazeUpcoming = enrichTvmazeEpisodeNames(tvmazeUpcoming, tmdbEpisodeHints);
+    mergeUpcomingCache(tvmazeUpcoming);
   } catch (e) {
     logAppError('calendar.tvmaze', e, { force }, 'warn');
   }

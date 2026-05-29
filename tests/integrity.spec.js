@@ -467,6 +467,9 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain("requiredSource: 'tvmaze'");
     expect(app).toContain('mergeUpcomingCache(results)');
     expect(app).toContain("const tmdbIds = ids.filter(id => id.startsWith('movie:'));");
+    expect(app).toContain('async function fetchTmdbEpisodeTitleHints');
+    expect(app).toContain('function enrichTvmazeEpisodeNames');
+    expect(app).toContain('tvmazeUpcoming = enrichTvmazeEpisodeNames(tvmazeUpcoming, tmdbEpisodeHints);');
     expect(app).toContain('tvmazeUpcoming = await fetchTvmazeCalendarForEntries(tracked, { force });');
     expect(tvmazeApi).toContain('findCalendarEpisode');
     expect(tvmazeApi).toContain('ep.airdate >= today && ep.airdate <= horizon');
@@ -477,6 +480,8 @@ test.describe('tracker data integrity', () => {
 
     expect(app).toContain('function patchUpcomingCache(results = [], requestedKeys = [])');
     expect(app).toContain('const byId = cache.byId && typeof cache.byId ===');
+    expect(app).toContain("const tmdbCalendarIds = ids.filter(id => String(id).startsWith('movie:'));");
+    expect(app).toContain('await fetchUpcoming(tmdbCalendarIds, { force })');
     expect(app).toContain('calendarModel.cacheWarmPlan');
     expect(app).toContain('upcomingWarmInFlight = true');
     expect(app).toContain("warmUpcomingCacheForBadge({ force: true, reason: 'daily' })");
