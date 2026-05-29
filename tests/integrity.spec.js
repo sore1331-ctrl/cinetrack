@@ -511,6 +511,11 @@ test.describe('tracker data integrity', () => {
     const calendarModel = fs.readFileSync(path.join(root, 'scripts', 'calendar-model.js'), 'utf8');
     const tvmazeApi = fs.readFileSync(path.join(root, 'api', 'tvmaze-calendar.js'), 'utf8');
 
+    expect(app).toContain("const CALENDAR_MODES = ['tracked', 'planned', 'discover'];");
+    expect(app).toContain('data-mode="planned"');
+    expect(app).toContain('function renderCalendarPlanned(body)');
+    expect(app).toContain('function planLibraryEntry(id)');
+    expect(app).toContain('plannedWatchDate');
     expect(app).toContain('calendarModel.trackedRows({');
     expect(app).toContain('calendarModel.groupRowsByDate(dated)');
     expect(calendarModel).toContain('if (!row?.date) return;');
@@ -865,6 +870,9 @@ test.describe('tracker data integrity', () => {
     expect(cardController).toContain('function attachGridActions');
     expect(cardController).toContain('updateLibraryEntry?.(epIncId, libraryModel?.incrementEpisode');
     expect(cardController).toContain('updateLibraryEntry?.(toggleId, libraryModel?.cycleCardStatus');
+    expect(cardView).toContain('data-plan="${entry.id}"');
+    expect(cardController).toContain('planEntry?.(planId)');
+    expect(app).toContain('card-planned-today');
   });
 
   test('split stylesheets load directly without the CSS import hub', () => {

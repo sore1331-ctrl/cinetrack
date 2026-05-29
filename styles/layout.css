@@ -236,6 +236,10 @@ header {
   border-color: rgba(76,175,130,.55);
   box-shadow: 0 0 0 1px rgba(76,175,130,.3) inset, 0 0 18px rgba(76,175,130,.18);
 }
+.movie-card.card-planned-today {
+  border-color: rgba(59,158,255,.55);
+  box-shadow: 0 0 0 1px rgba(59,158,255,.24) inset, 0 0 18px rgba(59,158,255,.16);
+}
 .card-airing-pill {
   align-self: flex-start;
   margin: 0 14px;

@@ -58,6 +58,7 @@ const MOTION_OPTIONS  = ['full', 'reduced'];
 const POSTERS_OPTIONS = ['shown', 'hidden'];
 const NOTIF_OPTIONS   = ['off', 'on'];
 const CALENDAR_WATCHED_OPTIONS = ['hide', 'dim', 'show'];
+const CALENDAR_MODES = ['tracked', 'planned', 'discover'];
 const THEME_PRESETS = {
   cinema:    { label: 'Cinema',    theme: 'dark',  bg: 'default',  glass: 'medium', accent: 'default', orbs: 'static',   density: 'comfortable', motion: 'full' },
   neon:      { label: 'Neon',      theme: 'dark',  bg: 'cyber',    glass: 'vivid',  accent: 'cyan',    orbs: 'animated', density: 'comfortable', motion: 'full' },
@@ -990,6 +991,8 @@ const LOCKED_MUTATION_SELECTOR = [
   '[data-edit]',
   '[data-toggle]',
   '[data-delete]',
+  '[data-plan]',
+  '[data-clear-plan]',
   '[data-ep-inc]',
   '[data-check]',
   '.card-poster',
@@ -2176,7 +2179,7 @@ function autoDetectRegion() {
 }
 
 const DISCOVER_TYPES = ['movie', 'tv', 'anime'];
-let calendarMode   = localStorage.getItem('cinetrack_calendar_mode') || 'tracked';
+let calendarMode   = CALENDAR_MODES.includes(localStorage.getItem('cinetrack_calendar_mode')) ? localStorage.getItem('cinetrack_calendar_mode') : 'tracked';
 let discoverRegion = localStorage.getItem('cinetrack_discover_region') || autoDetectRegion();
 let discoverType   = (() => {
   const v = localStorage.getItem('cinetrack_discover_type');
@@ -2391,6 +2394,10 @@ function getAiringTodaySignal(m, todayStr = todayDateString(), cache = readUpcom
 // Returns false if the cache is missing — we fail closed.
 function isAiringToday(m, cache = readUpcomingCache()) {
   return Boolean(getAiringTodaySignal(m, todayDateString(), cache));
+}
+
+function isPlannedToday(m, todayStr = todayDateString()) {
+  return Boolean(m?.plannedWatchDate && m.plannedWatchDate === todayStr && m.status !== 'watched' && m.status !== 'dropped');
 }
 
 function airingTodayChecker(cache = readUpcomingCache()) {
@@ -2630,6 +2637,7 @@ async function renderCalendar({ force = false } = {}) {
       </div>
       <div class="cal-mode-toggle pill-group">
         <button type="button" class="pill-btn ${calendarMode === 'tracked' ? 'active' : ''}" data-mode="tracked">📅 Tracked</button>
+        <button type="button" class="pill-btn ${calendarMode === 'planned' ? 'active' : ''}" data-mode="planned">🗓 Planned</button>
         <button type="button" class="pill-btn ${calendarMode === 'discover' ? 'active' : ''}" data-mode="discover">✨ Discover</button>
       </div>
     </div>
@@ -2647,8 +2655,132 @@ async function renderCalendar({ force = false } = {}) {
   });
 
   const body = panel.querySelector('.calendar-body');
+  if (calendarMode === 'planned') return renderCalendarPlanned(body);
   if (calendarMode === 'discover') return renderCalendarDiscover(body, { force });
   return renderCalendarTracked(body, { force });
+}
+
+function plannedCalendarRows() {
+  return (movies || [])
+    .filter(m => m?.plannedWatchDate && m.status !== 'dropped')
+    .map(m => ({
+      id: m.id,
+      date: m.plannedWatchDate,
+      time: m.plannedWatchTime || '',
+      title: m.title,
+      poster: m.posterUrl || '',
+      kind: m.mediaType || 'movie',
+      sublabel: `${m.plannedWatchTime ? `${m.plannedWatchTime} · ` : ''}Planned watch`,
+      watched: m.status === 'watched',
+    }))
+    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+}
+
+function renderCalendarPlanned(body) {
+  const rows = plannedCalendarRows();
+  const todayStr = todayDateString();
+  body.innerHTML = `
+    <div class="cal-subheader">
+      <span class="cal-window">Personal watch plans</span>
+      <span class="cal-window">${rows.length} planned</span>
+    </div>
+    <div class="calendar-list"></div>
+  `;
+  const list = body.querySelector('.calendar-list');
+  if (!rows.length) {
+    list.innerHTML = `<p class="recs-empty">No planned watches yet. Use a title card's more menu and choose Plan.</p>`;
+    return;
+  }
+  const groups = calendarModel.groupRowsByDate(rows);
+  list.innerHTML = Object.keys(groups).sort().map(date => {
+    const isToday = date === todayStr;
+    return `
+      <section class="cal-group ${isToday ? 'cal-group-planned-today' : ''}">
+        <div class="cal-group-head">
+          <div>
+            <span class="cal-date-label">${esc(calendarModel.relativeDayLabel(date))}</span>
+          </div>
+          <span class="cal-count">${groups[date].length} item${groups[date].length !== 1 ? 's' : ''}${isToday ? ' · Planned today' : ''}</span>
+        </div>
+        ${groups[date].map(row => `
+          <article class="cal-row cal-row-planned ${isToday && !row.watched ? 'cal-row-planned-today' : ''}">
+            ${row.poster ? `<img class="cal-poster" src="${esc(row.poster)}" alt="${esc(row.title)}" loading="lazy" />` : `<div class="cal-poster cal-poster-fallback">${row.kind === 'anime' ? 'ア' : row.kind === 'tv' ? 'TV' : '🎬'}</div>`}
+            <div class="cal-info">
+              <strong>${esc(row.title)}</strong>
+              <span>${esc(row.sublabel)}${row.watched ? ' · watched' : ''}</span>
+            </div>
+            <div class="cal-tags">
+              <span class="cal-kind">${esc(row.kind === 'anime' ? 'Anime' : row.kind === 'tv' ? 'TV' : 'Film')}</span>
+              ${isToday && !row.watched ? '<span class="cal-row-pill cal-row-pill-planned">● Planned</span>' : ''}
+            </div>
+            <div class="cal-plan-actions">
+              <button type="button" class="cal-refresh-btn" data-plan-open="${esc(row.id)}">Open</button>
+              <button type="button" class="cal-refresh-btn" data-plan-clear="${esc(row.id)}">Clear</button>
+            </div>
+          </article>
+        `).join('')}
+      </section>
+    `;
+  }).join('');
+  list.querySelectorAll('[data-plan-open]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const entry = movies.find(m => m.id === btn.dataset.planOpen);
+      if (entry) openModal(entry);
+    });
+  });
+  list.querySelectorAll('[data-plan-clear]').forEach(btn => {
+    btn.addEventListener('click', () => clearPlannedWatch(btn.dataset.planClear));
+  });
+}
+
+function normalisePlanDate(value) {
+  const date = String(value || '').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : '';
+}
+
+function normalisePlanTime(value) {
+  const time = String(value || '').trim();
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(time) ? time : '';
+}
+
+function planLibraryEntry(id) {
+  const entry = movies.find(m => m.id === id);
+  if (!entry) return;
+  const date = normalisePlanDate(window.prompt(`Plan "${entry.title}" for which date? Use YYYY-MM-DD.`, entry.plannedWatchDate || todayDateString()));
+  if (!date) {
+    showToast('Plan cancelled. Use YYYY-MM-DD, for example 2026-06-01.', true);
+    return;
+  }
+  const rawTime = window.prompt('Optional time? Use HH:MM, or leave blank.', entry.plannedWatchTime || '');
+  const time = rawTime ? normalisePlanTime(rawTime) : '';
+  if (rawTime && !time) {
+    showToast('Plan cancelled. Time must use HH:MM, for example 20:30.', true);
+    return;
+  }
+  updateLibraryEntry(id, {
+    plannedWatchDate: date,
+    plannedWatchTime: time,
+    plannedWatchUpdatedAt: new Date().toISOString(),
+  }, { allowDowngrade: true });
+  save();
+  showToast(`Planned "${entry.title}" for ${date}${time ? ` at ${time}` : ''}.`);
+  if (activeView === 'calendar' && calendarMode === 'planned') renderCalendar();
+  else render();
+}
+
+function clearPlannedWatch(id) {
+  const entry = movies.find(m => m.id === id);
+  if (!entry) return;
+  updateLibraryEntry(id, {
+    plannedWatchDate: '',
+    plannedWatchTime: '',
+    plannedWatchNote: '',
+    plannedWatchUpdatedAt: new Date().toISOString(),
+  }, { allowDowngrade: true });
+  save();
+  showToast(`Cleared plan for "${entry.title}".`);
+  if (activeView === 'calendar') renderCalendar();
+  else render();
 }
 
 async function renderCalendarTracked(body, { force = false } = {}) {
@@ -3532,9 +3664,11 @@ function render() {
     const card = document.createElement('div');
     const checked = bulkSelection.has(m.id);
     const airingToday = checkAiringToday(m);
+    const plannedToday = isPlannedToday(m);
     card.className = 'movie-card'
       + (checked ? ' selected' : '')
-      + (airingToday ? ' card-airing-today' : '');
+      + (airingToday ? ' card-airing-today' : '')
+      + (plannedToday ? ' card-planned-today' : '');
     card.dataset.id = m.id;
     card.innerHTML = cardViewRenderer.renderLibraryCard(m, {
       checked,
@@ -3838,6 +3972,8 @@ cardController.attachGridActions(grid, {
   libraryModel,
   save,
   render,
+  planEntry: planLibraryEntry,
+  clearPlan: clearPlannedWatch,
   setPendingDeleteId: id => { pendingDeleteId = id; },
   confirmMsg,
   confirmModal,

@@ -42,6 +42,10 @@
           <span class="lbl-sm">${cardView.primaryAction.labelSm}</span>
         </button>` : '');
     const actionRowClass = primaryActionHTML ? 'card-actions' : 'card-actions card-actions-compact';
+    const planLabel = entry.plannedWatchDate ? 'Reschedule' : 'Plan';
+    const clearPlanHTML = entry.plannedWatchDate
+      ? `<button type="button" class="card-menu-item" data-clear-plan="${entry.id}" role="menuitem"${mutationDisabled}>Clear plan</button>`
+      : '';
 
     const hoverInfoParts = [
       entry.genre && `<div class="chi-genre">${esc(entry.genre)}</div>`,
@@ -86,6 +90,8 @@
         <div class="card-more-wrap">
           <button class="btn-sm btn-icon card-more-btn" data-action-menu="${entry.id}" title="More actions for ${titleLabel}" aria-label="More actions for ${titleLabel}" aria-expanded="false"${mutationDisabled}>⋯</button>
           <div class="card-action-menu" role="menu" hidden>
+            <button type="button" class="card-menu-item" data-plan="${entry.id}" role="menuitem"${mutationDisabled}>${planLabel}</button>
+            ${clearPlanHTML}
             <button type="button" class="card-menu-item danger" data-delete="${entry.id}" role="menuitem"${mutationDisabled}>Delete</button>
           </div>
         </div>

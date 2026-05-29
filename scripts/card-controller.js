@@ -20,6 +20,8 @@
       libraryModel,
       save,
       render,
+      planEntry,
+      clearPlan,
       setPendingDeleteId,
       confirmMsg,
       confirmModal,
@@ -40,9 +42,11 @@
       const deleteId = e.target.closest('[data-delete]')?.dataset.delete;
       const epIncId = e.target.closest('[data-ep-inc]')?.dataset.epInc;
       const menuId = e.target.closest('[data-action-menu]')?.dataset.actionMenu;
+      const planId = e.target.closest('[data-plan]')?.dataset.plan;
+      const clearPlanId = e.target.closest('[data-clear-plan]')?.dataset.clearPlan;
       const movies = getMovies();
 
-      if (!editId && !toggleId && !deleteId && !epIncId && !menuId && !isSelectMode() && !e.target.closest('.card-checkbox')) {
+      if (!editId && !toggleId && !deleteId && !epIncId && !menuId && !planId && !clearPlanId && !isSelectMode() && !e.target.closest('.card-checkbox')) {
         const poster = e.target.closest('.card-poster');
         if (poster) {
           const card = poster.closest('.movie-card');
@@ -83,6 +87,12 @@
           if (confirmMsg) confirmMsg.textContent = `Remove "${entry.title}" from your list?`;
           confirmModal?.classList.remove('hidden');
         }
+      } else if (planId) {
+        closeOpenMenus(grid);
+        planEntry?.(planId);
+      } else if (clearPlanId) {
+        closeOpenMenus(grid);
+        clearPlan?.(clearPlanId);
       }
     });
   }

@@ -176,6 +176,27 @@
   border-top: 1px solid var(--border);
   transition: background .15s, transform .15s;
 }
+
+.cal-group-planned-today {
+  border-color: rgba(59,158,255,.28);
+  background: linear-gradient(180deg, rgba(59,158,255,.08), var(--glass-bg));
+}
+
+.cal-row-planned-today {
+  box-shadow: inset 3px 0 0 rgba(59,158,255,.7);
+}
+
+.cal-row-pill-planned {
+  background: rgba(59,158,255,.16);
+  color: #69b7ff;
+}
+
+.cal-plan-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
 .cal-group-head + .cal-row { border-top: none; }
 .cal-row:hover { background: var(--surface2); }
 .cal-poster {
