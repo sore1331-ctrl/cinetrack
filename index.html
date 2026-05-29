@@ -516,6 +516,35 @@
     </div>
   </div>
 
+  <!-- Planned watch modal -->
+  <div id="plan-modal" class="modal hidden">
+    <div class="modal-card small plan-modal-card">
+      <h2 id="plan-modal-title">Plan Watch</h2>
+      <p id="plan-modal-copy" class="plan-modal-copy"></p>
+      <label class="plan-field">
+        <span>Date</span>
+        <input type="date" id="plan-date-input" />
+      </label>
+      <label class="plan-field">
+        <span>Time</span>
+        <select id="plan-time-select">
+          <option value="">Any time</option>
+          <option value="06:00">Morning - 06:00</option>
+          <option value="09:00">Morning - 09:00</option>
+          <option value="12:00">Lunch - 12:00</option>
+          <option value="15:00">Afternoon - 15:00</option>
+          <option value="18:00">Evening - 18:00</option>
+          <option value="20:00">Evening - 20:00</option>
+          <option value="22:00">Night - 22:00</option>
+        </select>
+      </label>
+      <div class="modal-actions">
+        <button type="button" id="plan-cancel" class="secondary">Cancel</button>
+        <button type="button" id="plan-save">Save Plan</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="scripts/storage-model.js?v=split-20260522-1"></script>
   <script src="scripts/source-model.js?v=split-20260522-1"></script>

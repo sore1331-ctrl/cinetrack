@@ -510,11 +510,16 @@ test.describe('tracker data integrity', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
     const calendarModel = fs.readFileSync(path.join(root, 'scripts', 'calendar-model.js'), 'utf8');
     const tvmazeApi = fs.readFileSync(path.join(root, 'api', 'tvmaze-calendar.js'), 'utf8');
+    const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 
+    expect(index).toContain('id="plan-modal"');
+    expect(index).toContain('id="plan-time-select"');
     expect(app).toContain("const CALENDAR_MODES = ['tracked', 'planned', 'discover'];");
     expect(app).toContain('data-mode="planned"');
     expect(app).toContain('function renderCalendarPlanned(body)');
     expect(app).toContain('function planLibraryEntry(id)');
+    expect(app).toContain('function savePlannedWatch()');
+    expect(app).not.toContain('window.prompt');
     expect(app).toContain('plannedWatchDate');
     expect(app).toContain('calendarModel.trackedRows({');
     expect(app).toContain('calendarModel.groupRowsByDate(dated)');

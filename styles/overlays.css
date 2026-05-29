@@ -479,3 +479,40 @@ button.danger {
 button.danger:hover { opacity: .85; }
 
 #confirm-msg { color: var(--muted); font-size: .9rem; margin-bottom: 20px; }
+
+.plan-modal-card {
+  display: grid;
+  gap: 14px;
+}
+.plan-modal-card h2 {
+  margin-bottom: 0;
+}
+.plan-modal-copy {
+  color: var(--muted);
+  font-size: .9rem;
+  line-height: 1.45;
+  margin: -4px 0 0;
+}
+.plan-field {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 700;
+}
+.plan-field input,
+.plan-field select {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 10px 12px;
+  font: inherit;
+  outline: none;
+}
+.plan-field input:focus,
+.plan-field select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+}

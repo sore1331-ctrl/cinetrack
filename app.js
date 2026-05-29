@@ -350,6 +350,7 @@ let statsTypeFilter = 'all';   // 'all' | 'movie' | 'tv' | 'anime'
 let gridSize        = localStorage.getItem('cinetrack_grid') || 'md';
 let editingId       = null;
 let pendingDeleteId = null;
+let planningId      = null;
 let selectedRating  = 0;
 let tmdbSelection   = null;
 let activeMediaType = 'movie';
@@ -2746,18 +2747,37 @@ function normalisePlanTime(value) {
 function planLibraryEntry(id) {
   const entry = movies.find(m => m.id === id);
   if (!entry) return;
-  const date = normalisePlanDate(window.prompt(`Plan "${entry.title}" for which date? Use YYYY-MM-DD.`, entry.plannedWatchDate || todayDateString()));
+  planningId = id;
+  if (planModalTitle) planModalTitle.textContent = entry.plannedWatchDate ? 'Reschedule Watch' : 'Plan Watch';
+  if (planModalCopy) planModalCopy.textContent = `Choose when you want to watch "${entry.title}".`;
+  if (planDateInput) planDateInput.value = entry.plannedWatchDate || todayDateString();
+  if (planTimeSelect) planTimeSelect.value = entry.plannedWatchTime || '';
+  planModal?.classList.remove('hidden');
+  planDateInput?.focus();
+}
+
+function closePlanModal() {
+  planModal?.classList.add('hidden');
+  planningId = null;
+}
+
+function savePlannedWatch() {
+  const entry = movies.find(m => m.id === planningId);
+  if (!entry) {
+    closePlanModal();
+    return;
+  }
+  const date = normalisePlanDate(planDateInput?.value);
   if (!date) {
-    showToast('Plan cancelled. Use YYYY-MM-DD, for example 2026-06-01.', true);
+    showToast('Choose a valid plan date.', true);
     return;
   }
-  const rawTime = window.prompt('Optional time? Use HH:MM, or leave blank.', entry.plannedWatchTime || '');
-  const time = rawTime ? normalisePlanTime(rawTime) : '';
-  if (rawTime && !time) {
-    showToast('Plan cancelled. Time must use HH:MM, for example 20:30.', true);
+  const time = normalisePlanTime(planTimeSelect?.value);
+  if (planTimeSelect?.value && !time) {
+    showToast('Choose a valid plan time.', true);
     return;
   }
-  updateLibraryEntry(id, {
+  updateLibraryEntry(entry.id, {
     plannedWatchDate: date,
     plannedWatchTime: time,
     plannedWatchUpdatedAt: new Date().toISOString(),
@@ -2766,6 +2786,7 @@ function planLibraryEntry(id) {
   showToast(`Planned "${entry.title}" for ${date}${time ? ` at ${time}` : ''}.`);
   if (activeView === 'calendar' && calendarMode === 'planned') renderCalendar();
   else render();
+  closePlanModal();
 }
 
 function clearPlannedWatch(id) {
@@ -3698,6 +3719,13 @@ const bulkDelete        = document.getElementById('bulk-delete');
 const bulkMarkWatched     = document.getElementById('bulk-mark-watched');
 const bulkMarkInProgress  = document.getElementById('bulk-mark-in-progress');
 const bulkMarkWatchlist   = document.getElementById('bulk-mark-watchlist');
+const planModal      = document.getElementById('plan-modal');
+const planModalTitle = document.getElementById('plan-modal-title');
+const planModalCopy  = document.getElementById('plan-modal-copy');
+const planDateInput  = document.getElementById('plan-date-input');
+const planTimeSelect = document.getElementById('plan-time-select');
+const planCancelBtn  = document.getElementById('plan-cancel');
+const planSaveBtn    = document.getElementById('plan-save');
 
 const bulkSelection = bulkController.createBulkSelectionController({
   grid,
@@ -3985,7 +4013,16 @@ confirmOk.addEventListener('click', () => {
   confirmModal.classList.add('hidden'); pendingDeleteId = null;
 });
 confirmModal.addEventListener('click', e => { if (e.target === confirmModal) { confirmModal.classList.add('hidden'); pendingDeleteId = null; } });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); confirmModal.classList.add('hidden'); } });
+planCancelBtn?.addEventListener('click', closePlanModal);
+planSaveBtn?.addEventListener('click', savePlannedWatch);
+planModal?.addEventListener('click', e => { if (e.target === planModal) closePlanModal(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeModal();
+    confirmModal.classList.add('hidden');
+    closePlanModal();
+  }
+});
 
 // ── Seed data ───────────────────────────────────────────
 function seedData() {
