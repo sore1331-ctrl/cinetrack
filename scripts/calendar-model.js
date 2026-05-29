@@ -205,7 +205,8 @@
 
   function addUniqueRow(rows, seen, row) {
     if (!row?.date) return;
-    const key = `${row.kind}:${row.uniqueKey || row.tmdbId || row.title}:${row.date}:${row.sublabel || ''}`;
+    const baseKey = `${row.kind}:${row.uniqueKey || row.tmdbId || row.title}:${row.date}`;
+    const key = row.episodeKey ? `${baseKey}:${row.episodeKey}` : `${baseKey}:${row.sublabel || ''}`;
     if (seen.has(key)) return;
     seen.add(key);
     rows.push(row);
@@ -260,7 +261,9 @@
           title: local?.title || item.title,
           poster: local?.posterUrl || item.poster_url || (item.poster_path ? posterBase + item.poster_path : ''),
           sublabel: `S${episode.season}E${episode.episode}${episode.name ? ` \u00B7 ${episode.name}` : ''}`,
+          episodeKey: `S${episode.season}E${episode.episode}`,
           tmdbUrl: item.externalUrl || (local ? infoUrlForEntry(local) : '') || (item.tmdbId ? `https://www.themoviedb.org/tv/${item.tmdbId}` : ''),
+          source: item.source || '',
           watched: Boolean(watchedToday),
           dimWatched: Boolean(watchedToday && watchedMode === 'dim'),
         });
@@ -280,7 +283,9 @@
           title: local.title,
           poster: local.posterUrl || '',
           sublabel: `S${episode.season}E${episode.episode}${episode.name ? ` \u00B7 ${episode.name}` : ''}`,
+          episodeKey: `S${episode.season}E${episode.episode}`,
           tmdbUrl: infoUrlForEntry(local),
+          source: signal.source || '',
           watched: Boolean(signal.watched),
           dimWatched: Boolean(signal.dim),
         });

@@ -2499,7 +2499,7 @@ async function refreshTrackedCalendarSources({ force = false } = {}) {
   const ids = tracked.map(calendarKeyForEntry).filter(Boolean);
   if (!ids.length) return { tracked, upcoming: [] };
 
-  const tmdbIds = ids.filter(id => id.startsWith('tv:') || id.startsWith('movie:'));
+  const tmdbIds = ids.filter(id => id.startsWith('movie:'));
   const externalEntries = tracked.filter(m => {
     const key = calendarKeyForEntry(m);
     return key.startsWith('anilist:');

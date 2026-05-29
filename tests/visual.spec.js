@@ -112,12 +112,6 @@ async function installVisualState(page) {
     contentType: 'application/json',
     body: JSON.stringify({
       results: [{
-        type: 'tv',
-        tmdbId: 100,
-        title: 'Northline',
-        poster_url: visualLibrary[1].posterUrl,
-        nextEpisode: { season: 1, episode: 7, name: 'Signal Return', airDate: '2026-05-24' },
-      }, {
         type: 'movie',
         tmdbId: 201,
         title: 'Harbour Days',
@@ -128,7 +122,17 @@ async function installVisualState(page) {
   }));
   await page.route('**/api/tvmaze-calendar', route => route.fulfill({
     contentType: 'application/json',
-    body: JSON.stringify({ results: [] }),
+    body: JSON.stringify({
+      results: [{
+        type: 'tv',
+        source: 'tvmaze',
+        sourceKey: 'tv:100',
+        tmdbId: 100,
+        title: 'Northline',
+        poster_url: visualLibrary[1].posterUrl,
+        nextEpisode: { season: 1, episode: 7, name: 'Signal Return', airDate: '2026-05-24' },
+      }],
+    }),
   }));
   await page.route('**/api/external?**', route => route.fulfill({
     contentType: 'application/json',

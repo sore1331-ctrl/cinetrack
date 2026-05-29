@@ -466,6 +466,7 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('async function fetchTvmazeCalendarForEntries');
     expect(app).toContain("requiredSource: 'tvmaze'");
     expect(app).toContain('mergeUpcomingCache(results)');
+    expect(app).toContain("const tmdbIds = ids.filter(id => id.startsWith('movie:'));");
     expect(app).toContain('tvmazeUpcoming = await fetchTvmazeCalendarForEntries(tracked, { force });');
     expect(tvmazeApi).toContain('findCalendarEpisode');
     expect(tvmazeApi).toContain('ep.airdate >= today && ep.airdate <= horizon');
@@ -603,6 +604,7 @@ test.describe('tracker data integrity', () => {
       upcoming: [
         { type: 'tv', sourceKey: 'tv:10', tmdbId: 10, title: 'Remote Show', nextEpisode: { season: 1, episode: 2, name: 'Pilot', airDate: '2026-05-24' } },
         { type: 'tv', sourceKey: 'tv:10', tmdbId: 10, title: 'Remote Show', nextEpisode: { season: 1, episode: 2, name: 'Pilot', airDate: '2026-05-24' } },
+        { type: 'tv', sourceKey: 'tv:10', tmdbId: 10, title: 'Remote Show', nextEpisode: { season: 1, episode: 2, name: 'Episode 2', airDate: '2026-05-24' } },
         { type: 'tv', sourceKey: 'tvmaze:90839', externalId: 90839, title: 'TVMaze Remote', nextEpisode: { season: 1, episode: 12, name: 'Episode 12', airDate: '2026-05-28' } },
         { type: 'movie', sourceKey: 'movie:20', tmdbId: 20, title: 'Remote Film', poster_path: '/film.jpg', releaseDate: '2026-06-01' },
         { type: 'movie', sourceKey: 'movie:99', tmdbId: 99, title: 'Too Late', releaseDate: '2026-09-01' },
