@@ -1184,14 +1184,14 @@ main {
 
 @media (min-width: 481px) and (max-width: 1023px) {
   header {
-    min-height: 132px;
-    padding: 10px 20px 12px;
+    min-height: 116px;
+    padding: 8px 20px 10px;
     align-content: flex-start;
-    row-gap: 8px;
+    row-gap: 6px;
   }
 
   .header-brand .brand-logo-img {
-    height: 58px;
+    height: 54px;
   }
 
   .header-actions {
@@ -1202,8 +1202,8 @@ main {
   .theme-toggle,
   .header-profile-btn,
   .user-avatar-btn {
-    width: 44px;
-    height: 44px;
+    width: 42px;
+    height: 42px;
   }
 
   .type-tabs-bar {
@@ -1215,9 +1215,9 @@ main {
 
   .type-tabs-inner {
     max-width: none;
-    min-height: 44px;
-    padding: 4px 0;
-    gap: 6px;
+    min-height: 36px;
+    padding: 2px 0;
+    gap: 8px;
     align-items: center;
     justify-content: space-between;
   }
@@ -1225,30 +1225,21 @@ main {
   .type-tab {
     flex: 1 1 0;
     min-width: 0;
-    min-height: 42px;
-    padding: 6px 4px;
+    min-height: 36px;
+    padding: 7px 6px;
     margin: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 5px;
+    gap: 0;
     border: 0;
-    border-radius: 12px;
-    font-size: .82rem;
+    border-radius: 11px;
+    font-size: .86rem;
     line-height: 1.1;
   }
 
   .type-tab .tab-icon {
-    width: 22px;
-    height: 22px;
-    display: inline-grid;
-    place-items: center;
-    flex: 0 0 22px;
-    border-radius: 8px;
-    font-size: .92rem;
-    line-height: 1;
-    overflow: hidden;
-    background: color-mix(in srgb, var(--tab-accent) 9%, transparent);
+    display: none;
   }
 
   .type-tab .tab-label {

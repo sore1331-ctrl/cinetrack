@@ -72,35 +72,33 @@ test.describe('desktop regressions', () => {
     expect(layout.actionGap).toBeGreaterThanOrEqual(8);
   });
 
-  test('tablet header keeps tab icons compact', async ({ page }) => {
+  test('tablet header keeps tab row readable', async ({ page }) => {
     await page.setViewportSize({ width: 820, height: 1180 });
     await openApp(page);
 
     const layout = await page.evaluate(() => {
       const header = document.querySelector('header')?.getBoundingClientRect();
-      const icons = [...document.querySelectorAll('.type-tab .tab-icon')].map(icon => {
-        const rect = icon.getBoundingClientRect();
-        return { width: rect.width, height: rect.height };
-      });
+      const icons = [...document.querySelectorAll('.type-tab .tab-icon')]
+        .map(icon => getComputedStyle(icon).display);
       const tabs = [...document.querySelectorAll('.type-tab')].map(tab => tab.getBoundingClientRect());
-      const maxIconHeight = Math.max(...icons.map(icon => icon.height));
-      const maxIconWidth = Math.max(...icons.map(icon => icon.width));
       const overlaps = tabs.some((tab, index) => {
         const next = tabs[index + 1];
         return next ? tab.right > next.left + 1 : false;
       });
+      const truncatedLabels = [...document.querySelectorAll('.type-tab .tab-label')]
+        .some(label => label.scrollWidth > label.clientWidth + 1);
       return {
         headerHeight: header?.height || 0,
-        maxIconHeight,
-        maxIconWidth,
+        iconsHidden: icons.every(display => display === 'none'),
         overlaps,
+        truncatedLabels,
       };
     });
 
-    expect(layout.headerHeight).toBeLessThanOrEqual(150);
-    expect(layout.maxIconHeight).toBeLessThanOrEqual(24);
-    expect(layout.maxIconWidth).toBeLessThanOrEqual(24);
+    expect(layout.headerHeight).toBeLessThanOrEqual(130);
+    expect(layout.iconsHidden).toBe(true);
     expect(layout.overlaps).toBe(false);
+    expect(layout.truncatedLabels).toBe(false);
   });
 
   test('animated orbs are visible and respect reduced motion', async ({ page }) => {
