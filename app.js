@@ -2202,10 +2202,20 @@ function renderHome() {
 
   panel.innerHTML = `
     <section class="home-hero">
-      <div>
-        <span class="home-kicker">Home</span>
-        <h1>CineTrack at a glance</h1>
-        <p>Continue from your current progress, today's plans, and titles airing now.</p>
+      <div class="home-intro">
+        <img
+          class="home-logo theme-aware-img"
+          src="assets/cinetrack-logo.png?v=actual-20260516"
+          data-dark-src="assets/cinetrack-logo.png?v=actual-20260516"
+          data-light-src="assets/cinetrack-logo-light.png?v=theme-aware-20260516"
+          alt=""
+          aria-hidden="true"
+        />
+        <div>
+          <span class="home-kicker">Home</span>
+          <h1>CineTrack at a glance</h1>
+          <p>Continue from your current progress, today's plans, and titles airing now.</p>
+        </div>
       </div>
       <div class="home-metrics" aria-label="Library overview">
         <div><strong>${movies.length}</strong><span>Total titles</span></div>
@@ -2246,6 +2256,7 @@ function renderHome() {
       </div>
     </section>
   `;
+  applyTheme(document.documentElement.classList.contains('light') ? 'light' : 'dark');
 }
 
 function jumpToContent(type, opts = {}) {
