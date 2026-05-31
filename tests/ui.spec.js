@@ -155,7 +155,7 @@ test.describe('desktop regressions', () => {
     await page.locator('#logo').click();
 
     await expect(page.locator('#home-panel')).toBeVisible();
-    await expect(page.locator('#home-panel')).toContainText('CineTrack at a glance');
+    await expect(page.locator('#home-panel')).toContainText('At a glance');
     await expect(page.locator('#profile-panel')).toBeHidden();
     await expect(page.locator('#movie-grid')).toBeHidden();
     await expect(page.locator('.type-tab.active')).toHaveCount(0);

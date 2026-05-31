@@ -282,26 +282,17 @@ main {
           backdrop-filter: blur(calc(var(--glass-blur) * .7)) saturate(var(--glass-saturate));
 }
 
-.home-kicker {
-  display: block;
-  color: var(--accent);
-  font-size: .72rem;
-  font-weight: 800;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-  margin-bottom: 7px;
-}
-
 .home-intro {
   display: flex;
-  align-items: center;
-  gap: 18px;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 10px;
   min-width: 0;
 }
 
 .home-logo {
   display: block;
-  width: 112px;
+  width: 132px;
   height: auto;
   flex: 0 0 auto;
   object-fit: contain;
@@ -465,14 +456,8 @@ main {
     padding: 16px;
   }
 
-  .home-intro {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 12px;
-  }
-
   .home-logo {
-    width: 100px;
+    width: 116px;
   }
 
   .home-row {
