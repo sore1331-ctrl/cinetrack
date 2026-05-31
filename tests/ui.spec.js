@@ -72,6 +72,37 @@ test.describe('desktop regressions', () => {
     expect(layout.actionGap).toBeGreaterThanOrEqual(8);
   });
 
+  test('tablet header keeps tab icons compact', async ({ page }) => {
+    await page.setViewportSize({ width: 820, height: 1180 });
+    await openApp(page);
+
+    const layout = await page.evaluate(() => {
+      const header = document.querySelector('header')?.getBoundingClientRect();
+      const icons = [...document.querySelectorAll('.type-tab .tab-icon')].map(icon => {
+        const rect = icon.getBoundingClientRect();
+        return { width: rect.width, height: rect.height };
+      });
+      const tabs = [...document.querySelectorAll('.type-tab')].map(tab => tab.getBoundingClientRect());
+      const maxIconHeight = Math.max(...icons.map(icon => icon.height));
+      const maxIconWidth = Math.max(...icons.map(icon => icon.width));
+      const overlaps = tabs.some((tab, index) => {
+        const next = tabs[index + 1];
+        return next ? tab.right > next.left + 1 : false;
+      });
+      return {
+        headerHeight: header?.height || 0,
+        maxIconHeight,
+        maxIconWidth,
+        overlaps,
+      };
+    });
+
+    expect(layout.headerHeight).toBeLessThanOrEqual(150);
+    expect(layout.maxIconHeight).toBeLessThanOrEqual(24);
+    expect(layout.maxIconWidth).toBeLessThanOrEqual(24);
+    expect(layout.overlaps).toBe(false);
+  });
+
   test('animated orbs are visible and respect reduced motion', async ({ page }) => {
     await openApp(page);
 

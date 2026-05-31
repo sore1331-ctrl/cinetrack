@@ -1181,3 +1181,85 @@ main {
     padding-top: 6px;
   }
 }
+
+@media (min-width: 481px) and (max-width: 1023px) {
+  header {
+    min-height: 132px;
+    padding: 10px 20px 12px;
+    align-content: flex-start;
+    row-gap: 8px;
+  }
+
+  .header-brand .brand-logo-img {
+    height: 58px;
+  }
+
+  .header-actions {
+    gap: 8px;
+    margin-left: auto;
+  }
+
+  .theme-toggle,
+  .header-profile-btn,
+  .user-avatar-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .type-tabs-bar {
+    display: block;
+    flex: 1 0 100%;
+    order: 3;
+    overflow: hidden;
+  }
+
+  .type-tabs-inner {
+    max-width: none;
+    min-height: 44px;
+    padding: 4px 0;
+    gap: 6px;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .type-tab {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 42px;
+    padding: 6px 4px;
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    border: 0;
+    border-radius: 12px;
+    font-size: .82rem;
+    line-height: 1.1;
+  }
+
+  .type-tab .tab-icon {
+    width: 22px;
+    height: 22px;
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 22px;
+    border-radius: 8px;
+    font-size: .92rem;
+    line-height: 1;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--tab-accent) 9%, transparent);
+  }
+
+  .type-tab .tab-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .type-tab.active::before {
+    inset: 0;
+    border-radius: inherit;
+  }
+}
