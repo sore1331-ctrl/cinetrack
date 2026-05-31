@@ -193,7 +193,7 @@ test.describe('desktop visual baselines', () => {
   test('profile visual baseline', async ({ page }) => {
     await openVisualApp(page);
 
-    await page.locator('#logo').click();
+    await page.locator('#header-profile-btn').click();
     await expect(page.locator('#profile-panel')).toBeVisible();
 
     await expect(page.locator('#profile-panel')).toHaveScreenshot('profile-desktop.png', {

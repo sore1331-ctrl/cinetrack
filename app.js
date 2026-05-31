@@ -1023,6 +1023,7 @@ function refreshCurrentView() {
   else if (activeView === 'profile') renderProfile();
   else if (activeView === 'community') { /* don't auto-reload community */ }
   else if (activeView === 'calendar') renderCalendar();
+  else if (activeView === 'home') renderHome();
   else render();
 }
 
@@ -1052,6 +1053,7 @@ function switchView(view, type) {
   const isCommunity = view === 'community';
   const isProfile   = view === 'profile';
   const isCalendar  = view === 'calendar';
+  const isHome      = view === 'home';
 
   // Sync header profile button active state
   document.getElementById('header-profile-btn')?.classList.toggle('active', isProfile);
@@ -1070,6 +1072,7 @@ function switchView(view, type) {
   document.getElementById('community-panel').classList.toggle('hidden', !isCommunity);
   document.getElementById('profile-panel').classList.toggle('hidden', !isProfile);
   document.getElementById('calendar-panel').classList.toggle('hidden', !isCalendar);
+  document.getElementById('home-panel')?.classList.toggle('hidden', !isHome);
 
   if (isContent) {
     selectMode = false;
@@ -1085,6 +1088,8 @@ function switchView(view, type) {
     renderProfile();
   } else if (isCalendar) {
     renderCalendar();
+  } else if (isHome) {
+    renderHome();
   }
 }
 
@@ -1124,10 +1129,10 @@ document.querySelectorAll('.type-tab').forEach(btn => {
   });
 });
 
-// Clicking the CineTrack logo navigates to Profile
+// Clicking the CineTrack logo opens the home dashboard
 document.getElementById('logo').addEventListener('click', () => {
   document.querySelectorAll('.type-tab').forEach(b => b.classList.remove('active'));
-  switchView('profile');
+  switchView('home');
 });
 
 // Header profile button
@@ -2102,6 +2107,145 @@ function renderStats() {
   });
 
   loadRecommendations();
+}
+
+function homeItemMeta(m) {
+  const bits = [];
+  if (m.year) bits.push(m.year);
+  if (m.country) bits.push(m.country);
+  if ((m.mediaType === 'tv' || m.mediaType === 'anime') && Number(m.totalEpisodes || 0) > 0) {
+    bits.push(`${Number(m.watchedEpisodes || 0)}/${Number(m.totalEpisodes || 0)} eps`);
+  } else if (m.runtime) {
+    bits.push(formatRuntime(Number(m.runtime || 0)));
+  }
+  return bits.filter(Boolean).join(' / ');
+}
+
+function homeItemPoster(m) {
+  if (m.posterUrl) {
+    return `<img class="home-poster" src="${esc(m.posterUrl)}" alt="${esc(m.title)}" loading="lazy" />`;
+  }
+  const label = m.mediaType === 'anime' ? 'A' : m.mediaType === 'tv' ? 'TV' : 'F';
+  return `<div class="home-poster home-poster-fallback">${label}</div>`;
+}
+
+function homeList(items, emptyText) {
+  if (!items.length) {
+    return `<p class="home-empty">${esc(emptyText)}</p>`;
+  }
+  return `
+    <div class="home-list">
+      ${items.map(item => `
+        <article class="home-row">
+          ${homeItemPoster(item)}
+          <div class="home-row-main">
+            <strong>${esc(item.title)}</strong>
+            <span>${esc(item.detail || homeItemMeta(item) || 'No extra details')}</span>
+          </div>
+          ${item.badge ? `<span class="home-row-badge">${esc(item.badge)}</span>` : ''}
+        </article>
+      `).join('')}
+    </div>
+  `;
+}
+
+function renderHome() {
+  const panel = document.getElementById('home-panel');
+  if (!panel) return;
+
+  const todayStr = todayDateString();
+  const upcomingCache = readUpcomingCache();
+  const checkAiringToday = airingTodayChecker(upcomingCache);
+  const totalMin = movies.reduce((sum, m) => sum + actualWatchedMinutes(m), 0);
+
+  const statusCounts = movies.reduce((acc, m) => {
+    const key = m.status || 'watchlist';
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+
+  const continuing = movies
+    .filter(m => m.status === 'in_progress')
+    .sort((a, b) => Number(b.addedAt || 0) - Number(a.addedAt || 0))
+    .slice(0, 5);
+
+  const planned = movies
+    .filter(m => isPlannedToday(m, todayStr))
+    .sort((a, b) => String(a.plannedWatchTime || '').localeCompare(String(b.plannedWatchTime || '')))
+    .slice(0, 5)
+    .map(m => ({
+      ...m,
+      detail: `${m.plannedWatchTime ? `${m.plannedWatchTime} / ` : ''}Planned for today`,
+      badge: 'Planned',
+    }));
+
+  const airingToday = movies
+    .filter(m => checkAiringToday(m))
+    .slice(0, 5)
+    .map(m => {
+      const signal = getAiringTodaySignal(m, todayStr, upcomingCache);
+      const episode = signal?.episode;
+      const episodeLabel = episode
+        ? `S${episode.season || 1}E${episode.episode || 1}${episode.name ? ` / ${episode.name}` : ''}`
+        : 'Airing today';
+      return {
+        ...m,
+        detail: episodeLabel,
+        badge: m.mediaType === 'anime' ? 'Anime' : m.mediaType === 'movie' ? 'Film' : 'TV',
+      };
+    });
+
+  const watchlist = movies
+    .filter(m => m.status === 'watchlist')
+    .sort((a, b) => Number(b.addedAt || 0) - Number(a.addedAt || 0))
+    .slice(0, 5);
+
+  panel.innerHTML = `
+    <section class="home-hero">
+      <div>
+        <span class="home-kicker">Home</span>
+        <h1>CineTrack at a glance</h1>
+        <p>Continue from your current progress, today's plans, and titles airing now.</p>
+      </div>
+      <div class="home-metrics" aria-label="Library overview">
+        <div><strong>${movies.length}</strong><span>Total titles</span></div>
+        <div><strong>${statusCounts.in_progress || 0}</strong><span>In progress</span></div>
+        <div><strong>${statusCounts.watchlist || 0}</strong><span>Watchlist</span></div>
+        <div><strong>${formatTimeSpent(totalMin) || '0m'}</strong><span>Time spent</span></div>
+      </div>
+    </section>
+
+    <section class="home-grid" aria-label="Home dashboard">
+      <div class="home-section">
+        <div class="home-section-head">
+          <h2>Continue watching</h2>
+          <span>${continuing.length} active</span>
+        </div>
+        ${homeList(continuing, 'Nothing is in progress right now.')}
+      </div>
+      <div class="home-section">
+        <div class="home-section-head">
+          <h2>Today</h2>
+          <span>${airingToday.length} airing</span>
+        </div>
+        ${homeList(airingToday, 'No tracked releases are airing today.')}
+      </div>
+      <div class="home-section">
+        <div class="home-section-head">
+          <h2>Planned</h2>
+          <span>${planned.length} today</span>
+        </div>
+        ${homeList(planned, 'No planned watches today.')}
+      </div>
+      <div class="home-section">
+        <div class="home-section-head">
+          <h2>Recent watchlist</h2>
+          <span>${watchlist.length} saved</span>
+        </div>
+        ${homeList(watchlist, 'Your watchlist is empty.')}
+      </div>
+    </section>
+  `;
 }
 
 function jumpToContent(type, opts = {}) {

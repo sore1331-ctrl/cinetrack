@@ -141,12 +141,24 @@ test.describe('desktop regressions', () => {
   test('profile opens with health and recovery sections', async ({ page }) => {
     await openApp(page);
 
-    await page.locator('#logo').click();
+    await page.locator('#header-profile-btn').click();
 
     await expect(page.locator('#profile-panel')).toBeVisible();
     await expect(page.locator('#profile-panel')).toContainText('Library Health');
     await expect(page.locator('#profile-panel')).toContainText('Recovery');
     await expect(page.locator('#movie-grid')).toBeHidden();
+  });
+
+  test('logo opens home dashboard without adding a nav tab', async ({ page }) => {
+    await openApp(page);
+
+    await page.locator('#logo').click();
+
+    await expect(page.locator('#home-panel')).toBeVisible();
+    await expect(page.locator('#home-panel')).toContainText('CineTrack at a glance');
+    await expect(page.locator('#profile-panel')).toBeHidden();
+    await expect(page.locator('#movie-grid')).toBeHidden();
+    await expect(page.locator('.type-tab.active')).toHaveCount(0);
   });
 
   test('recommendations hide titles already tracked across compatible media types', async ({ page }) => {
