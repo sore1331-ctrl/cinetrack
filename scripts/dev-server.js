@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs/promises');
 const { existsSync } = require('fs');
 const vm = require('vm');
+const { webcrypto } = require('crypto');
 
 const root = path.resolve(__dirname, '..');
 const port = Number(process.argv[2] || process.env.PORT || 4173);
@@ -75,6 +76,7 @@ async function loadApiHandler(filePath) {
     URL,
     URLSearchParams,
     AbortController,
+    crypto: globalThis.crypto || webcrypto,
     setTimeout,
     clearTimeout,
     Buffer,
@@ -111,11 +113,22 @@ async function handleApi(req, res, url) {
 }
 
 async function handleStatic(req, res, url) {
-  const decoded = decodeURIComponent(url.pathname);
+  let decoded;
+  try {
+    decoded = decodeURIComponent(url.pathname);
+  } catch {
+    return send(res, 400, 'Bad request', { 'Content-Type': 'text/plain; charset=utf-8' });
+  }
   const relativePath = decoded === '/' ? 'index.html' : decoded.replace(/^\/+/, '');
   const filePath = path.resolve(root, relativePath);
+  const relativeFromRoot = path.relative(root, filePath);
 
-  if (!filePath.startsWith(root) || filePath.includes(`${path.sep}.git${path.sep}`)) {
+  if (
+    relativeFromRoot === '..' ||
+    relativeFromRoot.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativeFromRoot) ||
+    relativeFromRoot.split(path.sep).includes('.git')
+  ) {
     return send(res, 403, 'Forbidden', { 'Content-Type': 'text/plain; charset=utf-8' });
   }
 

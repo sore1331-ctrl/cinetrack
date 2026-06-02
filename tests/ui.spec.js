@@ -1,4 +1,8 @@
 const { test, expect } = require('@playwright/test');
+const fs = require('fs');
+const path = require('path');
+
+const root = path.resolve(__dirname, '..');
 
 async function openApp(page) {
   await page.goto('/');
@@ -20,6 +24,19 @@ test.describe('desktop regressions', () => {
       supabaseUrl: expect.any(String),
       supabaseKey: expect.any(String),
     }));
+  });
+
+  test('local dev server rejects encoded traversal outside the project root', async ({ request }) => {
+    const siblingName = 'cinetrack-secret-test.txt';
+    const sibling = path.resolve(root, '..', siblingName);
+    fs.writeFileSync(sibling, 'secret outside root');
+    try {
+      const response = await request.get(`/%2e%2e/${siblingName}`);
+      expect(response.status()).not.toBe(200);
+      expect(await response.text()).not.toContain('secret outside root');
+    } finally {
+      fs.rmSync(sibling, { force: true });
+    }
   });
 
   test('corrupt saved library data does not break startup', async ({ page }) => {
@@ -219,6 +236,32 @@ test.describe('desktop regressions', () => {
     await expect(recSection).not.toContainText('Inception');
     await expect(recSection).not.toContainText('Attack on Titan');
     await expect(recSection).not.toContainText('Dune: Part Two');
+  });
+
+  test('stats poster rendering rejects stored attribute injection', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__posterXss = false;
+    });
+    await page.goto('/');
+    await page.evaluate(() => {
+      localStorage.setItem('cinetrack_movies', JSON.stringify([{
+        id: 'bad-poster',
+        addedAt: Date.now(),
+        title: 'Bad Poster',
+        year: '2026',
+        status: 'watched',
+        rating: 10,
+        mediaType: 'movie',
+        posterUrl: 'x" onerror="window.__posterXss=true',
+      }]));
+    });
+    await page.reload();
+    await expect(page.locator('#auth-overlay')).toBeHidden();
+    await page.locator('.type-tab[data-type="stats"]').click();
+    await expect(page.locator('#stats-panel .top-rated-grid')).toBeVisible();
+
+    await expect.poll(() => page.evaluate(() => Boolean(window.__posterXss))).toBe(false);
+    await expect(page.locator('#stats-panel .top-rated-grid img')).toHaveCount(0);
   });
 
   test('episode progress persists after reload', async ({ page }) => {

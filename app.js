@@ -1511,6 +1511,10 @@ function externalPosterUrl(path) {
   return sourceModel.posterUrl(path, POSTER_BASE);
 }
 
+function safeImageUrl(path) {
+  return sourceModel.safeImageUrl(path);
+}
+
 async function searchExternalTitle(q, type) {
   if (type === 'anime') {
     const r = await fetch(`/api/external?provider=anilist&action=search&q=${encodeURIComponent(q)}`);
@@ -1944,8 +1948,9 @@ function renderStats() {
       <div class="top-rated-grid">
         ${topRated.map(m => {
           const url = infoUrlForEntry(m);
-          const poster = m.posterUrl
-            ? `<img src="${m.posterUrl}" alt="${esc(m.title)}" loading="lazy" />`
+          const safePoster = safeImageUrl(m.posterUrl);
+          const poster = safePoster
+            ? `<img src="${esc(safePoster)}" alt="${esc(m.title)}" loading="lazy" />`
             : `<div class="tr-poster-emoji">${m.mediaType === 'anime' ? '🎌' : m.mediaType === 'tv' ? '📺' : posterEmoji(m.title)}</div>`;
           const wrap = url
             ? `<a href="${url}" target="_blank" rel="noopener noreferrer" class="top-rated-card">`
@@ -4246,7 +4251,7 @@ async function processImportedRow(row, { title }) {
     movies.push({ id: genId(), addedAt: Date.now(), title: tmdb.title, year: tmdb.year, genre: tmdb.genre, director: tmdb.director, country: tmdb.country, notes: row.notes || tmdb.overview || '', posterUrl: tmdb.poster_path ? `https://image.tmdb.org/t/p/w200${tmdb.poster_path}` : '', tmdbId: tmdb.tmdbId, runtime: tmdb.runtime || runtime, mediaType, status, rating, totalEpisodes: epTotalUsed, watchedEpisodes: epWatchUsed });
     return { imported: true };
   }
-  movies.push({ id: genId(), addedAt: Date.now(), title, year, genre: row.genre || '', director: row.director || '', country: row.country || '', notes: row.notes || '', posterUrl: row.posterUrl || '', tmdbId: null, runtime, mediaType, status, rating, totalEpisodes: epTotalUsed, watchedEpisodes: epWatchUsed });
+  movies.push({ id: genId(), addedAt: Date.now(), title, year, genre: row.genre || '', director: row.director || '', country: row.country || '', notes: row.notes || '', posterUrl: safeImageUrl(row.posterUrl), tmdbId: null, runtime, mediaType, status, rating, totalEpisodes: epTotalUsed, watchedEpisodes: epWatchUsed });
   return { imported: true, unmatched: true };
 }
 

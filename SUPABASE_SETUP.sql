@@ -292,6 +292,11 @@ REVOKE ALL ON public.progress_events FROM anon;
 
 -- This helper is not used by CineTrack at runtime and should not be callable
 -- from the API if it exists.
-REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM anon;
-REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM authenticated;
+DO $$
+BEGIN
+  IF to_regprocedure('public.rls_auto_enable()') IS NOT NULL THEN
+    REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM PUBLIC;
+    REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM anon;
+    REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM authenticated;
+  END IF;
+END $$;

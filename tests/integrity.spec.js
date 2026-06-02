@@ -1312,6 +1312,25 @@ test.describe('tracker data integrity', () => {
     expect(sql).toContain('REVOKE DELETE ON public.user_data FROM authenticated');
     expect(sql).toContain('REVOKE UPDATE, DELETE ON public.user_data_backups FROM authenticated');
     expect(sql).toContain('REVOKE UPDATE, DELETE ON public.progress_events FROM authenticated');
+    expect(sql).toContain("IF to_regprocedure('public.rls_auto_enable()') IS NOT NULL THEN");
+  });
+
+  test('community setup SQL is loaded from the canonical setup file', () => {
+    const controller = fs.readFileSync(path.join(root, 'scripts', 'community-controller.js'), 'utf8');
+
+    expect(controller).toContain("const SETUP_SQL_URL = '/SUPABASE_SETUP.sql'");
+    expect(controller).toContain('function loadSetupSql()');
+    expect(controller).toContain('navigator.clipboard.writeText(setupSql)');
+    expect(controller).not.toContain('CREATE TABLE IF NOT EXISTS public.user_data (');
+  });
+
+  test('dev server keeps static paths contained and mirrors Web Crypto for APIs', () => {
+    const server = fs.readFileSync(path.join(root, 'scripts', 'dev-server.js'), 'utf8');
+
+    expect(server).toContain('path.relative(root, filePath)');
+    expect(server).toContain('path.isAbsolute(relativeFromRoot)');
+    expect(server).toContain('crypto: globalThis.crypto || webcrypto');
+    expect(server).not.toContain('filePath.startsWith(root)');
   });
 
   test('profile exposes local recovery snapshots', () => {
@@ -1667,6 +1686,10 @@ test.describe('tracker data integrity', () => {
 
     expect(model.posterUrl('/abc.jpg', 'https://image.tmdb.org/t/p/w200')).toBe('https://image.tmdb.org/t/p/w200/abc.jpg');
     expect(model.posterUrl('https://cdn.example/poster.jpg', 'https://image.tmdb.org/t/p/w200')).toBe('https://cdn.example/poster.jpg');
+    expect(model.safeImageUrl('x" onerror="alert(1)')).toBe('');
+    expect(model.safeImageUrl('javascript:alert(1)')).toBe('');
+    expect(model.safeImageUrl('data:image/svg+xml;charset=utf-8,%3Csvg%3E')).toContain('data:image/svg+xml');
+    expect(model.posterUrl('javascript:alert(1)', 'https://image.tmdb.org/t/p/w200')).toBe('');
     expect(model.sourceForEntry({ tmdbId: 42, externalSource: 'anilist' })).toBe('tmdb');
     expect(model.sourceForEntry({ externalSource: 'anilist' })).toBe('anilist');
     expect(model.infoUrlForEntry({ tmdbId: 42, mediaType: 'movie' })).toBe('https://www.themoviedb.org/movie/42');
@@ -1937,7 +1960,7 @@ test.describe('tracker data integrity', () => {
     expect(controller).toContain('function createCommunityController');
     expect(controller).toContain('communityView.cardData(');
     expect(controller).toContain('communityGrid.onclick = e => {');
-    expect(controller).toContain('const SETUP_SQL = `CREATE TABLE IF NOT EXISTS public.profiles');
+    expect(controller).toContain("const SETUP_SQL_URL = '/SUPABASE_SETUP.sql'");
     expect(controller).toContain('/api/community?currentUserId=');
   });
 

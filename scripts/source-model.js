@@ -1,9 +1,21 @@
 (function () {
   const root = window.CineTrack || (window.CineTrack = {});
 
+  function safeImageUrl(value, { allowDataImage = true } = {}) {
+    const raw = String(value || '').trim();
+    if (!raw || /[\u0000-\u001f"'<>\s]/.test(raw)) return '';
+    if (/^https?:\/\//i.test(raw)) return raw;
+    if (allowDataImage && /^data:image\/(?:png|jpe?g|gif|webp|svg\+xml);/i.test(raw)) return raw;
+    if (raw.startsWith('/') && !raw.startsWith('//')) return raw;
+    return '';
+  }
+
   function posterUrl(path, posterBase) {
     if (!path) return '';
-    return /^https?:\/\//i.test(path) ? path : `${posterBase || ''}${path}`;
+    const raw = String(path || '').trim();
+    if (/^https?:\/\//i.test(raw) || /^data:image\//i.test(raw)) return safeImageUrl(raw);
+    if (!raw.startsWith('/')) return '';
+    return safeImageUrl(`${posterBase || ''}${raw}`);
   }
 
   function sourceForEntry(entry) {
@@ -36,6 +48,7 @@
 
   root.sources = {
     posterUrl,
+    safeImageUrl,
     sourceForEntry,
     infoUrlForEntry,
     metadataRefreshLabel,

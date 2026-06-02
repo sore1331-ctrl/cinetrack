@@ -1,62 +1,21 @@
 (function () {
   const root = window.CineTrack || (window.CineTrack = {});
 
-  const SETUP_SQL = `CREATE TABLE IF NOT EXISTS public.profiles (
-  user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  username text,
-  sharing_enabled boolean DEFAULT false,
-  preferences jsonb DEFAULT '{}'::jsonb,
-  updated_at timestamptz DEFAULT now()
-);
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS username text;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS preferences jsonb DEFAULT '{}'::jsonb;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS sharing_enabled boolean DEFAULT false;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
-CREATE TABLE IF NOT EXISTS public.user_data (
-  user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  movies jsonb DEFAULT '[]'::jsonb,
-  updated_at timestamptz DEFAULT now()
-);
-ALTER TABLE public.user_data ADD COLUMN IF NOT EXISTS movies jsonb DEFAULT '[]'::jsonb;
-ALTER TABLE public.user_data ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.user_data ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "profiles_select" ON public.profiles;
-DROP POLICY IF EXISTS "profiles_modify" ON public.profiles;
-DROP POLICY IF EXISTS "Anyone can read profiles" ON public.profiles;
-DROP POLICY IF EXISTS "Users manage their own profile" ON public.profiles;
-DROP POLICY IF EXISTS "profiles_select_authenticated" ON public.profiles;
-DROP POLICY IF EXISTS "profiles_insert_own" ON public.profiles;
-DROP POLICY IF EXISTS "profiles_update_own" ON public.profiles;
-DROP POLICY IF EXISTS "profiles_delete_own" ON public.profiles;
-DROP POLICY IF EXISTS "user_data_own" ON public.user_data;
-DROP POLICY IF EXISTS "user_data_shared" ON public.user_data;
-DROP POLICY IF EXISTS "Community read shared data" ON public.user_data;
-DROP POLICY IF EXISTS "Users manage their own data" ON public.user_data;
-DROP POLICY IF EXISTS "user_data_select_own" ON public.user_data;
-DROP POLICY IF EXISTS "user_data_insert_own" ON public.user_data;
-DROP POLICY IF EXISTS "user_data_update_own" ON public.user_data;
-DROP POLICY IF EXISTS "user_data_delete_own" ON public.user_data;
-DROP POLICY IF EXISTS "user_data_select_shared" ON public.user_data;
-DROP POLICY IF EXISTS "user_data_select_authenticated" ON public.user_data;
-CREATE POLICY "profiles_select_authenticated" ON public.profiles FOR SELECT TO authenticated USING (true);
-CREATE POLICY "profiles_insert_own" ON public.profiles FOR INSERT TO authenticated WITH CHECK ((select auth.uid()) = user_id);
-CREATE POLICY "profiles_update_own" ON public.profiles FOR UPDATE TO authenticated USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
-CREATE POLICY "profiles_delete_own" ON public.profiles FOR DELETE TO authenticated USING ((select auth.uid()) = user_id);
-CREATE POLICY "user_data_select_authenticated" ON public.user_data FOR SELECT TO authenticated USING (
-  ((select auth.uid()) = user_id)
-  OR EXISTS (
-    SELECT 1 FROM public.profiles p
-    WHERE p.user_id = user_data.user_id
-      AND p.sharing_enabled = true
-  )
-);
-CREATE POLICY "user_data_insert_own" ON public.user_data FOR INSERT TO authenticated WITH CHECK ((select auth.uid()) = user_id);
-CREATE POLICY "user_data_update_own" ON public.user_data FOR UPDATE TO authenticated USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
-CREATE POLICY "user_data_delete_own" ON public.user_data FOR DELETE TO authenticated USING ((select auth.uid()) = user_id);
-REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM anon;
-REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM authenticated;`;
+  const SETUP_SQL_URL = '/SUPABASE_SETUP.sql';
+  const SETUP_SQL_FALLBACK = '-- Could not load SUPABASE_SETUP.sql. Open the project root copy and run that full file in Supabase SQL Editor.';
+  let setupSqlPromise = null;
+
+  function loadSetupSql() {
+    if (!setupSqlPromise) {
+      setupSqlPromise = fetch(SETUP_SQL_URL, { cache: 'no-store' })
+        .then(response => {
+          if (!response.ok) throw new Error(`Setup SQL returned ${response.status}`);
+          return response.text();
+        })
+        .catch(() => SETUP_SQL_FALLBACK);
+    }
+    return setupSqlPromise;
+  }
 
   function createCommunityController(options = {}) {
     const {
@@ -190,17 +149,18 @@ REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM authenticated;`;
             diagnosis = `<p class="setup-error-body"><strong>Diagnosis:</strong> Supabase config exists, but the server could not reach Supabase${health.error ? ` (${esc(health.error)})` : ''}.</p>`;
           }
         } catch {}
+        const setupSql = await loadSetupSql();
         communityGrid.innerHTML = `
           <div class="supabase-setup-error">
             <p class="setup-error-title">&#9888;&#65039; Community failed to load</p>
             <p class="setup-error-body"><strong>Error:</strong> ${esc(String(e?.message || e))}</p>
             ${diagnosis}
             <p class="setup-error-body">If this mentions RLS or missing tables, run the SQL below in Supabase SQL Editor.</p>
-            <pre class="setup-sql-block" id="setup-sql-pre">${esc(SETUP_SQL)}</pre>
+            <pre class="setup-sql-block" id="setup-sql-pre">${esc(setupSql)}</pre>
             <button class="setup-copy-btn" id="setup-copy-btn">Copy SQL</button>
           </div>`;
         documentRef.getElementById('setup-copy-btn')?.addEventListener('click', () => {
-          navigator.clipboard.writeText(SETUP_SQL).then(() => {
+          navigator.clipboard.writeText(setupSql).then(() => {
             const btn = documentRef.getElementById('setup-copy-btn');
             if (btn) {
               btn.textContent = 'Copied!';
@@ -216,9 +176,9 @@ REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM authenticated;`;
     return {
       openProfile,
       renderCommunity,
-      setupSql: SETUP_SQL,
+      loadSetupSql,
     };
   }
 
-  root.communityController = { createCommunityController, SETUP_SQL };
+  root.communityController = { createCommunityController, loadSetupSql };
 })();
