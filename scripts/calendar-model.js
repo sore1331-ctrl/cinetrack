@@ -227,6 +227,20 @@
     const localByKey = new Map((tracked || []).map(entry => [keyFor(entry), entry]));
     const rows = [];
     const seen = new Set();
+    const heldTodayKeys = new Set();
+
+    for (const item of upcoming || []) {
+      const key = item?.sourceKey || `${item?.type}:${item?.tmdbId}`;
+      const local = localByKey.get(key);
+      const episode = item?.nextEpisode;
+      if (
+        local &&
+        episode?.airDate === todayStr &&
+        hasUnwatchedAiringEpisodeToday(local, episode, todayStr)
+      ) {
+        heldTodayKeys.add(key);
+      }
+    }
 
     for (const item of upcoming || []) {
       const key = item?.sourceKey || `${item?.type}:${item?.tmdbId}`;
@@ -251,6 +265,7 @@
 
       const episode = item?.nextEpisode;
       if (episode?.airDate && episode.airDate >= todayStr && episode.airDate <= tvHorizonStr) {
+        if (heldTodayKeys.has(key) && episode.airDate !== todayStr) continue;
         const watchedToday = local && episode.airDate === todayStr && !hasUnwatchedAiringEpisodeToday(local, episode, todayStr);
         if (watchedToday && watchedMode === 'hide') continue;
         addUniqueRow(rows, seen, {
