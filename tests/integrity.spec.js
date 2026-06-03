@@ -93,6 +93,15 @@ function loadCalendarModel() {
   return sandbox.window.CineTrack.calendar;
 }
 
+function loadTvmazeCalendarHelpers() {
+  const source = fs.readFileSync(path.join(root, 'api', 'tvmaze-calendar.js'), 'utf8');
+  const start = source.indexOf('function stripTags');
+  const end = source.indexOf('async function calendarEntry');
+  const sandbox = {};
+  vm.runInNewContext(`${source.slice(start, end)}; helpers = { searchTitleCandidates, chooseShow };`, sandbox);
+  return sandbox.helpers;
+}
+
 function loadStatsModel() {
   const source = fs.readFileSync(path.join(root, 'scripts', 'stats-model.js'), 'utf8');
   const sandbox = {
@@ -474,6 +483,19 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('tvmazeUpcoming = await fetchTvmazeCalendarForEntries(tracked, { force });');
     expect(tvmazeApi).toContain('findCalendarEpisode');
     expect(tvmazeApi).toContain('ep.airdate >= today && ep.airdate <= horizon');
+  });
+
+  test('TVMaze calendar lookup strips season suffixes from anime titles', () => {
+    const helpers = loadTvmazeCalendarHelpers();
+
+    expect(helpers.searchTitleCandidates('The Beginning After the End Season 2')).toEqual([
+      'The Beginning After the End Season 2',
+      'The Beginning After the End',
+    ]);
+    expect(helpers.searchTitleCandidates('The Beginning After the End 2nd Season')).toEqual([
+      'The Beginning After the End 2nd Season',
+      'The Beginning After the End',
+    ]);
   });
 
   test('upcoming cache refresh preserves existing entries while warming badges', () => {

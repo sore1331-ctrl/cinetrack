@@ -24,6 +24,17 @@ function norm(value = '') {
     .trim();
 }
 
+function searchTitleCandidates(title = '') {
+  const raw = String(title || '').trim();
+  const candidates = [raw];
+  const stripped = raw
+    .replace(/\s+(?:season|series)\s+\d+$/i, '')
+    .replace(/\s+\d+(?:st|nd|rd|th)?\s+season$/i, '')
+    .trim();
+  if (stripped && stripped !== raw) candidates.push(stripped);
+  return [...new Set(candidates)];
+}
+
 function yearOf(value = '') {
   return String(value || '').slice(0, 4);
 }
@@ -69,8 +80,11 @@ async function calendarEntry(entry, today, horizon) {
   if (entry.externalSource === 'tvmaze' && /^\d+$/.test(String(entry.externalId || ''))) {
     show = await tvmaze(`/shows/${entry.externalId}`);
   } else {
-    const results = await tvmaze(`/search/shows?q=${encodeURIComponent(title)}`);
-    show = chooseShow(results, entry);
+    for (const candidate of searchTitleCandidates(title)) {
+      const results = await tvmaze(`/search/shows?q=${encodeURIComponent(candidate)}`);
+      show = chooseShow(results, entry);
+      if (show?.id) break;
+    }
   }
   if (!show?.id) return null;
 
