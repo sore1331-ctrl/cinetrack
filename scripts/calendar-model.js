@@ -188,7 +188,7 @@
         if (entry.externalSource === 'anilist' && entry.externalId) {
           externalEntries.push(entry);
         }
-        if (entry.mediaType === 'tv') tvEntries.push(entry);
+        tvEntries.push(entry);
       } else if (entry.mediaType === 'movie' && entry.status === 'watchlist' && entry.tmdbId) {
         ids.push(`movie:${entry.tmdbId}`);
       }

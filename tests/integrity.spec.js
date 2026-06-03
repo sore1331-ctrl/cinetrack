@@ -464,6 +464,7 @@ test.describe('tracker data integrity', () => {
     const tvmazeApi = fs.readFileSync(path.join(root, 'api', 'tvmaze-calendar.js'), 'utf8');
 
     expect(app).toContain('async function fetchTvmazeCalendarForEntries');
+    expect(app).toContain("(m.mediaType === 'tv' || m.mediaType === 'anime')");
     expect(app).toContain("requiredSource: 'tvmaze'");
     expect(app).toContain('mergeUpcomingCache(results)');
     expect(app).toContain("const tmdbIds = ids.filter(id => id.startsWith('movie:'));");
@@ -549,6 +550,8 @@ test.describe('tracker data integrity', () => {
       tvEntries: [
         { mediaType: 'tv', status: 'in_progress', tmdbId: 10 },
         { mediaType: 'tv', status: 'in_progress', externalSource: 'tvmaze', externalId: '90839' },
+        { mediaType: 'anime', status: 'watchlist', tmdbId: 11 },
+        { mediaType: 'anime', status: 'in_progress', externalSource: 'anilist', externalId: '777' },
       ],
       externalEntries: [{ mediaType: 'anime', status: 'in_progress', externalSource: 'anilist', externalId: '777' }],
     });
@@ -669,6 +672,25 @@ test.describe('tracker data integrity', () => {
     });
     expect(animeRows).toHaveLength(1);
     expect(animeRows[0]).toEqual(expect.objectContaining({ kind: 'anime', title: 'Anime Local' }));
+
+    const animeTodayRows = model.trackedRows({
+      tracked: [{ mediaType: 'anime', status: 'in_progress', externalSource: 'anilist', externalId: '777', title: 'Anime Local', watchedEpisodes: 9 }],
+      upcoming: [
+        { type: 'tv', source: 'anilist', sourceKey: 'anilist:777', title: 'Anime Local', nextEpisode: { season: 1, episode: 11, airDate: '2026-06-10' } },
+        { type: 'tv', source: 'tvmaze', sourceKey: 'anilist:777', title: 'Anime Local', nextEpisode: { season: 1, episode: 10, airDate: '2026-06-03' } },
+      ],
+      cache: {
+        byId: {
+          'anilist:777': { source: 'tvmaze', nextEpisode: { season: 1, episode: 10, airDate: '2026-06-03' } },
+        },
+      },
+      todayStr: '2026-06-03',
+      tvHorizonStr: '2026-06-17',
+      keyFor: model.keyForEntry,
+      infoUrlForEntry: entry => `/anime/${entry.externalId}`,
+    });
+    expect(animeTodayRows.map(row => row.episodeKey)).toEqual(['S1E10', 'S1E11']);
+    expect(animeTodayRows[0]).toEqual(expect.objectContaining({ watched: false, kind: 'anime' }));
 
     const watchedRows = model.trackedRows({
       tracked: [{ mediaType: 'tv', status: 'in_progress', tmdbId: 10, title: 'Watched Today', watchedEpisodes: 13, seasons: [{ number: 1, total: 10 }, { number: 2, total: 8 }] }],

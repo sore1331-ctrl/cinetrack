@@ -2482,7 +2482,7 @@ async function fetchExternalUpcomingForEntries(entries) {
 async function fetchTvmazeCalendarForEntries(entries, { force = false } = {}) {
   const tvEntries = entries.filter(m =>
     m &&
-    m.mediaType === 'tv' &&
+    (m.mediaType === 'tv' || m.mediaType === 'anime') &&
     calendarKeyForEntry(m) &&
     (m.status === 'in_progress' || m.status === 'watchlist')
   );
