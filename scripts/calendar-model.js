@@ -206,10 +206,34 @@
   function addUniqueRow(rows, seen, row) {
     if (!row?.date) return;
     const baseKey = `${row.kind}:${row.uniqueKey || row.tmdbId || row.title}:${row.date}`;
-    const key = row.episodeKey ? `${baseKey}:${row.episodeKey}` : `${baseKey}:${row.sublabel || ''}`;
+    const key = row.episodeKey ? baseKey : `${baseKey}:${row.sublabel || ''}`;
     if (seen.has(key)) return;
     seen.add(key);
     rows.push(row);
+  }
+
+  function cachedUpcomingForTracked({ cache = null, tracked = [], keyFor = keyForEntry } = {}) {
+    if (!cache?.byId) return [];
+    return (tracked || [])
+      .map(entry => {
+        const key = keyFor(entry);
+        const item = key ? cache.byId[key] : null;
+        return item && typeof item === 'object' ? item : null;
+      })
+      .filter(Boolean);
+  }
+
+  function mergeUpcomingForTracked({ live = [], cache = null, tracked = [], keyFor = keyForEntry } = {}) {
+    const byKey = new Map();
+    for (const item of cachedUpcomingForTracked({ cache, tracked, keyFor })) {
+      const key = item?.sourceKey || `${item?.type || 'tv'}:${item?.tmdbId || item?.externalId || ''}`;
+      if (key && !key.endsWith(':')) byKey.set(key, item);
+    }
+    for (const item of live || []) {
+      const key = item?.sourceKey || `${item?.type || 'tv'}:${item?.tmdbId || item?.externalId || ''}`;
+      if (key && !key.endsWith(':')) byKey.set(key, item);
+    }
+    return [...byKey.values()];
   }
 
   function trackedRows({
@@ -346,6 +370,8 @@
     discoverWatchlistEntry,
     warmKeysForEntries,
     trackedEntries,
+    cachedUpcomingForTracked,
+    mergeUpcomingForTracked,
     trackedRows,
     groupRowsByDate,
   };

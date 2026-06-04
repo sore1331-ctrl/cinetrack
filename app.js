@@ -2996,9 +2996,15 @@ async function renderCalendarTracked(body, { force = false } = {}) {
   }
 
   try {
+    const stableUpcoming = calendarModel.mergeUpcomingForTracked({
+      live: upcoming,
+      cache: readUpcomingCache(),
+      tracked,
+      keyFor: calendarKeyForEntry,
+    });
     const dated = calendarModel.trackedRows({
       tracked,
-      upcoming,
+      upcoming: stableUpcoming,
       cache: readUpcomingCache(),
       todayStr,
       tvHorizonStr,

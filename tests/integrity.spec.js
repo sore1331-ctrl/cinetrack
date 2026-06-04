@@ -521,6 +521,7 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('const upcomingCache = readUpcomingCache();');
     expect(app).toContain('const checkAiringToday = airingTodayChecker(upcomingCache);');
     expect(app).toContain('const list = filtered(upcomingCache);');
+    expect(app).toContain('calendarModel.mergeUpcomingForTracked({');
     expect(app).toContain('calendarModel.trackedRows({');
     expect(app).toContain('mergeUpcomingCache(await fetchExternalUpcomingForEntries(externalEntries));');
     expect(calendarModel).toContain('airingTodaySignal(local, cache, todayStr, { watchedMode })');
@@ -726,6 +727,37 @@ test.describe('tracker data integrity', () => {
       infoUrlForEntry: entry => `/anime/${entry.externalId}`,
     });
     expect(animeAfterAirDayRows.map(row => row.episodeKey)).toEqual(['S1E11']);
+
+    const animeSourceDuplicateRows = model.trackedRows({
+      tracked: [{ mediaType: 'anime', status: 'in_progress', externalSource: 'anilist', externalId: '777', title: 'Anime Local', watchedEpisodes: 10 }],
+      upcoming: [
+        { type: 'tv', source: 'anilist', sourceKey: 'anilist:777', title: 'Anime Local', nextEpisode: { season: 1, episode: 11, airDate: '2026-06-10' } },
+        { type: 'tv', source: 'tvmaze', sourceKey: 'anilist:777', title: 'Anime Local', nextEpisode: { season: 2, episode: 11, name: 'Episode 11', airDate: '2026-06-10' } },
+      ],
+      todayStr: '2026-06-04',
+      tvHorizonStr: '2026-06-18',
+      keyFor: model.keyForEntry,
+      infoUrlForEntry: entry => `/anime/${entry.externalId}`,
+    });
+    expect(animeSourceDuplicateRows.map(row => row.episodeKey)).toEqual(['S1E11']);
+
+    const stableUpcoming = model.mergeUpcomingForTracked({
+      tracked: [
+        { mediaType: 'tv', status: 'in_progress', tmdbId: 10, title: 'Cached TV' },
+        { mediaType: 'tv', status: 'in_progress', tmdbId: 11, title: 'Updated TV' },
+      ],
+      cache: {
+        byId: {
+          'tv:10': { type: 'tv', source: 'tvmaze', sourceKey: 'tv:10', tmdbId: 10, title: 'Cached TV', nextEpisode: { season: 1, episode: 5, airDate: '2026-06-05' } },
+          'tv:11': { type: 'tv', source: 'tvmaze', sourceKey: 'tv:11', tmdbId: 11, title: 'Stale TV', nextEpisode: { season: 1, episode: 2, airDate: '2026-06-06' } },
+        },
+      },
+      live: [
+        { type: 'tv', source: 'tvmaze', sourceKey: 'tv:11', tmdbId: 11, title: 'Updated TV', nextEpisode: { season: 1, episode: 3, airDate: '2026-06-07' } },
+      ],
+      keyFor: model.keyForEntry,
+    });
+    expect(stableUpcoming.map(item => `${item.sourceKey}:${item.nextEpisode.episode}`)).toEqual(['tv:10:5', 'tv:11:3']);
 
     const watchedRows = model.trackedRows({
       tracked: [{ mediaType: 'tv', status: 'in_progress', tmdbId: 10, title: 'Watched Today', watchedEpisodes: 13, seasons: [{ number: 1, total: 10 }, { number: 2, total: 8 }] }],
