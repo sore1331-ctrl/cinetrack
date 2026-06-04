@@ -206,7 +206,7 @@
   function addUniqueRow(rows, seen, row) {
     if (!row?.date) return;
     const baseKey = `${row.kind}:${row.uniqueKey || row.tmdbId || row.title}:${row.date}`;
-    const key = row.episodeKey ? `${baseKey}:${row.episodeKey}` : `${baseKey}:${row.sublabel || ''}`;
+    const key = row.episodeKey ? baseKey : `${baseKey}:${row.sublabel || ''}`;
     if (seen.has(key)) return;
     seen.add(key);
     rows.push(row);
