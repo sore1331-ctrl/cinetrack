@@ -529,9 +529,14 @@ button.danger:hover { opacity: .85; }
 }
 .modal-card-editor #movie-form {
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden;
   padding: 0;
   gap: 10px;
+}
+.modal-form-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 6px;
 }
 .modal-card-editor .type-toggle {
   flex-shrink: 0;
@@ -777,18 +782,17 @@ button.danger:hover { opacity: .85; }
   display: grid;
   grid-template-columns: minmax(180px, 280px) minmax(0, 1fr);
   gap: 12px;
-  margin-bottom: 56px;
+  margin-bottom: 0;
 }
 .modal-card-editor .modal-actions {
   align-items: center;
   border-top: 1px solid var(--border);
   margin: 8px 0 0;
   padding: 10px 0 0;
-  position: sticky;
-  bottom: 0;
-  z-index: 5;
-  background: color-mix(in srgb, var(--glass-bg-strong) 96%, #06101d 4%);
-  box-shadow: 0 -10px 24px rgba(0,0,0,.18);
+  flex-shrink: 0;
+  position: static;
+  background: transparent;
+  box-shadow: none;
 }
 .modal-card-editor #save-btn {
   min-width: 136px;
@@ -817,7 +821,7 @@ button.danger:hover { opacity: .85; }
   }
   .modal-notes-section {
     grid-template-columns: 1fr;
-    margin-bottom: 56px;
+    margin-bottom: 0;
   }
 }
 
@@ -852,6 +856,14 @@ button.danger:hover { opacity: .85; }
   .modal-card-editor .type-btn {
     min-height: 38px;
     font-size: .82rem;
+  }
+  .modal-card-editor #movie-form {
+    display: block;
+    overflow-y: auto;
+  }
+  .modal-form-scroll {
+    overflow: visible;
+    padding-right: 0;
   }
   .modal-editor-grid {
     grid-template-columns: 72px minmax(0, 1fr);
