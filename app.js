@@ -1805,7 +1805,7 @@ function updateModalPreview(entry = null) {
   if (modalPreviewYear) modalPreviewYear.textContent = year || 'No year';
   if (modalPreviewCountry) modalPreviewCountry.textContent = country || 'No country';
   if (modalPreviewRuntime) modalPreviewRuntime.textContent = runtime ? `${runtime} min` : 'No runtime';
-  if (modalRatingValue) modalRatingValue.textContent = `${selectedRating || 0}/10`;
+  if (modalRatingValue) modalRatingValue.textContent = selectedRating ? `${selectedRating}/10` : 'Unrated';
 
   if (modalPreviewPoster && modalPreviewFallback) {
     if (poster) {
