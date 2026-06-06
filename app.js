@@ -922,6 +922,16 @@ const tmdbSearching   = document.getElementById('tmdb-searching');
 const tmdbError       = document.getElementById('tmdb-error');
 const tmdbSearchLabel = document.getElementById('tmdb-search-label');
 const modalTmdbRefreshBtn = document.getElementById('modal-tmdb-refresh-btn');
+const modalPreviewPoster = document.getElementById('modal-preview-poster');
+const modalPreviewFallback = document.getElementById('modal-preview-fallback');
+const modalPreviewTitle = document.getElementById('modal-preview-title');
+const modalPreviewType = document.getElementById('modal-preview-type');
+const modalPreviewStatus = document.getElementById('modal-preview-status');
+const modalPreviewGenre = document.getElementById('modal-preview-genre');
+const modalPreviewYear = document.getElementById('modal-preview-year');
+const modalPreviewCountry = document.getElementById('modal-preview-country');
+const modalPreviewRuntime = document.getElementById('modal-preview-runtime');
+const modalRatingValue = document.getElementById('modal-rating-value');
 
 const NAV_ICONS = {
   movie: '<svg viewBox="0 0 24 24"><path d="M4 8h16v11H4z"/><path d="M4 8l2-4h16l-2 4"/><path d="M8 4 6 8M13 4l-2 4M18 4l-2 4"/><path d="m10 12 4 2.5-4 2.5z"/></svg>',
@@ -1699,6 +1709,7 @@ function applyTMDBSelection(details) {
   modalSeasons.applySelection(details, document.getElementById('f-status')?.value || '');
   modalProviders.render(details.providers);
   checkDuplicateForSelection(details);
+  updateModalPreview(editingId ? movies.find(m => m.id === editingId) : null);
 }
 
 function normaliseDuplicateTitle(value) {
@@ -1763,6 +1774,55 @@ function resetTMDBUI() {
   document.getElementById('duplicate-warning')?.classList.add('hidden');
 }
 
+function modalTypeLabel(type = activeMediaType) {
+  if (type === 'anime') return 'Anime';
+  if (type === 'tv') return 'TV Show';
+  return 'Movie';
+}
+
+function modalStatusLabel(status = '') {
+  return ({
+    watchlist: 'Watchlist',
+    in_progress: 'In Progress',
+    watched: 'Watched',
+    dropped: 'Dropped',
+  })[status] || 'Watchlist';
+}
+
+function updateModalPreview(entry = null) {
+  const title = document.getElementById('f-title')?.value?.trim() || entry?.title || 'Untitled';
+  const year = document.getElementById('f-year')?.value || entry?.year || '';
+  const genre = document.getElementById('f-genre')?.value?.trim() || entry?.genre || '';
+  const country = document.getElementById('f-country')?.value?.trim() || entry?.country || '';
+  const runtime = document.getElementById('f-runtime')?.value || entry?.runtime || '';
+  const status = document.getElementById('f-status')?.value || entry?.status || 'watchlist';
+  const poster = tmdbSelection?.poster_path ? externalPosterUrl(tmdbSelection.poster_path) : (entry?.posterUrl || '');
+
+  if (modalPreviewTitle) modalPreviewTitle.textContent = title;
+  if (modalPreviewType) modalPreviewType.textContent = modalTypeLabel(activeMediaType);
+  if (modalPreviewStatus) modalPreviewStatus.textContent = modalStatusLabel(status);
+  if (modalPreviewGenre) modalPreviewGenre.textContent = genre || 'No genre';
+  if (modalPreviewYear) modalPreviewYear.textContent = year || 'No year';
+  if (modalPreviewCountry) modalPreviewCountry.textContent = country || 'No country';
+  if (modalPreviewRuntime) modalPreviewRuntime.textContent = runtime ? `${runtime} min` : 'No runtime';
+  if (modalRatingValue) modalRatingValue.textContent = `${selectedRating || 0}/10`;
+
+  if (modalPreviewPoster && modalPreviewFallback) {
+    if (poster) {
+      modalPreviewPoster.src = poster;
+      modalPreviewPoster.alt = title;
+      modalPreviewPoster.classList.remove('hidden');
+      modalPreviewFallback.classList.add('hidden');
+    } else {
+      modalPreviewPoster.removeAttribute('src');
+      modalPreviewPoster.alt = '';
+      modalPreviewPoster.classList.add('hidden');
+      modalPreviewFallback.textContent = title === 'Untitled' ? 'CineTrack' : posterEmoji(title);
+      modalPreviewFallback.classList.remove('hidden');
+    }
+  }
+}
+
 // ── Star rating ─────────────────────────────────────────
 function buildStars() {
   starRow.innerHTML = '';
@@ -1775,9 +1835,10 @@ function buildStars() {
     s.addEventListener('mouseleave', () => hoverStars(selectedRating));
     starRow.appendChild(s);
   }
+  updateModalPreview(editingId ? movies.find(m => m.id === editingId) : null);
 }
 
-function setRating(val) { selectedRating = val; hoverStars(val); }
+function setRating(val) { selectedRating = val; hoverStars(val); updateModalPreview(editingId ? movies.find(m => m.id === editingId) : null); }
 function hoverStars(val) {
   starRow.querySelectorAll('.star').forEach((s, i) => s.classList.toggle('lit', i < val));
 }
@@ -4009,6 +4070,7 @@ const modalType = modalController.createTypeController({
   onChange: mediaType => {
     activeMediaType = mediaType;
     resetTMDBUI();
+    updateModalPreview(editingId ? movies.find(m => m.id === editingId) : null);
   },
 });
 const modalOpen = modalController.createOpenController({
@@ -4044,6 +4106,7 @@ function openModal(movie = null) {
 
   toggleRatingLabel();
   buildStars();
+  updateModalPreview(movie);
   modal.classList.remove('hidden');
   tmdbQuery.focus();
 
@@ -4124,7 +4187,11 @@ form.addEventListener('submit', e => {
 addBtn.addEventListener('click', () => openModal());
 cancelBtn.addEventListener('click', closeModal);
 modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
-document.getElementById('f-status').addEventListener('change', () => { toggleRatingLabel(); buildStars(); modalRewatch.update(); });
+document.getElementById('f-status').addEventListener('change', () => { toggleRatingLabel(); buildStars(); modalRewatch.update(); updateModalPreview(editingId ? movies.find(m => m.id === editingId) : null); });
+['f-title', 'f-year', 'f-genre', 'f-country', 'f-runtime'].forEach(id => {
+  document.getElementById(id)?.addEventListener('input', () => updateModalPreview(editingId ? movies.find(m => m.id === editingId) : null));
+  document.getElementById(id)?.addEventListener('change', () => updateModalPreview(editingId ? movies.find(m => m.id === editingId) : null));
+});
 const searchClearBtn = document.getElementById('search-clear-btn');
 function updateSearchClearBtn() {
   if (!searchClearBtn) return;

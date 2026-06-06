@@ -31,7 +31,7 @@
   <link rel="stylesheet" href="styles/profile.css?v=split-20260523-2" />
   <link rel="stylesheet" href="styles/community.css?v=split-20260523-2" />
   <link rel="stylesheet" href="styles/calendar.css?v=split-20260523-2" />
-  <link rel="stylesheet" href="styles/overlays.css?v=split-20260523-2" />
+  <link rel="stylesheet" href="styles/overlays.css?v=modal-redesign-20260606-1" />
   <link rel="stylesheet" href="styles/controls.css?v=split-20260523-2" />
   <link rel="stylesheet" href="styles/account.css?v=split-20260523-2" />
   <link rel="stylesheet" href="styles/glass.css?v=split-20260523-2" />
@@ -364,43 +364,109 @@
 
   <!-- Add/Edit Modal -->
   <div id="modal" class="modal hidden">
-    <div class="modal-card">
+    <div class="modal-card modal-card-editor">
       <div class="modal-title-row">
-        <h2 id="modal-title">Add Title</h2>
+        <div>
+          <span class="modal-kicker">Library details</span>
+          <h2 id="modal-title">Add Title</h2>
+          <p class="modal-subtitle">Update tracking, metadata, providers, and notes for this title.</p>
+        </div>
         <button type="button" id="modal-tmdb-refresh-btn" class="modal-tmdb-refresh-btn hidden" title="Re-fetch metadata from this title's source while preserving watch progress">↻ Refresh metadata</button>
       </div>
       <div class="type-toggle" id="type-toggle">
-        <button type="button" class="type-btn active" data-type="movie">🎬 Movie</button>
-        <button type="button" class="type-btn" data-type="tv">📺 TV Show</button>
-        <button type="button" class="type-btn" data-type="anime">🎌 Anime</button>
+        <button type="button" class="type-btn active" data-type="movie">Movie</button>
+        <button type="button" class="type-btn" data-type="tv">TV Show</button>
+        <button type="button" class="type-btn" data-type="anime">Anime</button>
       </div>
       <form id="movie-form">
+        <div class="modal-editor-grid">
+          <aside class="modal-poster-panel">
+            <div class="modal-poster-frame">
+              <img id="modal-preview-poster" class="modal-preview-poster hidden" src="" alt="" />
+              <div id="modal-preview-fallback" class="modal-preview-fallback">CineTrack</div>
+            </div>
+            <div class="modal-selected-slot">
+              <div id="tmdb-selected" class="tmdb-selected hidden">
+                <img id="tmdb-poster-thumb" src="" alt="" />
+                <div class="tmdb-selected-info">
+                  <strong id="tmdb-selected-title"></strong>
+                  <span id="tmdb-selected-year"></span>
+                </div>
+                <button type="button" id="tmdb-clear" title="Clear selection">×</button>
+              </div>
+            </div>
+          </aside>
+
+          <section class="modal-detail-panel">
+            <div class="modal-identity">
+              <div>
+                <span id="modal-preview-type" class="modal-type-chip">Movie</span>
+                <h3 id="modal-preview-title">Untitled</h3>
+              </div>
+            </div>
+            <div class="modal-chip-row" aria-label="Current title summary">
+              <span id="modal-preview-status" class="modal-chip modal-chip-status">Watchlist</span>
+              <span id="modal-preview-genre" class="modal-chip">Genre</span>
+              <span id="modal-preview-year" class="modal-chip">Year</span>
+              <span id="modal-preview-country" class="modal-chip">Country</span>
+              <span id="modal-preview-runtime" class="modal-chip">Runtime</span>
+            </div>
+            <div class="modal-form-section modal-form-section-search">
+              <div class="tmdb-search-wrap" id="tmdb-search-wrap">
+                <label id="tmdb-search-label">Search TMDB
+                  <div class="search-field-wrap">
+                    <input type="text" id="tmdb-query" placeholder="Type a title..." autocomplete="off" />
+                    <div id="tmdb-dropdown" class="tmdb-dropdown hidden"></div>
+                  </div>
+                </label>
+                <div id="tmdb-searching" class="tmdb-status hidden">Searching…</div>
+                <div id="tmdb-error" class="tmdb-status error hidden"></div>
+                <div id="duplicate-warning" class="duplicate-warning hidden">
+                  <span class="duplicate-warning-text">⚠️ <strong>Already in your library</strong> <span id="duplicate-warning-detail"></span></span>
+                  <button type="button" id="duplicate-edit-btn" class="duplicate-edit-btn">Open existing</button>
+                </div>
+              </div>
+            </div>
+            <div class="modal-form-section modal-tracking-section">
+              <label>Status
+                <select id="f-status">
+                  <option value="watchlist">Watchlist</option>
+                  <option value="in_progress">▶ In Progress</option>
+                  <option value="watched">Watched</option>
+                  <option value="dropped" id="f-status-dropped-opt">Dropped</option>
+                </select>
+              </label>
+              <label id="rating-label" class="hidden">Your rating
+                <div class="star-row" id="star-row"></div>
+                <span id="modal-rating-value" class="modal-rating-value">0/10</span>
+              </label>
+              <div id="rewatch-row" class="rewatch-row hidden">
+                <span class="rewatch-label">Watched <strong id="rewatch-count">1</strong> time<span id="rewatch-plural">s</span></span>
+                <button type="button" id="rewatch-inc-btn" class="rewatch-btn" title="Log another rewatch">+1</button>
+                <button type="button" id="rewatch-dec-btn" class="rewatch-btn rewatch-btn-sub" title="Decrease by 1" tabindex="-1">−</button>
+              </div>
+              <div id="ep-fields" class="ep-fields hidden">
+                <label id="season-select-label" class="hidden">Season
+                  <select id="f-season-select"></select>
+                </label>
+                <div class="row-2">
+                  <label>Episodes Watched
+                    <input type="number" id="f-ep-watched" min="0" max="9999" placeholder="0" />
+                  </label>
+                  <label>Total Episodes
+                    <input type="number" id="f-ep-total" min="0" max="9999" placeholder="e.g. 62" />
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div id="modal-providers" class="modal-providers hidden"></div>
+          </section>
+        </div>
+
         <div class="modal-form-section modal-form-section-search">
-          <div class="tmdb-search-wrap" id="tmdb-search-wrap">
-          <label id="tmdb-search-label">Search TMDB
-            <div class="search-field-wrap">
-              <input type="text" id="tmdb-query" placeholder="Type a title..." autocomplete="off" />
-              <div id="tmdb-dropdown" class="tmdb-dropdown hidden"></div>
-            </div>
-          </label>
-          <div id="tmdb-selected" class="tmdb-selected hidden">
-            <img id="tmdb-poster-thumb" src="" alt="" />
-            <div class="tmdb-selected-info">
-              <strong id="tmdb-selected-title"></strong>
-              <span id="tmdb-selected-year"></span>
-            </div>
-            <button type="button" id="tmdb-clear" title="Clear selection">✕</button>
-          </div>
-          <div id="tmdb-searching" class="tmdb-status hidden">Searching…</div>
-          <div id="tmdb-error" class="tmdb-status error hidden"></div>
-          <div id="duplicate-warning" class="duplicate-warning hidden">
-            <span class="duplicate-warning-text">⚠️ <strong>Already in your library</strong> <span id="duplicate-warning-detail"></span></span>
-            <button type="button" id="duplicate-edit-btn" class="duplicate-edit-btn">Open existing</button>
-          </div>
-          <div id="modal-providers" class="modal-providers hidden"></div>
+          <span class="modal-section-label">Editable metadata</span>
         </div>
-        </div>
-        <div class="modal-form-section">
+        <div class="modal-form-section modal-metadata-section">
         <div id="manual-fields">
           <label>Title *
             <input type="text" id="f-title" required placeholder="e.g. Inception" />
@@ -460,42 +526,11 @@
           </div>
         </div>
         </div>
-        <div class="modal-form-section">
-        <label>Status
-          <select id="f-status">
-            <option value="watchlist">Watchlist</option>
-            <option value="in_progress">▶ In Progress</option>
-            <option value="watched">Watched</option>
-            <option value="dropped" id="f-status-dropped-opt">📛 Dropped</option>
-          </select>
-        </label>
-        <label id="rating-label" class="hidden">Rating (1–10)
-          <div class="star-row" id="star-row"></div>
-        </label>
-        <div id="rewatch-row" class="rewatch-row hidden">
-          <span class="rewatch-label">Watched <strong id="rewatch-count">1</strong> time<span id="rewatch-plural">s</span></span>
-          <button type="button" id="rewatch-inc-btn" class="rewatch-btn" title="Log another rewatch">🔁 +1</button>
-          <button type="button" id="rewatch-dec-btn" class="rewatch-btn rewatch-btn-sub" title="Decrease by 1" tabindex="-1">−</button>
-        </div>
-        <div id="ep-fields" class="ep-fields hidden">
-          <label id="season-select-label" class="hidden">Season
-            <select id="f-season-select"></select>
-          </label>
-          <div class="row-2">
-            <label>Episodes Watched
-              <input type="number" id="f-ep-watched" min="0" max="9999" placeholder="0" />
-            </label>
-            <label>Total Episodes
-              <input type="number" id="f-ep-total" min="0" max="9999" placeholder="e.g. 62" />
-            </label>
-          </div>
-        </div>
-        </div>
-        <div class="modal-form-section">
+        <div class="modal-form-section modal-notes-section">
         <label>Runtime (minutes)
           <input type="number" id="f-runtime" min="0" max="99999" placeholder="e.g. 148 (filled from TMDB)" />
         </label>
-        <label>Notes
+        <label>Synopsis / Notes
           <textarea id="f-notes" rows="5" placeholder="Your thoughts..."></textarea>
         </label>
         </div>
@@ -582,6 +617,6 @@
   <script src="scripts/error-log.js?v=safety-20260523-2"></script>
   <script src="scripts/sync-model.js?v=safety-20260523-3"></script>
   <script src="scripts/sync-controller.js?v=split-20260526-1"></script>
-  <script src="app.js?v=calendar-20260603-1"></script>
+  <script src="app.js?v=modal-redesign-20260606-1"></script>
 </body>
 </html>
