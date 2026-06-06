@@ -932,6 +932,9 @@ const modalPreviewYear = document.getElementById('modal-preview-year');
 const modalPreviewCountry = document.getElementById('modal-preview-country');
 const modalPreviewRuntime = document.getElementById('modal-preview-runtime');
 const modalRatingValue = document.getElementById('modal-rating-value');
+const modalPlanDate = document.getElementById('f-plan-date');
+const modalPlanTime = document.getElementById('f-plan-time');
+const modalPlanClear = document.getElementById('f-plan-clear');
 
 const NAV_ICONS = {
   movie: '<svg viewBox="0 0 24 24"><path d="M4 8h16v11H4z"/><path d="M4 8l2-4h16l-2 4"/><path d="M8 4 6 8M13 4l-2 4M18 4l-2 4"/><path d="m10 12 4 2.5-4 2.5z"/></svg>',
@@ -1824,6 +1827,35 @@ function updateModalPreview(entry = null) {
 }
 
 // ── Star rating ─────────────────────────────────────────
+function syncModalPlanFields(entry = null) {
+  if (modalPlanDate) modalPlanDate.value = entry?.plannedWatchDate || '';
+  if (modalPlanTime) modalPlanTime.value = entry?.plannedWatchTime || '';
+}
+
+function modalPlanPatch(existing = null) {
+  const dateRaw = modalPlanDate?.value || '';
+  const timeRaw = modalPlanTime?.value || '';
+  const date = normalisePlanDate(dateRaw);
+  const time = normalisePlanTime(timeRaw);
+
+  if (dateRaw && !date) return { ok: false, message: 'Choose a valid plan date.' };
+  if (timeRaw && !time) return { ok: false, message: 'Choose a valid plan time.' };
+  if (time && !date) return { ok: false, message: 'Choose a plan date before adding a time.' };
+
+  const previousDate = existing?.plannedWatchDate || '';
+  const previousTime = existing?.plannedWatchTime || '';
+  if (date === previousDate && time === previousTime) return { ok: true, patch: {} };
+
+  return {
+    ok: true,
+    patch: {
+      plannedWatchDate: date,
+      plannedWatchTime: time,
+      plannedWatchUpdatedAt: new Date().toISOString(),
+    },
+  };
+}
+
 function buildStars() {
   starRow.innerHTML = '';
   for (let i = 1; i <= 10; i++) {
@@ -4103,6 +4135,7 @@ function openModal(movie = null) {
   selectedRating = openState.rating;
 
   modalRewatch.initFromEntry(movie);
+  syncModalPlanFields(movie);
 
   toggleRatingLabel();
   buildStars();
@@ -4163,6 +4196,12 @@ form.addEventListener('submit', e => {
     selectedRating,
   });
   if (!submission.ok) return;
+  const planPatch = modalPlanPatch(existing);
+  if (!planPatch.ok) {
+    showToast(planPatch.message, true);
+    return;
+  }
+  Object.assign(submission.data, planPatch.patch);
 
   if (submission.duplicateProbe) {
     const duplicate = findDuplicateTitle(submission.duplicateProbe);
@@ -4188,6 +4227,10 @@ addBtn.addEventListener('click', () => openModal());
 cancelBtn.addEventListener('click', closeModal);
 modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
 document.getElementById('f-status').addEventListener('change', () => { toggleRatingLabel(); buildStars(); modalRewatch.update(); updateModalPreview(editingId ? movies.find(m => m.id === editingId) : null); });
+modalPlanClear?.addEventListener('click', () => {
+  if (modalPlanDate) modalPlanDate.value = '';
+  if (modalPlanTime) modalPlanTime.value = '';
+});
 ['f-title', 'f-year', 'f-genre', 'f-country', 'f-runtime'].forEach(id => {
   document.getElementById(id)?.addEventListener('input', () => updateModalPreview(editingId ? movies.find(m => m.id === editingId) : null));
   document.getElementById(id)?.addEventListener('change', () => updateModalPreview(editingId ? movies.find(m => m.id === editingId) : null));

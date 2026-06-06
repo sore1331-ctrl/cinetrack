@@ -716,6 +716,33 @@ button.danger:hover { opacity: .85; }
   padding: 5px 8px;
   background: color-mix(in srgb, var(--surface2) 52%, transparent);
 }
+.modal-plan-row {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface2) 50%, transparent);
+  padding: 7px 10px;
+}
+.modal-plan-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: .8rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.modal-plan-clear {
+  background: transparent;
+  border: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
+.modal-plan-clear:hover {
+  color: var(--text);
+}
 .modal-card-editor .modal-providers-header {
   margin-bottom: 2px;
   font-size: .78rem;
@@ -767,7 +794,9 @@ button.danger:hover { opacity: .85; }
   min-width: 136px;
   min-height: 36px;
   border-radius: 10px;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  background: #3b9eff;
+  border-color: #3b9eff;
+  color: #fff;
 }
 .modal-card-editor button.secondary {
   min-width: 104px;
