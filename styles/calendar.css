@@ -48,7 +48,7 @@
 .cal-discover-label {
   color: var(--muted);
   font-size: .78rem;
-  font-weight: 750;
+  font-weight: 800;
   letter-spacing: .04em;
   text-transform: uppercase;
 }
@@ -210,7 +210,7 @@
 }
 .cal-info { flex: 1; min-width: 0; }
 .cal-title {
-  font-size: .98rem; font-weight: 750; color: var(--text);
+  font-size: .98rem; font-weight: 800; color: var(--text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .cal-ep {

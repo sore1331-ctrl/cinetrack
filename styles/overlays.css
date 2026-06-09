@@ -189,7 +189,7 @@
   color: #fff;
   cursor: pointer;
   font-size: .9rem;
-  font-weight: 750;
+  font-weight: 800;
   padding: 10px 16px;
 }
 .filtered-empty-clear:hover { opacity: .88; }
@@ -554,8 +554,9 @@ button.danger:hover { opacity: .85; }
 .modal-card-editor .type-btn:last-child { border-right: 0; }
 .modal-card-editor .type-btn.active {
   background: color-mix(in srgb, var(--accent) 18%, transparent);
-  color: #fff;
+  color: var(--text);
   box-shadow: inset 0 -2px 0 var(--accent);
+  font-weight: 700;
 }
 .modal-editor-grid {
   display: grid;
@@ -645,11 +646,29 @@ button.danger:hover { opacity: .85; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.modal-chip-status {
+/* Status chip colours — keyed off data-status set by updateModalPreview() */
+.modal-chip-status[data-status="watched"] {
   border-color: color-mix(in srgb, #4caf82 42%, var(--border));
   background: rgba(76, 175, 130, .12);
   color: #85e1ac;
-  font-weight: 750;
+  font-weight: 800;
+}
+.modal-chip-status[data-status="in_progress"] {
+  border-color: color-mix(in srgb, #4a9eff 42%, var(--border));
+  background: rgba(74, 158, 255, .12);
+  color: #7dc4ff;
+  font-weight: 800;
+}
+.modal-chip-status[data-status="watchlist"] {
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--surface2) 70%, transparent);
+  color: var(--muted);
+}
+.modal-chip-status[data-status="dropped"] {
+  border-color: color-mix(in srgb, #e07070 42%, var(--border));
+  background: rgba(224, 112, 112, .12);
+  color: #f09090;
+  font-weight: 800;
 }
 .modal-card-editor .modal-form-section {
   border-top: 0;
@@ -798,8 +817,8 @@ button.danger:hover { opacity: .85; }
   min-width: 136px;
   min-height: 36px;
   border-radius: 10px;
-  background: #3b9eff;
-  border-color: #3b9eff;
+  background: var(--accent);
+  border-color: var(--accent);
   color: #fff;
 }
 .modal-card-editor button.secondary {
@@ -874,6 +893,11 @@ button.danger:hover { opacity: .85; }
   }
   .modal-poster-panel {
     display: block;
+  }
+  /* Selected-slot is 72px wide at this breakpoint — too cramped for title text.
+     The poster frame already confirms the selection visually. */
+  .modal-poster-panel .modal-selected-slot {
+    display: none;
   }
   .modal-identity,
   .modal-chip-row {

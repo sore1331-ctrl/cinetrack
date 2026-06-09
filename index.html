@@ -207,22 +207,6 @@
           <option value="10">★ 10</option>
         </select>
       </label>
-      <label class="more-filter-field">
-        <span>Rating ≤</span>
-        <select id="rating-max" disabled>
-          <option value="">Any</option>
-          <option value="1">★ 1</option>
-          <option value="2">★ 2</option>
-          <option value="3">★ 3</option>
-          <option value="4">★ 4</option>
-          <option value="5">★ 5</option>
-          <option value="6">★ 6</option>
-          <option value="7">★ 7</option>
-          <option value="8">★ 8</option>
-          <option value="9">★ 9</option>
-          <option value="10">★ 10</option>
-        </select>
-      </label>
       <button type="button" id="more-filters-clear" class="more-filters-clear" title="Reset all filters in this panel">✕ Reset</button>
     </section>
 
@@ -383,7 +367,7 @@
         <div class="modal-editor-grid">
           <aside class="modal-poster-panel">
             <div class="modal-poster-frame">
-              <img id="modal-preview-poster" class="modal-preview-poster hidden" src="" alt="" />
+              <img id="modal-preview-poster" class="modal-preview-poster hidden" src="" alt="" onerror="this.classList.add('hidden');document.getElementById('modal-preview-fallback').classList.remove('hidden')" />
               <div id="modal-preview-fallback" class="modal-preview-fallback">CineTrack</div>
             </div>
             <div class="modal-selected-slot">

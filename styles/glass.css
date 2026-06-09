@@ -56,7 +56,6 @@
 #year-min,
 #year-max,
 #rating-min,
-#rating-max,
 label input,
 label select,
 label textarea,
@@ -77,7 +76,6 @@ label textarea,
 #year-min:focus,
 #year-max:focus,
 #rating-min:focus,
-#rating-max:focus,
 label input:focus,
 label select:focus,
 label textarea:focus,
@@ -349,7 +347,7 @@ label textarea:focus,
 }
 .user-dropdown .username-display {
   color: var(--text);
-  font-weight: 750;
+  font-weight: 800;
 }
 .user-dropdown .username-placeholder {
   color: var(--text);

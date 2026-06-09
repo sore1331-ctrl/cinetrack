@@ -1803,7 +1803,10 @@ function updateModalPreview(entry = null) {
 
   if (modalPreviewTitle) modalPreviewTitle.textContent = title;
   if (modalPreviewType) modalPreviewType.textContent = modalTypeLabel(activeMediaType);
-  if (modalPreviewStatus) modalPreviewStatus.textContent = modalStatusLabel(status);
+  if (modalPreviewStatus) {
+    modalPreviewStatus.textContent = modalStatusLabel(status);
+    modalPreviewStatus.dataset.status = status;
+  }
   if (modalPreviewGenre) modalPreviewGenre.textContent = genre || 'No genre';
   if (modalPreviewYear) modalPreviewYear.textContent = year || 'No year';
   if (modalPreviewCountry) modalPreviewCountry.textContent = country || 'No country';
@@ -2990,7 +2993,8 @@ function normalisePlanDate(value) {
 }
 
 function normalisePlanTime(value) {
-  const time = String(value || '').trim();
+  // Strip optional seconds component (some browsers return HH:MM:SS from type="time")
+  const time = String(value || '').trim().replace(/^(\d{2}:\d{2}):\d{2}$/, '$1');
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(time) ? time : '';
 }
 
@@ -4230,6 +4234,10 @@ document.getElementById('f-status').addEventListener('change', () => { toggleRat
 modalPlanClear?.addEventListener('click', () => {
   if (modalPlanDate) modalPlanDate.value = '';
   if (modalPlanTime) modalPlanTime.value = '';
+});
+// Auto-clear time when date is manually cleared (time without date is invalid)
+modalPlanDate?.addEventListener('change', () => {
+  if (!modalPlanDate.value && modalPlanTime) modalPlanTime.value = '';
 });
 ['f-title', 'f-year', 'f-genre', 'f-country', 'f-runtime'].forEach(id => {
   document.getElementById(id)?.addEventListener('input', () => updateModalPreview(editingId ? movies.find(m => m.id === editingId) : null));
