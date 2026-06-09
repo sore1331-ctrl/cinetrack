@@ -19,6 +19,11 @@
   }
 
   function sourceForEntry(entry) {
+    // For anime, prefer AniList over TMDB when an AniList link exists —
+    // AniList has richer anime-specific data (episode counts, air dates, etc.)
+    if (entry?.mediaType === 'anime' && entry?.externalSource === 'anilist' && entry?.externalId) {
+      return 'anilist';
+    }
     if (entry?.tmdbId) return 'tmdb';
     if (entry?.externalSource && entry.externalSource !== 'manual') return entry.externalSource;
     return 'manual';
@@ -46,11 +51,22 @@
     return 'Refresh metadata';
   }
 
+  function metadataRefreshTooltip(entry) {
+    const source = sourceForEntry(entry);
+    const from = source === 'anilist' ? 'AniList'
+               : source === 'tmdb'    ? 'TMDB'
+               :                        'the best available source';
+    return entry
+      ? `Re-fetch metadata from ${from} while preserving watch progress`
+      : 'Re-fetch metadata from this title\'s source while preserving watch progress';
+  }
+
   root.sources = {
     posterUrl,
     safeImageUrl,
     sourceForEntry,
     infoUrlForEntry,
     metadataRefreshLabel,
+    metadataRefreshTooltip,
   };
 })();

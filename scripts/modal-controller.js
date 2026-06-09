@@ -568,6 +568,7 @@
       populateYearSelect = () => {},
       sourceForEntry = () => 'manual',
       metadataRefreshLabel = () => 'Refresh metadata',
+      metadataRefreshTooltip = () => 'Re-fetch metadata from this title\'s source while preserving watch progress',
       resetUi = () => {},
     } = options;
 
@@ -575,10 +576,7 @@
       if (!refreshButton) return;
       refreshButton.classList.toggle('hidden', !(entry?.tmdbId || entry?.externalId));
       refreshButton.textContent = entry ? `↻ ${metadataRefreshLabel(entry)}` : '↻ Refresh metadata';
-      const source = sourceForEntry(entry);
-      refreshButton.title = entry
-        ? `Re-fetch metadata from ${source === 'tmdb' ? 'TMDB' : source === 'anilist' ? 'AniList' : 'TMDB when available'} while preserving watch progress`
-        : 'Re-fetch metadata from this title source while preserving watch progress';
+      refreshButton.title = metadataRefreshTooltip(entry);
     }
 
     function populateFields(entry) {

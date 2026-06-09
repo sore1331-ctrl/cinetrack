@@ -921,7 +921,7 @@ const tmdbClear       = document.getElementById('tmdb-clear');
 const tmdbSearching   = document.getElementById('tmdb-searching');
 const tmdbError       = document.getElementById('tmdb-error');
 const tmdbSearchLabel = document.getElementById('tmdb-search-label');
-const modalTmdbRefreshBtn = document.getElementById('modal-tmdb-refresh-btn');
+const modalRefreshBtn = document.getElementById('modal-refresh-btn');
 const modalPreviewPoster = document.getElementById('modal-preview-poster');
 const modalPreviewFallback = document.getElementById('modal-preview-fallback');
 const modalPreviewTitle = document.getElementById('modal-preview-title');
@@ -1001,7 +1001,7 @@ const LOCKED_MUTATION_SELECTOR = [
   '#bulk-delete',
   '#tmdb-refresh-btn',
   '#profile-import-btn',
-  '#modal-tmdb-refresh-btn',
+  '#modal-refresh-btn',
   '[data-edit]',
   '[data-toggle]',
   '[data-delete]',
@@ -1622,6 +1622,9 @@ function infoUrlForEntry(movie) {
 
 function metadataRefreshLabel(movie) {
   return sourceModel.metadataRefreshLabel(movie);
+}
+function metadataRefreshTooltip(movie) {
+  return sourceModel.metadataRefreshTooltip(movie);
 }
 
 async function matchEntryWithTMDB(movie) {
@@ -4112,7 +4115,7 @@ const modalType = modalController.createTypeController({
 const modalOpen = modalController.createOpenController({
   modalTitle,
   droppedOption: document.getElementById('f-status-dropped-opt'),
-  refreshButton: modalTmdbRefreshBtn,
+  refreshButton: modalRefreshBtn,
   fields: {
     title: document.getElementById('f-title'),
     genre: document.getElementById('f-genre'),
@@ -4127,6 +4130,7 @@ const modalOpen = modalController.createOpenController({
   populateYearSelect,
   sourceForEntry,
   metadataRefreshLabel,
+  metadataRefreshTooltip,
   resetUi: resetTMDBUI,
 });
 
@@ -4159,11 +4163,11 @@ function closeModal() {
 }
 
 // ── Per-entry metadata refresh (Edit modal) ──────────────
-modalTmdbRefreshBtn.addEventListener('click', async () => {
+modalRefreshBtn.addEventListener('click', async () => {
   const movie = editingId ? movies.find(m => m.id === editingId) : null;
   if (!movie) return;
-  modalTmdbRefreshBtn.disabled = true;
-  modalTmdbRefreshBtn.textContent = '↻ Refreshing…';
+  modalRefreshBtn.disabled = true;
+  modalRefreshBtn.textContent = '↻ Refreshing…';
   try {
     const details = await fetchDetailsForEntry(movie);
     applyTMDBSelection(details);
@@ -4173,9 +4177,9 @@ modalTmdbRefreshBtn.addEventListener('click', async () => {
     tmdbErr.textContent = 'Metadata refresh failed: ' + err.message;
     tmdbErr.classList.remove('hidden');
   } finally {
-    modalTmdbRefreshBtn.disabled = false;
-    modalTmdbRefreshBtn.textContent = `↻ ${metadataRefreshLabel(movie)}`;
-    modalTmdbRefreshBtn.title = `Re-fetch metadata from ${sourceForEntry(movie) === 'tmdb' ? 'TMDB' : sourceForEntry(movie) === 'anilist' ? 'AniList' : 'TMDB when available'} while preserving watch progress`;
+    modalRefreshBtn.disabled = false;
+    modalRefreshBtn.textContent = `↻ ${metadataRefreshLabel(movie)}`;
+    modalRefreshBtn.title = metadataRefreshTooltip(movie);
   }
 });
 
