@@ -2807,20 +2807,22 @@ async function refreshTrackedCalendarSources({ force = false } = {}) {
     return key.startsWith('anilist:');
   });
 
-  const [tmdbUpcoming, externalUpcoming, tmdbEpisodeHints] = await Promise.all([
+  // Fetch all sources concurrently — TVmaze previously ran serially after the
+  // others, adding a full network round-trip to every calendar open. Episode
+  // name enrichment needs both the TVmaze rows and the TMDB hints, so it runs
+  // once both have resolved.
+  const [tmdbUpcoming, externalUpcoming, tmdbEpisodeHints, tvmazeRaw] = await Promise.all([
     fetchUpcoming(tmdbIds, { force }),
     fetchExternalUpcomingForEntries(externalEntries),
     fetchTmdbEpisodeTitleHints(tracked, { force }),
+    fetchTvmazeCalendarForEntries(tracked, { force }).catch(e => {
+      logAppError('calendar.tvmaze', e, { force }, 'warn');
+      return [];
+    }),
   ]);
   mergeUpcomingCache(externalUpcoming);
-  let tvmazeUpcoming = [];
-  try {
-    tvmazeUpcoming = await fetchTvmazeCalendarForEntries(tracked, { force });
-    tvmazeUpcoming = enrichTvmazeEpisodeNames(tvmazeUpcoming, tmdbEpisodeHints);
-    mergeUpcomingCache(tvmazeUpcoming);
-  } catch (e) {
-    logAppError('calendar.tvmaze', e, { force }, 'warn');
-  }
+  const tvmazeUpcoming = enrichTvmazeEpisodeNames(tvmazeRaw, tmdbEpisodeHints);
+  mergeUpcomingCache(tvmazeUpcoming);
   return { tracked, upcoming: [...tmdbUpcoming, ...externalUpcoming, ...tvmazeUpcoming] };
 }
 
@@ -3088,14 +3090,13 @@ async function renderCalendarTracked(body, { force = false } = {}) {
   const tvHorizonStr    = calendarModel.addDaysString(UPCOMING_HORIZON_DAYS);
   const movieHorizonStr = calendarModel.addDaysString(MOVIE_HORIZON_DAYS);
 
-  let upcoming;
-  try {
-    ({ upcoming } = await refreshTrackedCalendarSources({ force }));
-  } catch (e) {
-    return showCalendarError(e);
-  }
-
-  try {
+  // Build and inject the day-grouped rows. Returns the number of rows shown.
+  // When isFinal is false (the instant paint from the persisted cache) an empty
+  // result leaves the loading spinner in place instead of flashing the
+  // "nothing on the horizon" message before the network responds.
+  function paint(upcoming, { isFinal = false } = {}) {
+    const list = body.querySelector('.calendar-list');
+    if (!list) return 0;
     const stableUpcoming = calendarModel.mergeUpcomingForTracked({
       live: upcoming,
       cache: readUpcomingCache(),
@@ -3116,14 +3117,15 @@ async function renderCalendarTracked(body, { force = false } = {}) {
     });
 
     if (!dated.length) {
-      body.querySelector('.calendar-list').innerHTML =
-        `<p class="recs-empty">Nothing confirmed on the horizon. Calendar only shows titles with a future episode or release date from connected sources.</p>`;
-      return;
+      if (isFinal) {
+        list.innerHTML =
+          `<p class="recs-empty">Nothing confirmed on the horizon. Calendar only shows titles with a future episode or release date from connected sources.</p>`;
+      }
+      return 0;
     }
 
     const groups = calendarModel.groupRowsByDate(dated);
-
-    const groupHTML = Object.keys(groups).sort().map(date => {
+    list.innerHTML = Object.keys(groups).sort().map(date => {
       const isToday = date === todayStr;
       const rows = groups[date].map(r => calRow(r, { airingToday: isToday && !r.watched })).join('');
       const count = groups[date].length;
@@ -3138,14 +3140,26 @@ async function renderCalendarTracked(body, { force = false } = {}) {
       </div>
     `;
     }).join('');
-
-    body.querySelector('.calendar-list').innerHTML = groupHTML;
-
-    // Refresh the nav-tab dot using the freshly-fetched cache
-    updateCalendarAiringBadge();
-  } catch (e) {
-    showCalendarError(e);
+    return dated.length;
   }
+
+  // Instant paint from the persisted cache so repeat visits feel immediate,
+  // then refresh from the network in the background and re-paint.
+  const paintedFromCache = paint([], { isFinal: false }) > 0;
+
+  let upcoming;
+  try {
+    ({ upcoming } = await refreshTrackedCalendarSources({ force }));
+  } catch (e) {
+    // Keep any cached rows already on screen; only surface the error if the
+    // panel is still showing the loading state.
+    if (!paintedFromCache) showCalendarError(e);
+    return;
+  }
+
+  paint(upcoming, { isFinal: true });
+  // Refresh the nav-tab dot using the freshly-fetched cache
+  updateCalendarAiringBadge();
 
   function calRow(r, opts = {}) {
     const fallback = r.kind === 'movie' ? '🎬' : r.kind === 'anime' ? '🎌' : '📺';

@@ -590,6 +590,28 @@ test.describe('tracker data integrity', () => {
       ],
     }, { season: 2, episode: 3 })).toBe(13);
 
+    // Standalone-cour anime: the source labels the airing episode S2E11 but the
+    // entry tracks a flat 12-episode count with no per-season breakdown. Episode
+    // 11 has already been watched (11/12), so it must NOT be flagged unwatched.
+    expect(model.hasUnwatchedAiringEpisodeToday(
+      { mediaType: 'anime', watchedEpisodes: 11, totalEpisodes: 12 },
+      { season: 2, episode: 11, airDate: '2026-05-23' },
+      '2026-05-23'
+    )).toBe(false);
+    // Same entry, only 10 watched — episode 11 is genuinely still to watch.
+    expect(model.hasUnwatchedAiringEpisodeToday(
+      { mediaType: 'anime', watchedEpisodes: 10, totalEpisodes: 12 },
+      { season: 2, episode: 11, airDate: '2026-05-23' },
+      '2026-05-23'
+    )).toBe(true);
+    // Multi-season entry whose tracked seasons don't include the aired season
+    // (a brand-new season) stays "unwatched" so it still surfaces.
+    expect(model.hasUnwatchedAiringEpisodeToday(
+      { mediaType: 'tv', watchedEpisodes: 20, seasons: [{ number: 1, total: 10 }, { number: 2, total: 10 }] },
+      { season: 3, episode: 1, airDate: '2026-05-23' },
+      '2026-05-23'
+    )).toBe(true);
+
     const cache = {
       byId: {
         'tv:10': { nextEpisode: { season: 2, episode: 3, airDate: '2026-05-23' } },

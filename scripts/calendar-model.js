@@ -63,8 +63,22 @@
   function hasUnwatchedAiringEpisodeToday(entry, episode, todayStr = dateString()) {
     if (!episode || episode.airDate !== todayStr) return false;
     const ordinal = episodeOrdinalForProgress(entry, episode);
-    if (ordinal == null) return true;
-    return (entry.watchedEpisodes || 0) < ordinal;
+    if (ordinal != null) return (entry.watchedEpisodes || 0) < ordinal;
+
+    // The source labelled this episode with a season that isn't in the entry's
+    // tracked season structure. For entries tracked as a flat count or a single
+    // season — common for anime added as a standalone cour, where AniList/TMDB
+    // disagree on season boundaries — fall back to the raw episode number vs.
+    // the flat watched count so an already-watched episode isn't re-surfaced as
+    // still-to-watch. Multi-season entries keep the "treat as unwatched" default
+    // so a genuinely new season still appears.
+    const seasons = Array.isArray(entry?.seasons) ? entry.seasons : [];
+    if (seasons.length <= 1) {
+      const epNo = Number(episode?.episode) || 0;
+      if (!epNo) return true;
+      return (entry.watchedEpisodes || 0) < epNo;
+    }
+    return true;
   }
 
   function airingTodaySignal(entry, cache, todayStr = dateString(), { watchedMode = 'hide' } = {}) {
