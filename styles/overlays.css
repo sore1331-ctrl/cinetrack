@@ -566,6 +566,11 @@ button.danger:hover { opacity: .85; }
 }
 .modal-poster-panel {
   display: grid;
+  /* Pin the single column to the panel width. Without this the implicit
+     `auto` column sizes to the poster image's intrinsic width (~200px+),
+     blowing the frame out past its 110px grid column and overlapping the
+     detail panel once a real poster loads. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
 .modal-poster-frame {
