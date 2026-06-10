@@ -560,8 +560,8 @@ button.danger:hover { opacity: .85; }
 }
 .modal-editor-grid {
   display: grid;
-  grid-template-columns: 110px minmax(0, 1fr);
-  gap: 16px;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 20px;
   align-items: start;
 }
 .modal-poster-panel {
@@ -718,7 +718,20 @@ button.danger:hover { opacity: .85; }
 }
 .modal-tracking-section {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px 14px;
+  align-items: start;
+}
+/* Status cluster (status + rating + rewatch) sits in the left cell, planned
+   watch in the right cell, so the row beside the hero poster fills its width
+   instead of leaving a sparse single column. Episode fields span both. */
+.modal-status-group {
+  display: grid;
   gap: 8px;
+  align-content: start;
+}
+.modal-card-editor #ep-fields {
+  grid-column: 1 / -1;
 }
 .modal-tracking-section #rating-label {
   position: relative;
@@ -837,8 +850,8 @@ button.danger:hover { opacity: .85; }
     padding: 18px;
   }
   .modal-editor-grid {
-    grid-template-columns: 112px minmax(0, 1fr);
-    gap: 14px;
+    grid-template-columns: 168px minmax(0, 1fr);
+    gap: 16px;
   }
   .modal-identity h3 {
     font-size: 1.8rem;
@@ -890,7 +903,7 @@ button.danger:hover { opacity: .85; }
     padding-right: 0;
   }
   .modal-editor-grid {
-    grid-template-columns: 72px minmax(0, 1fr);
+    grid-template-columns: 96px minmax(0, 1fr);
     gap: 12px;
   }
   .modal-detail-panel {
@@ -942,6 +955,11 @@ button.danger:hover { opacity: .85; }
   .modal-card-editor .modal-notes-section,
   .modal-card-editor .modal-actions {
     grid-column: 1 / -1;
+  }
+  /* Stack the status cluster and planned-watch on phones — two columns are
+     too narrow for the date/time inputs at this width. */
+  .modal-card-editor .modal-tracking-section {
+    grid-template-columns: 1fr;
   }
   .modal-card-editor .star {
     font-size: 1.34rem;

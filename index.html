@@ -413,22 +413,24 @@
               </div>
             </div>
             <div class="modal-form-section modal-tracking-section">
-              <label>Status
-                <select id="f-status">
-                  <option value="watchlist">Watchlist</option>
-                  <option value="in_progress">▶ In Progress</option>
-                  <option value="watched">Watched</option>
-                  <option value="dropped" id="f-status-dropped-opt">Dropped</option>
-                </select>
-              </label>
-              <label id="rating-label" class="hidden">Your rating
-                <div class="star-row" id="star-row"></div>
-                <span id="modal-rating-value" class="modal-rating-value">0/10</span>
-              </label>
-              <div id="rewatch-row" class="rewatch-row hidden">
-                <span class="rewatch-label">Watched <strong id="rewatch-count">1</strong> time<span id="rewatch-plural">s</span></span>
-                <button type="button" id="rewatch-inc-btn" class="rewatch-btn" title="Log another rewatch">+1</button>
-                <button type="button" id="rewatch-dec-btn" class="rewatch-btn rewatch-btn-sub" title="Decrease by 1" tabindex="-1">−</button>
+              <div class="modal-status-group">
+                <label>Status
+                  <select id="f-status">
+                    <option value="watchlist">Watchlist</option>
+                    <option value="in_progress">▶ In Progress</option>
+                    <option value="watched">Watched</option>
+                    <option value="dropped" id="f-status-dropped-opt">Dropped</option>
+                  </select>
+                </label>
+                <label id="rating-label" class="hidden">Your rating
+                  <div class="star-row" id="star-row"></div>
+                  <span id="modal-rating-value" class="modal-rating-value">0/10</span>
+                </label>
+                <div id="rewatch-row" class="rewatch-row hidden">
+                  <span class="rewatch-label">Watched <strong id="rewatch-count">1</strong> time<span id="rewatch-plural">s</span></span>
+                  <button type="button" id="rewatch-inc-btn" class="rewatch-btn" title="Log another rewatch">+1</button>
+                  <button type="button" id="rewatch-dec-btn" class="rewatch-btn rewatch-btn-sub" title="Decrease by 1" tabindex="-1">−</button>
+                </div>
               </div>
               <div class="modal-plan-row">
                 <div class="modal-plan-head">
