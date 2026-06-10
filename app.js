@@ -935,6 +935,7 @@ const modalRatingValue = document.getElementById('modal-rating-value');
 const modalPlanDate = document.getElementById('f-plan-date');
 const modalPlanTime = document.getElementById('f-plan-time');
 const modalPlanClear = document.getElementById('f-plan-clear');
+const modalPlanRow = document.querySelector('.modal-plan-row');
 
 const NAV_ICONS = {
   movie: '<svg viewBox="0 0 24 24"><path d="M4 8h16v11H4z"/><path d="M4 8l2-4h16l-2 4"/><path d="M8 4 6 8M13 4l-2 4M18 4l-2 4"/><path d="m10 12 4 2.5-4 2.5z"/></svg>',
@@ -4160,6 +4161,7 @@ function openModal(movie = null) {
   syncModalPlanFields(movie);
 
   toggleRatingLabel();
+  togglePlanRow();
   buildStars();
   updateModalPreview(movie);
   modal.classList.remove('hidden');
@@ -4202,6 +4204,14 @@ function toggleRatingLabel() {
   ratingLabel.classList.toggle('hidden', !modalModel.showsRating(s));
 }
 
+// Planned watch only applies to titles you haven't started — show the box for
+// Watchlist only. Visibility just hides the control; the saved value is
+// reconciled against the final status on submit (see the form handler).
+function togglePlanRow() {
+  const s = document.getElementById('f-status').value;
+  modalPlanRow?.classList.toggle('hidden', s !== 'watchlist');
+}
+
 // ── Form submit ─────────────────────────────────────────
 form.addEventListener('submit', e => {
   e.preventDefault();
@@ -4218,10 +4228,20 @@ form.addEventListener('submit', e => {
     selectedRating,
   });
   if (!submission.ok) return;
-  const planPatch = modalPlanPatch(existing);
-  if (!planPatch.ok) {
-    showToast(planPatch.message, true);
-    return;
+  // Planned watch is a Watchlist-only field. Validate/apply it for watchlist
+  // titles; for any other final status, clear a previously-saved plan so a
+  // non-watchlist title never carries a stale watch date.
+  let planPatch;
+  if (submission.data.status === 'watchlist') {
+    planPatch = modalPlanPatch(existing);
+    if (!planPatch.ok) {
+      showToast(planPatch.message, true);
+      return;
+    }
+  } else if (existing?.plannedWatchDate || existing?.plannedWatchTime) {
+    planPatch = { patch: { plannedWatchDate: '', plannedWatchTime: '', plannedWatchUpdatedAt: new Date().toISOString() } };
+  } else {
+    planPatch = { patch: {} };
   }
   Object.assign(submission.data, planPatch.patch);
 
@@ -4248,7 +4268,7 @@ form.addEventListener('submit', e => {
 addBtn.addEventListener('click', () => openModal());
 cancelBtn.addEventListener('click', closeModal);
 modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
-document.getElementById('f-status').addEventListener('change', () => { toggleRatingLabel(); buildStars(); modalRewatch.update(); updateModalPreview(editingId ? movies.find(m => m.id === editingId) : null); });
+document.getElementById('f-status').addEventListener('change', () => { toggleRatingLabel(); togglePlanRow(); buildStars(); modalRewatch.update(); updateModalPreview(editingId ? movies.find(m => m.id === editingId) : null); });
 modalPlanClear?.addEventListener('click', () => {
   if (modalPlanDate) modalPlanDate.value = '';
   if (modalPlanTime) modalPlanTime.value = '';

@@ -722,6 +722,14 @@ button.danger:hover { opacity: .85; }
   gap: 10px 14px;
   align-items: start;
 }
+/* Planned watch only shows for Watchlist. When it's hidden, collapse to a
+   single column and cap the status select so it doesn't sprawl. */
+.modal-card-editor .modal-tracking-section:has(.modal-plan-row.hidden) {
+  grid-template-columns: minmax(0, 1fr);
+}
+.modal-card-editor .modal-tracking-section:has(.modal-plan-row.hidden) #f-status {
+  max-width: 340px;
+}
 /* Status cluster (status + rating + rewatch) sits in the left cell, planned
    watch in the right cell, so the row beside the hero poster fills its width
    instead of leaving a sparse single column. Episode fields span both. */
