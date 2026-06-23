@@ -1666,13 +1666,16 @@ function applyMetadataRefresh(movie, details) {
   const detailsTotal = wasShow
     ? Math.max(0, details.total_episodes || 0, seasonTotal(details.seasons, 'total'))
     : 0;
+  // How many episodes were actually watched before this refresh. A watched
+  // show counts as having seen all of its *previously-known* episodes — but NOT
+  // the new total from `details`, otherwise a show that gained episodes would
+  // have every new episode marked watched on refresh.
   const previousWatched = wasShow
     ? Math.max(
         0,
         movie.watchedEpisodes || 0,
         seasonTotal(movie.seasons, 'watched'),
-        movie.status === 'watched' ? previousTotal : 0,
-        movie.status === 'watched' ? detailsTotal : 0
+        movie.status === 'watched' ? previousTotal : 0
       )
     : 0;
   const previousStatus  = movie.status;
@@ -1700,11 +1703,17 @@ function applyMetadataRefresh(movie, details) {
       movie.watchedEpisodes = Math.max(previousWatched, movie.watchedEpisodes || 0);
     }
     if (previousStatus === 'watched' && (movie.totalEpisodes || 0) > 0) {
-      movie.status = 'watched';
-      applyWatchedCountAcrossSeasons(movie, movie.totalEpisodes);
-      movie.watchedEpisodes = movie.totalEpisodes;
-    } else if (movie.status === 'watched' && (movie.totalEpisodes || 0) > 0 && movie.watchedEpisodes < movie.totalEpisodes) {
-      movie.status = 'in_progress';
+      if (previousWatched >= (movie.totalEpisodes || 0)) {
+        // Episode count unchanged or corrected downward — still fully watched.
+        movie.status = 'watched';
+        applyWatchedCountAcrossSeasons(movie, movie.totalEpisodes);
+        movie.watchedEpisodes = movie.totalEpisodes;
+      } else {
+        // The show gained episodes since it was marked watched — the new ones
+        // are unwatched, so it's back in progress rather than fully watched.
+        // The branches above already set watchedEpisodes to the previous count.
+        movie.status = 'in_progress';
+      }
     }
   }
   return { demoted: previousStatus === 'watched' && movie.status === 'in_progress' };

@@ -309,6 +309,19 @@ function mergeEntry(existing, incoming, { protectExistingProgress = true } = {})
       : watched;
   }
 
+  // Invariant: a title with a known episode count is only "watched" once every
+  // episode has been watched. If the count grew past what's been seen (e.g. a
+  // new episode aired after it was marked watched on another device), demote to
+  // in_progress so a stale watched status doesn't mark unseen episodes as
+  // watched when it syncs back.
+  if (
+    merged.status === 'watched' &&
+    Number(merged.totalEpisodes || 0) > 0 &&
+    Number(merged.watchedEpisodes || 0) < Number(merged.totalEpisodes || 0)
+  ) {
+    merged.status = 'in_progress';
+  }
+
   return merged;
 }
 

@@ -355,6 +355,32 @@ test.describe('tracker data integrity', () => {
     }));
   });
 
+  test('a watched show that gained an episode is no longer fully watched after merge', () => {
+    const { mergeLibraries } = loadUserDataHelpers();
+    // Cloud copy was marked watched when the weekly anime had a single episode.
+    const existing = [{
+      id: 'cloud', mediaType: 'anime', tmdbId: 555, title: 'See You At Work Tomorrow!',
+      status: 'watched', totalEpisodes: 1, watchedEpisodes: 1,
+    }];
+    // Another device now knows a second episode aired and hasn't been watched.
+    const incoming = [{
+      id: 'client', mediaType: 'anime', tmdbId: 555, title: 'See You At Work Tomorrow!',
+      status: 'in_progress', totalEpisodes: 2, watchedEpisodes: 1,
+    }];
+
+    const merged = mergeLibraries(existing, incoming, {
+      keepMissingExisting: true,
+      protectExistingProgress: true,
+    });
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toEqual(expect.objectContaining({
+      status: 'in_progress',
+      watchedEpisodes: 1,
+      totalEpisodes: 2,
+    }));
+  });
+
   test('incoming duplicate rows collapse by source key before saving', () => {
     const { mergeLibraries } = loadUserDataHelpers();
     const incoming = [
@@ -479,8 +505,8 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain("const tmdbIds = ids.filter(id => id.startsWith('movie:'));");
     expect(app).toContain('async function fetchTmdbEpisodeTitleHints');
     expect(app).toContain('function enrichTvmazeEpisodeNames');
-    expect(app).toContain('tvmazeUpcoming = enrichTvmazeEpisodeNames(tvmazeUpcoming, tmdbEpisodeHints);');
-    expect(app).toContain('tvmazeUpcoming = await fetchTvmazeCalendarForEntries(tracked, { force });');
+    expect(app).toContain('const tvmazeUpcoming = enrichTvmazeEpisodeNames(tvmazeRaw, tmdbEpisodeHints);');
+    expect(app).toContain('fetchTvmazeCalendarForEntries(tracked, { force })');
     expect(tvmazeApi).toContain('findCalendarEpisode');
     expect(tvmazeApi).toContain('ep.airdate >= today && ep.airdate <= horizon');
   });
