@@ -74,15 +74,16 @@
     return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(entry => entry[0]).join(', ');
   }
 
-  function cardsHtml(cards = [], { esc } = {}) {
+  function cardsHtml(cards = [], { esc, safeImageUrl = value => String(value || '') } = {}) {
     if (!cards.length) return '<p class="community-empty">No matching users.</p>';
     return cards.map(card => {
       const initial = card.username[0].toUpperCase();
       const genres = topGenres(card.watched);
       const posters = card.watched
-        .filter(m => m.posterUrl)
+        .map(m => ({ m, poster: safeImageUrl(m.posterUrl) }))
+        .filter(({ poster }) => poster)
         .slice(0, 6)
-        .map(m => `<img class="community-poster" src="${esc(m.posterUrl)}" alt="${esc(m.title)}" title="${esc(m.title)}" loading="lazy" />`)
+        .map(({ m, poster }) => `<img class="community-poster" src="${esc(poster)}" alt="${esc(m.title)}" title="${esc(m.title)}" loading="lazy" />`)
         .join('');
       const compatBadge = card.compat != null
         ? `<span class="community-compat" title="Compatibility based on shared titles + rating similarity">🎯 ${card.compat}%</span>`
@@ -110,6 +111,7 @@
   function profileModalHtml(profile, userMovies = [], {
     myMovies = [],
     esc,
+    safeImageUrl = value => String(value || ''),
     actualWatchedMinutes,
     formatTimeSpent,
     renderBarChart,
@@ -180,8 +182,8 @@
           <div class="fav-grid">
             ${favourites.map(m => `
               <div class="fav-card" title="${esc(m.title)}${m.rating ? ' · ★ ' + m.rating : ''}">
-                ${m.posterUrl
-                  ? `<img class="fav-poster" src="${esc(m.posterUrl)}" alt="${esc(m.title)}" loading="lazy" />`
+                ${safeImageUrl(m.posterUrl)
+                  ? `<img class="fav-poster" src="${esc(safeImageUrl(m.posterUrl))}" alt="${esc(m.title)}" loading="lazy" />`
                   : `<div class="fav-poster fav-poster-emoji">${m.mediaType === 'anime' ? '🎌' : m.mediaType === 'tv' ? '📺' : '🎬'}</div>`}
                 <div class="fav-meta">
                   <div class="fav-title">${esc(m.title)}</div>
@@ -198,8 +200,8 @@
           <div class="curr-watching-list">
             ${currentlyWatching.map(({ m, pct }) => `
               <div class="curr-watching-row">
-                ${m.posterUrl
-                  ? `<img class="curr-watching-poster" src="${esc(m.posterUrl)}" alt="${esc(m.title)}" loading="lazy" />`
+                ${safeImageUrl(m.posterUrl)
+                  ? `<img class="curr-watching-poster" src="${esc(safeImageUrl(m.posterUrl))}" alt="${esc(m.title)}" loading="lazy" />`
                   : `<div class="curr-watching-poster curr-watching-emoji">${m.mediaType === 'anime' ? '🎌' : '📺'}</div>`}
                 <div class="curr-watching-info">
                   <div class="curr-watching-title">${esc(m.title)}</div>
@@ -242,8 +244,8 @@
           <div class="profile-recent">
             ${recent.map(m => `
               <div class="profile-recent-card" title="${esc(m.title)}">
-                ${m.posterUrl
-                  ? `<img class="profile-recent-poster" src="${esc(m.posterUrl)}" alt="${esc(m.title)}" loading="lazy" />`
+                ${safeImageUrl(m.posterUrl)
+                  ? `<img class="profile-recent-poster" src="${esc(safeImageUrl(m.posterUrl))}" alt="${esc(m.title)}" loading="lazy" />`
                   : `<div class="profile-recent-poster profile-recent-emoji">${m.mediaType === 'anime' ? '🎌' : m.mediaType === 'tv' ? '📺' : '🎬'}</div>`}
               </div>
             `).join('')}

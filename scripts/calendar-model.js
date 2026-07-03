@@ -111,9 +111,13 @@
   } = {}) {
     if (!keys.length) return true;
     if (!cache?.byId || !cache.fetchedAt) return false;
-    if (ttlMs && Number(now || 0) - Number(cache.fetchedAt || 0) >= Number(ttlMs || 0)) return false;
     return keys.every(key => {
       if (!(key in cache.byId)) return false;
+      // Freshness is per entry: partial cache merges used to renew the single
+      // global fetchedAt, keeping entries fetched long ago "fresh" forever.
+      // Entries written before per-key stamps existed fall back to the global.
+      const stamp = Number(cache.fetchedAtById?.[key] ?? cache.fetchedAt ?? 0);
+      if (ttlMs && Number(now || 0) - stamp >= Number(ttlMs || 0)) return false;
       if (!requiredSource) return true;
       return cache.byId[key]?.source === requiredSource;
     });

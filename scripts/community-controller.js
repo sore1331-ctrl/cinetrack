@@ -29,6 +29,7 @@
       fetchJsonWithTimeout,
       logAppError = () => {},
       esc = value => String(value || ''),
+      safeImageUrl = value => String(value || ''),
       actualWatchedMinutes = () => 0,
       formatTimeSpent = () => '',
       renderBarChart = () => '',
@@ -42,6 +43,7 @@
       body.innerHTML = communityView.profileModalHtml(profile, userMovies, {
         myMovies: getMovies(),
         esc,
+        safeImageUrl,
         actualWatchedMinutes,
         formatTimeSpent,
         renderBarChart,
@@ -118,7 +120,7 @@
           const q = (documentRef.getElementById('community-search')?.value || '').trim().toLowerCase();
           const sort = documentRef.getElementById('community-sort')?.value || 'recent';
           const list = communityView.filterCards(cardData, { query: q, sort });
-          communityGrid.innerHTML = communityView.cardsHtml(list, { esc });
+          communityGrid.innerHTML = communityView.cardsHtml(list, { esc, safeImageUrl });
         };
 
         renderCards();

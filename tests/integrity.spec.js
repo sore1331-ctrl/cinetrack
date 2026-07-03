@@ -102,6 +102,24 @@ function loadTvmazeCalendarHelpers() {
   return sandbox.helpers;
 }
 
+function loadTvmazeConcurrencyHelpers() {
+  const source = fs.readFileSync(path.join(root, 'api', 'tvmaze-calendar.js'), 'utf8');
+  const start = source.indexOf('const TVMAZE_CONCURRENCY');
+  const end = source.indexOf('export default');
+  const sandbox = { setTimeout };
+  vm.runInNewContext(`${source.slice(start, end)}; helpers = { mapWithConcurrency, TVMAZE_CONCURRENCY };`, sandbox);
+  return sandbox.helpers;
+}
+
+function loadCommunityApiHelpers() {
+  const source = fs.readFileSync(path.join(root, 'api', 'community.js'), 'utf8');
+  const start = source.indexOf('const SHARED_MOVIE_FIELDS');
+  const end = source.indexOf('async function supabaseFetch');
+  const sandbox = {};
+  vm.runInNewContext(`${source.slice(start, end)}; helpers = { slimSharedData };`, sandbox);
+  return sandbox.helpers;
+}
+
 function loadStatsModel() {
   const source = fs.readFileSync(path.join(root, 'scripts', 'stats-model.js'), 'utf8');
   const sandbox = {
@@ -546,6 +564,91 @@ test.describe('tracker data integrity', () => {
     expect(tvmazeApi).toContain('ep.airdate >= today && ep.airdate <= horizon');
   });
 
+  test('TVMaze calendar lookups run through a bounded worker pool', async () => {
+    const helpers = loadTvmazeConcurrencyHelpers();
+    const api = fs.readFileSync(path.join(root, 'api', 'tvmaze-calendar.js'), 'utf8');
+
+    let active = 0;
+    let peak = 0;
+    const out = await helpers.mapWithConcurrency([1, 2, 3, 4, 5, 6, 7, 8], 3, async n => {
+      active += 1;
+      peak = Math.max(peak, active);
+      await new Promise(resolve => setTimeout(resolve, 5));
+      active -= 1;
+      return n * 2;
+    });
+
+    expect(out).toEqual([2, 4, 6, 8, 10, 12, 14, 16]);
+    expect(peak).toBeLessThanOrEqual(3);
+    // The handler must not fire one unbounded burst — TVMaze rate-limits and
+    // 429'd entries silently vanish from the calendar.
+    expect(api).toContain('mapWithConcurrency(entries, TVMAZE_CONCURRENCY,');
+    expect(api).not.toContain('Promise.all(entries.map');
+  });
+
+  test('community API strips private fields from shared libraries', () => {
+    const { slimSharedData } = loadCommunityApiHelpers();
+
+    const slimmed = slimSharedData([{
+      user_id: 'user-1',
+      movies: [{
+        title: 'Shared Show',
+        year: '2026',
+        genre: 'Drama',
+        country: 'US',
+        status: 'watched',
+        rating: 9,
+        runtime: 500,
+        mediaType: 'tv',
+        tmdbId: 42,
+        posterUrl: 'https://image.tmdb.org/t/p/w200/x.jpg',
+        watchedEpisodes: 10,
+        totalEpisodes: 10,
+        addedAt: 123,
+        notes: 'Private thoughts that must not be shared.',
+        director: 'Someone',
+        externalSource: 'tmdb',
+        externalId: '42',
+        seasons: [{ number: 1, total: 10, watched: 10 }],
+        plannedWatchDate: '2026-07-01',
+      }],
+    }]);
+
+    expect(slimmed).toHaveLength(1);
+    expect(slimmed[0].user_id).toBe('user-1');
+    expect(slimmed[0].movies[0]).toEqual({
+      title: 'Shared Show',
+      year: '2026',
+      genre: 'Drama',
+      country: 'US',
+      status: 'watched',
+      rating: 9,
+      runtime: 500,
+      mediaType: 'tv',
+      tmdbId: 42,
+      posterUrl: 'https://image.tmdb.org/t/p/w200/x.jpg',
+      watchedEpisodes: 10,
+      totalEpisodes: 10,
+      addedAt: 123,
+    });
+
+    const api = fs.readFileSync(path.join(root, 'api', 'community.js'), 'utf8');
+    expect(api).toContain('sharedData: slimSharedData(sharedData)');
+  });
+
+  test('community posters from other users are sanitised before rendering', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const view = fs.readFileSync(path.join(root, 'scripts', 'community-view.js'), 'utf8');
+    const controller = fs.readFileSync(path.join(root, 'scripts', 'community-controller.js'), 'utf8');
+
+    expect(view).toContain('safeImageUrl(m.posterUrl)');
+    expect(view).not.toContain('src="${esc(m.posterUrl)}"');
+    expect(controller).toContain('cardsHtml(list, { esc, safeImageUrl })');
+    // app.js wires its safeImageUrl helper into the community controller.
+    const wiring = app.slice(app.indexOf('communityController.createCommunityController({'), app.indexOf('function openCommunityProfile'));
+    expect(wiring).toContain('safeImageUrl,');
+  });
+
   test('TVMaze calendar lookup strips season suffixes from anime titles', () => {
     const helpers = loadTvmazeCalendarHelpers();
 
@@ -897,6 +1000,42 @@ test.describe('tracker data integrity', () => {
       now,
       requiredSource: 'tvmaze',
     })).toMatchObject({ shouldWarm: true, reason: 'stale-or-missing' });
+  });
+
+  test('upcoming cache freshness is tracked per entry', () => {
+    const model = loadCalendarModel();
+    const now = Date.parse('2026-05-24T09:00:00Z');
+    const ttlMs = 6 * 60 * 60 * 1000;
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+
+    // A partial merge renews the global fetchedAt; an entry stamped long ago
+    // must still count as stale rather than staying "fresh" forever.
+    expect(model.cacheHasFreshKeys({
+      cache: { fetchedAt: now, fetchedAtById: { 'tv:1': now - ttlMs - 1000 }, byId: { 'tv:1': {} } },
+      keys: ['tv:1'],
+      ttlMs,
+      now,
+    })).toBe(false);
+    // A fresh per-key stamp keeps the entry usable even when the global is old.
+    expect(model.cacheHasFreshKeys({
+      cache: { fetchedAt: now - 24 * 60 * 60 * 1000, fetchedAtById: { 'tv:1': now - 1000 }, byId: { 'tv:1': {} } },
+      keys: ['tv:1'],
+      ttlMs,
+      now,
+    })).toBe(true);
+    // Legacy caches without per-key stamps fall back to the global timestamp.
+    expect(model.cacheHasFreshKeys({
+      cache: { fetchedAt: now - 1000, byId: { 'tv:1': {} } },
+      keys: ['tv:1'],
+      ttlMs,
+      now,
+    })).toBe(true);
+
+    // The cache writers stamp every entry they touch, including misses.
+    expect(app).toContain('function upcomingCacheStamps(cache)');
+    expect(app).toContain('fetchedAtById[key] = Date.now();');
+    expect(app).toContain('writeUpcomingCache({ fetchedAt: Date.now(), byId, fetchedAtById });');
+    expect(app).toContain('cache.fetchedAtById?.[k] ?? cache.fetchedAt');
   });
 
   test('calendar model builds discover watchlist entries', () => {
@@ -1689,6 +1828,16 @@ test.describe('tracker data integrity', () => {
       storeSharing: true,
     });
     expect(model.isMissingPreferencesColumn({ code: '42703' })).toBe(true);
+    expect(model.isMissingPreferencesColumn({ code: 'PGRST204' })).toBe(true);
+    expect(model.isMissingPreferencesColumn({
+      message: "Could not find the 'preferences' column of 'profiles' in the schema cache",
+    })).toBe(true);
+    // Unrelated errors that merely mention "column" must not be swallowed as
+    // a missing-preferences setup problem.
+    expect(model.isMissingPreferencesColumn({
+      message: 'duplicate key value violates constraint on column username',
+    })).toBe(false);
+    expect(model.isMissingPreferencesColumn({ message: 'network timeout' })).toBe(false);
     expect(model.preferencesApplyPlan({
       prefs: { a: 1, b: null, daily: 'off' },
       syncKeys: ['a', 'b'],
