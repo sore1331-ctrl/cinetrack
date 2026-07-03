@@ -68,13 +68,15 @@
 
     const seasonTotal = (items, key) => (items || []).reduce((sum, season) => sum + (Number(season?.[key]) || 0), 0);
     const previousTotal = Math.max(0, seasonTotal(seasons, 'total'), numberValue(totalInput));
-    const detailsTotal = seasonTotal(details.seasons, 'total');
+    // A watched show counts as having seen all of its *previously-known*
+    // episodes (previousTotal) — but NOT the refreshed detailsTotal, otherwise
+    // a show that gained episodes since it was marked watched would have every
+    // new episode marked watched by a metadata refresh in the edit modal.
     const previousWatched = Math.max(
       0,
       seasonTotal(seasons, 'watched'),
       numberValue(watchedInput),
-      status === 'watched' ? previousTotal : 0,
-      status === 'watched' ? detailsTotal : 0
+      status === 'watched' ? previousTotal : 0
     );
 
     const nextSeasons = details.seasons.map(season => ({

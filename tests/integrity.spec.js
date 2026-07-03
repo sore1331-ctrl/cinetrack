@@ -381,6 +381,41 @@ test.describe('tracker data integrity', () => {
     }));
   });
 
+  test('fresh cloud saves let season progress decrease so un-watching syncs down', () => {
+    const { mergeLibraries } = loadUserDataHelpers();
+    // Cloud copy has an accidental extra watched episode.
+    const existing = [{
+      id: 'cloud', mediaType: 'tv', tmdbId: 321, title: 'Overcounted Show',
+      status: 'in_progress', totalEpisodes: 10, watchedEpisodes: 6,
+      seasons: [{ number: 1, total: 10, watched: 6 }],
+    }];
+    // The client corrected it down to 5 and saved with a current baseline.
+    const incoming = [{
+      id: 'client', mediaType: 'tv', tmdbId: 321, title: 'Overcounted Show',
+      status: 'in_progress', totalEpisodes: 10, watchedEpisodes: 5,
+      seasons: [{ number: 1, total: 10, watched: 5 }],
+    }];
+
+    const merged = mergeLibraries(existing, incoming, {
+      keepMissingExisting: false,
+      protectExistingProgress: false,
+      protectIncomingDuplicates: true,
+    });
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0].watchedEpisodes).toBe(5);
+    expect(merged[0].seasons).toEqual([expect.objectContaining({ number: 1, watched: 5 })]);
+
+    // A stale save must still keep the stronger cloud progress.
+    const staleMerged = mergeLibraries(existing, incoming, {
+      keepMissingExisting: true,
+      protectExistingProgress: true,
+      protectIncomingDuplicates: true,
+    });
+    expect(staleMerged[0].watchedEpisodes).toBe(6);
+    expect(staleMerged[0].seasons).toEqual([expect.objectContaining({ number: 1, watched: 6 })]);
+  });
+
   test('incoming duplicate rows collapse by source key before saving', () => {
     const { mergeLibraries } = loadUserDataHelpers();
     const incoming = [
@@ -949,10 +984,33 @@ test.describe('tracker data integrity', () => {
     expect(page.topGenres[0]).toEqual(['Drama', 2]);
     expect(page.topDirectors[0]).toEqual(['A', 2]);
     expect(page.decadeEntries).toEqual([['2020s', 2]]);
+    expect(model.typeLabel('movie')).toBe('🎬 Films');
+    expect(model.typeLabel('tv')).toBe('📺 TV Shows');
+    expect(model.typeLabel('anime')).toBe('🎌 Anime');
     expect(page.typeEntries).toEqual([[model.typeLabel('movie'), 2]]);
     expect(page.currentlyWatching[0]).toEqual(expect.objectContaining({ pct: 50, remaining: 5 }));
     expect(page.topGenreName).toBe('Drama');
     expect(page.topCountryName).toBe('US');
+  });
+
+  test('external proxy awaits provider handlers so failures return JSON errors', () => {
+    const external = fs.readFileSync(path.join(root, 'api', 'external.js'), 'utf8');
+
+    // Without the awaits, async provider failures skip the catch block and
+    // surface as a generic 500 with no JSON error body.
+    expect(external).toContain("if (provider === 'tvmaze') return await handleTvmaze(req, res, action);");
+    expect(external).toContain("if (provider === 'anilist') return await handleAnilist(req, res, action);");
+  });
+
+  test('storage pressure trim targets the real notification dedupe key', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+
+    expect(app).toContain("const NOTIF_DEDUPE_KEY = 'cinetrack_notified_episodes';");
+    // The volatile-keys list must reference the same key the dedupe cache
+    // actually writes, or the pressure trim can never clear it.
+    const volatileBlock = app.slice(app.indexOf('VOLATILE_STORAGE_KEYS'), app.indexOf('POSTER_BASE'));
+    expect(volatileBlock).toContain("'cinetrack_notified_episodes'");
+    expect(app).not.toContain('cinetrack_notif_dedupe_v1');
   });
 
   test('vercel hobby api function count stays within limit', () => {
@@ -1239,6 +1297,31 @@ test.describe('tracker data integrity', () => {
       externalSource: 'tmdb',
       externalId: '123',
     }));
+  });
+
+  test('modal metadata refresh does not mark newly-aired episodes watched', () => {
+    const model = loadModalModel();
+    // A 12-episode show marked watched gains a 13th episode on refresh: the
+    // new episode must stay unwatched instead of being backfilled.
+    const state = model.selectionSeasonState({
+      details: { seasons: [{ number: 1, total: 13, name: 'Season 1' }], total_episodes: 13 },
+      seasons: [{ number: 1, total: 12, watched: 12, name: 'Season 1' }],
+      totalInput: '',
+      watchedInput: '12',
+      status: 'watched',
+    });
+
+    expect(state.hasSeasons).toBe(true);
+    expect(state.seasons).toEqual([expect.objectContaining({ number: 1, total: 13, watched: 12 })]);
+    // Unchanged episode count stays fully watched.
+    const unchanged = model.selectionSeasonState({
+      details: { seasons: [{ number: 1, total: 12, name: 'Season 1' }], total_episodes: 12 },
+      seasons: [{ number: 1, total: 12, watched: 12, name: 'Season 1' }],
+      totalInput: '',
+      watchedInput: '12',
+      status: 'watched',
+    });
+    expect(unchanged.seasons).toEqual([expect.objectContaining({ number: 1, total: 12, watched: 12 })]);
   });
 
   test('modal UI state is routed through the modal model', () => {

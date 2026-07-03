@@ -252,21 +252,30 @@ function buildProgressEvents({ userId, beforeMovies = [], afterMovies = [], save
   });
 }
 
-function mergeSeasons(existing = [], incoming = []) {
+function mergeSeasons(existing = [], incoming = [], { protectExistingProgress = true } = {}) {
   if (!Array.isArray(existing) && !Array.isArray(incoming)) return undefined;
   const byNumber = new Map();
-  for (const season of [...(Array.isArray(existing) ? existing : []), ...(Array.isArray(incoming) ? incoming : [])]) {
-    const key = String(season?.number ?? season?.seasonNumber ?? season?.name ?? byNumber.size);
-    const previous = byNumber.get(key) || {};
-    const total = Math.max(Number(previous.total || previous.episodeCount || 0), Number(season?.total || season?.episodeCount || 0));
-    const watched = Math.max(Number(previous.watched || 0), Number(season?.watched || 0));
-    byNumber.set(key, {
-      ...previous,
-      ...season,
-      total: total || season?.total || previous.total,
-      watched,
-    });
-  }
+  const addSeasons = (seasons, fromIncoming) => {
+    for (const season of (Array.isArray(seasons) ? seasons : [])) {
+      const key = String(season?.number ?? season?.seasonNumber ?? season?.name ?? byNumber.size);
+      const previous = byNumber.get(key) || {};
+      const total = Math.max(Number(previous.total || previous.episodeCount || 0), Number(season?.total || season?.episodeCount || 0));
+      // On an authoritative (non-stale) save the client's per-season progress
+      // wins outright, so un-watching an episode can sync down. Protected
+      // merges keep the stronger side so a stale device can't erase progress.
+      const watched = fromIncoming && !protectExistingProgress
+        ? Number(season?.watched || 0)
+        : Math.max(Number(previous.watched || 0), Number(season?.watched || 0));
+      byNumber.set(key, {
+        ...previous,
+        ...season,
+        total: total || season?.total || previous.total,
+        watched,
+      });
+    }
+  };
+  addSeasons(existing, false);
+  addSeasons(incoming, true);
   return [...byNumber.values()];
 }
 
@@ -277,7 +286,7 @@ function mergeEntry(existing, incoming, { protectExistingProgress = true } = {})
   const existingProgress = showProgress(existing);
   const incomingProgress = showProgress(incoming);
   const merged = { ...existing, ...incoming };
-  const seasons = mergeSeasons(existing.seasons, incoming.seasons);
+  const seasons = mergeSeasons(existing.seasons, incoming.seasons, { protectExistingProgress });
   if (seasons) merged.seasons = seasons;
   if (protectExistingProgress && Number(existing.rating || 0) > 0 && Number(incoming.rating || 0) === 0) {
     merged.rating = existing.rating;

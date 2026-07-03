@@ -249,7 +249,7 @@ const VOLATILE_STORAGE_KEYS = [
   'cinetrack_upcoming_cache_v2',
   'cinetrack_discover_cache_v1',
   'cinetrack_recs_cache_v2',
-  'cinetrack_notif_dedupe_v1',
+  'cinetrack_notified_episodes',
 ];
 const POSTER_BASE = 'https://image.tmdb.org/t/p/w200';
 const SESSION_TIMEOUT_MS = 20000;

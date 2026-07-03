@@ -280,8 +280,8 @@ export default async function handler(req, res) {
   const action = String(req.query.action || 'search');
 
   try {
-    if (provider === 'tvmaze') return handleTvmaze(req, res, action);
-    if (provider === 'anilist') return handleAnilist(req, res, action);
+    if (provider === 'tvmaze') return await handleTvmaze(req, res, action);
+    if (provider === 'anilist') return await handleAnilist(req, res, action);
     return json(res, 400, { error: 'Unknown external provider.' });
   } catch (e) {
     return json(res, 502, { error: e?.message || 'Failed to reach external provider.' });
