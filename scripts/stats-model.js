@@ -49,9 +49,9 @@
   }
 
   function typeLabel(type) {
-    if (type === 'movie') return 'ðŸŽ¬ Films';
-    if (type === 'tv') return 'ðŸ“º TV Shows';
-    if (type === 'anime') return 'ðŸŽŒ Anime';
+    if (type === 'movie') return '🎬 Films';
+    if (type === 'tv') return '📺 TV Shows';
+    if (type === 'anime') return '🎌 Anime';
     return type || '';
   }
 
