@@ -33,7 +33,7 @@
     if (!entry) return '';
     if (entry.tmdbId) {
       const tmdbType = entry.mediaType === 'movie' ? 'movie' : 'tv';
-      return `https://www.themoviedb.org/${tmdbType}/${entry.tmdbId}`;
+      return `https://www.themoviedb.org/${tmdbType}/${encodeURIComponent(entry.tmdbId)}`;
     }
     if (entry.externalSource === 'anilist' && entry.externalId) {
       return `https://anilist.co/anime/${encodeURIComponent(entry.externalId)}`;

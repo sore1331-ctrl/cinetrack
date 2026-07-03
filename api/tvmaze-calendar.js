@@ -108,6 +108,26 @@ async function calendarEntry(entry, today, horizon) {
   };
 }
 
+// TVMaze rate-limits aggressively (roughly 20 calls per 10 seconds per IP).
+// Each entry costs 2-3 calls, so a large library fired in one unbounded
+// Promise.all burst got 429s and rows silently vanished from the calendar.
+// A small worker pool keeps the burst bounded.
+const TVMAZE_CONCURRENCY = 5;
+
+async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await fn(items[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
@@ -123,9 +143,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    const results = await Promise.all(entries.map(entry =>
+    const results = await mapWithConcurrency(entries, TVMAZE_CONCURRENCY, entry =>
       calendarEntry(entry, today, horizon).catch(() => null)
-    ));
+    );
     return json(res, 200, { results: results.filter(Boolean) });
   } catch (e) {
     return json(res, 500, { error: e?.message || 'TVMaze calendar lookup failed.' });

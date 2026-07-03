@@ -2103,7 +2103,7 @@ function renderStats() {
             ? `<img src="${esc(safePoster)}" alt="${esc(m.title)}" loading="lazy" />`
             : `<div class="tr-poster-emoji">${m.mediaType === 'anime' ? '🎌' : m.mediaType === 'tv' ? '📺' : posterEmoji(m.title)}</div>`;
           const wrap = url
-            ? `<a href="${url}" target="_blank" rel="noopener noreferrer" class="top-rated-card">`
+            ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" class="top-rated-card">`
             : `<div class="top-rated-card">`;
           const close = url ? `</a>` : `</div>`;
           return `${wrap}
@@ -2506,30 +2506,45 @@ function writeUpcomingCache(cache) {
   localStorage.setItem(UPCOMING_CACHE_KEY, JSON.stringify(cache));
 }
 
+// Each written entry gets its own timestamp in fetchedAtById. The global
+// fetchedAt stays as a fallback for entries written before per-key stamps
+// existed; without per-key stamps, any partial merge renewed the whole
+// cache's TTL and stale entries never expired.
+function upcomingCacheStamps(cache) {
+  return cache?.fetchedAtById && typeof cache.fetchedAtById === 'object' ? { ...cache.fetchedAtById } : {};
+}
+
 function mergeUpcomingCache(items = []) {
   if (!Array.isArray(items) || !items.length) return;
   const cache = readUpcomingCache() || { fetchedAt: Date.now(), byId: {} };
   const byId = cache.byId && typeof cache.byId === 'object' ? cache.byId : {};
+  const fetchedAtById = upcomingCacheStamps(cache);
   for (const item of items) {
     const key = item?.sourceKey || `${item?.type || 'tv'}:${item?.tmdbId || item?.externalId || ''}`;
     if (!key || key.endsWith(':')) continue;
     byId[key] = item;
+    fetchedAtById[key] = Date.now();
   }
-  writeUpcomingCache({ fetchedAt: Date.now(), byId });
+  writeUpcomingCache({ fetchedAt: Date.now(), byId, fetchedAtById });
 }
 
 function patchUpcomingCache(results = [], requestedKeys = []) {
   const cache = readUpcomingCache() || { fetchedAt: Date.now(), byId: {} };
   const byId = cache.byId && typeof cache.byId === 'object' ? { ...cache.byId } : {};
+  const fetchedAtById = upcomingCacheStamps(cache);
   for (const item of results || []) {
     const key = item?.sourceKey || `${item?.type || 'tv'}:${item?.tmdbId || item?.externalId || ''}`;
     if (!key || key.endsWith(':')) continue;
     byId[key] = item;
+    fetchedAtById[key] = Date.now();
   }
   for (const key of requestedKeys || []) {
-    if (key && !(key in byId)) byId[key] = null;
+    if (key && !(key in byId)) {
+      byId[key] = null;
+      fetchedAtById[key] = Date.now();
+    }
   }
-  writeUpcomingCache({ fetchedAt: Date.now(), byId });
+  writeUpcomingCache({ fetchedAt: Date.now(), byId, fetchedAtById });
   return byId;
 }
 
@@ -2540,9 +2555,9 @@ async function fetchUpcoming(ids, { force = false } = {}) {
   const keys = ids.map(id => String(id).includes(':') ? String(id) : `tv:${id}`);
   const cache = readUpcomingCache();
   const now   = Date.now();
-  const fresh = cache && (now - cache.fetchedAt) < UPCOMING_TTL_MS;
-  const allCached = fresh && keys.every(k => cache.byId[k] !== undefined);
-  if (!force && fresh && allCached) {
+  const keyIsFresh = k => (now - Number(cache.fetchedAtById?.[k] ?? cache.fetchedAt ?? 0)) < UPCOMING_TTL_MS;
+  const allCached = Boolean(cache?.byId) && keys.every(k => cache.byId[k] !== undefined && keyIsFresh(k));
+  if (!force && allCached) {
     return keys.map(k => cache.byId[k]).filter(Boolean);
   }
   const r = await fetch(`/api/upcoming?ids=${encodeURIComponent(keys.join(','))}`);
@@ -3352,8 +3367,9 @@ async function renderCalendarDiscover(body, { force = false } = {}) {
   const cards = items.map(item => {
     const idStr   = String(item.tmdbId);
     const isAdded = tracked.has(idStr);
-    const poster  = item.poster_path
-      ? `<img class="discover-poster" src="${POSTER_BASE}${item.poster_path}" alt="${esc(item.title)}" loading="lazy" />`
+    const posterSrc = externalPosterUrl(item.poster_path);
+    const poster  = posterSrc
+      ? `<img class="discover-poster" src="${esc(posterSrc)}" alt="${esc(item.title)}" loading="lazy" />`
       : `<div class="discover-poster discover-poster-emoji">${fallback}</div>`;
     const dateLabel = relativeDayLabel(item.releaseDate);
     return `
@@ -3834,6 +3850,7 @@ const communityUi = communityController.createCommunityController({
   fetchJsonWithTimeout,
   logAppError,
   esc,
+  safeImageUrl,
   actualWatchedMinutes,
   formatTimeSpent,
   renderBarChart,

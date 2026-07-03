@@ -70,7 +70,7 @@
       </span>
       ${airingToday ? `<span class="card-airing-pill" title="${entry.mediaType === 'movie' ? 'Theatrical release today' : 'New episode airs today'}">● Today</span>` : ''}
       ${infoUrl
-        ? `<a class="card-title card-title-link" href="${infoUrl}" target="_blank" rel="noopener noreferrer" title="${titleLabel}">${titleLabel}</a>`
+        ? `<a class="card-title card-title-link" href="${esc(infoUrl)}" target="_blank" rel="noopener noreferrer" title="${titleLabel}">${titleLabel}</a>`
         : `<div class="card-title" title="${titleLabel}">${titleLabel}</div>`}
       <div class="card-meta">
         ${entry.year ? `<span class="meta-year">${entry.year}</span>` : ''}

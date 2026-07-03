@@ -2,6 +2,40 @@ function json(res, status, body) {
   res.status(status).json(body);
 }
 
+// Only the fields the community UI renders. Personal notes (and anything
+// else private) stay out of the shared payload.
+const SHARED_MOVIE_FIELDS = [
+  'title',
+  'year',
+  'genre',
+  'country',
+  'status',
+  'rating',
+  'runtime',
+  'mediaType',
+  'tmdbId',
+  'posterUrl',
+  'watchedEpisodes',
+  'totalEpisodes',
+  'addedAt',
+];
+
+function slimSharedMovie(movie) {
+  if (!movie || typeof movie !== 'object') return null;
+  const slim = {};
+  for (const field of SHARED_MOVIE_FIELDS) {
+    if (movie[field] !== undefined) slim[field] = movie[field];
+  }
+  return slim;
+}
+
+function slimSharedData(rows) {
+  return (Array.isArray(rows) ? rows : []).map(row => ({
+    user_id: row?.user_id,
+    movies: (Array.isArray(row?.movies) ? row.movies : []).map(slimSharedMovie).filter(Boolean),
+  }));
+}
+
 async function supabaseFetch(path, token, signal) {
   const supabaseUrl = process.env.SUPABASE_URL || '';
   const supabaseKey = process.env.SUPABASE_ANON_KEY || '';
@@ -60,7 +94,7 @@ export default async function handler(req, res) {
       ? await supabaseFetch(`user_data?select=user_id,movies&user_id=in.(${idsFilter})`, token, controller.signal)
       : [];
 
-    return json(res, 200, { profiles, sharedData: sharedData || [] });
+    return json(res, 200, { profiles, sharedData: slimSharedData(sharedData) });
   } catch (e) {
     const isAbort = e?.name === 'AbortError';
     return json(res, isAbort ? 504 : 500, {

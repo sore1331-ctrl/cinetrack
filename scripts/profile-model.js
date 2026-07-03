@@ -141,8 +141,13 @@
   }
 
   function isMissingPreferencesColumn(error = {}) {
+    // PGRST204: PostgREST can't find the column in its schema cache.
+    // 42703: Postgres undefined-column. Anything else must mention both
+    // "preferences" and "column" — matching either word alone swallowed
+    // unrelated errors (e.g. any message containing "column").
+    if (error?.code === 'PGRST204' || error?.code === '42703') return true;
     const msg = String(error?.message || '').toLowerCase();
-    return msg.includes('preferences') || msg.includes('column') || error?.code === 'PGRST204' || error?.code === '42703';
+    return msg.includes('preferences') && msg.includes('column');
   }
 
   function preferencesApplyPlan({
