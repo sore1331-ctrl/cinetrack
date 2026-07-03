@@ -2117,6 +2117,36 @@ test.describe('tracker data integrity', () => {
     }));
   });
 
+  test('csv export/import round-trips multi-line notes and episode progress', () => {
+    const model = loadCsvModel();
+    const movie = {
+      title: 'Round Trip Show',
+      year: '2026',
+      genre: 'Drama',
+      director: 'Someone',
+      country: 'United States',
+      status: 'in_progress',
+      rating: 8,
+      runtime: 500,
+      notes: 'First line.\nSecond line, with a comma.',
+      mediaType: 'tv',
+      totalEpisodes: 12,
+      watchedEpisodes: 5,
+    };
+
+    const rows = model.parse(model.exportText([movie]));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].title).toBe('Round Trip Show');
+    expect(rows[0].notes).toBe('First line.\nSecond line, with a comma.');
+    expect(model.normaliseRow(rows[0])).toEqual(expect.objectContaining({
+      mediaType: 'tv',
+      status: 'in_progress',
+      rating: 8,
+      totalEpisodes: 12,
+      watchedEpisodes: 5,
+    }));
+  });
+
   test('csv model exports safe spreadsheet text and template data', () => {
     const model = loadCsvModel();
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
@@ -2453,7 +2483,17 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('function compareLibraryBackup');
     expect(app).toContain('function restoreLibraryFromBackup');
     expect(app).toContain('movies = sanitiseLibrary();');
-    expect(app).toContain('writeLocalLibraryBackup(signOutPlan.backupReason, movies);');
+  });
+
+  test('sign-out is wired exactly once, through the cloud-controls controller', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const controller = fs.readFileSync(path.join(root, 'scripts', 'sync-controller.js'), 'utf8');
+
+    // app.js used to attach a second, duplicated click handler to
+    // #signout-btn alongside the controller's — both ran on every click.
+    expect(app).not.toContain("getElementById('signout-btn')");
+    expect(controller).toContain("documentRef.getElementById('signout-btn')");
+    expect(controller).toContain("signoutBtn?.addEventListener('click'");
   });
 
   test('error log stores bounded structured diagnostics', () => {
@@ -2792,6 +2832,23 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('setSyncState(\'saving\', loadPlan.savingMessage);');
     expect(app).toContain('loaded = syncModel.failedSaveLoadResult(saved);');
     expect(app).toContain('loaded = await loadUserData(loadPlan.loadOptions);');
+  });
+
+  test('cloud saves are serialised and retried after failure', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+
+    // Saves must queue behind any in-flight save so their payload carries the
+    // updated version baseline; overlapping saves with a stale base_version
+    // trigger the server's protective stale merge, resurrecting deletions.
+    expect(app).toContain('const run = cloudSaveChain.then(() => performCloudSave());');
+    expect(app).toContain('cloudSaveChain = run.catch(() => {});');
+    expect(app).toContain('async function performCloudSave()');
+    // Failed saves schedule a capped-backoff retry instead of sitting
+    // local-only until the next edit or manual sync.
+    expect(app).toContain('function scheduleCloudSaveRetry()');
+    expect(app).toContain('scheduleCloudSaveRetry();');
+    expect(app).toContain('clearCloudSaveRetry();');
+    expect(app).toContain('if (!hasUnsyncedLocalChanges()) return;');
   });
 
   test('sign-out cleanup is routed through the sync model', () => {

@@ -46,6 +46,8 @@
     'runtime',
     'notes',
     'type',
+    'total_episodes',
+    'episodes_watched',
   ];
 
   const TEMPLATE_CSV = [
@@ -84,16 +86,40 @@
     return String(header || '').toLowerCase().replace(/\s+/g, '_');
   }
 
-  function parse(text) {
-    const lines = String(text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
-    if (lines.length < 2) return [];
+  // Split into logical records, keeping newlines that sit inside quoted
+  // fields (e.g. multi-line notes, which exportText produces) as part of the
+  // field instead of starting a bogus new row. A double "" escape toggles the
+  // quote state twice, so it nets out correctly.
+  function splitRecords(text) {
+    const records = [];
+    let current = '';
+    let inQuote = false;
+    for (const ch of text) {
+      if (ch === '"') {
+        inQuote = !inQuote;
+        current += ch;
+      } else if (ch === '\n' && !inQuote) {
+        records.push(current);
+        current = '';
+      } else {
+        current += ch;
+      }
+    }
+    records.push(current);
+    return records;
+  }
 
-    const headers = parseLine(lines[0]).map(normaliseHeader);
+  function parse(text) {
+    const normalised = String(text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const records = splitRecords(normalised);
+    if (records.length < 2) return [];
+
+    const headers = parseLine(records[0]).map(normaliseHeader);
     const rows = [];
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) continue;
-      const values = parseLine(line);
+    for (let i = 1; i < records.length; i++) {
+      const record = records[i];
+      if (!record.trim()) continue;
+      const values = parseLine(record);
       const row = {};
       headers.forEach((header, index) => {
         const field = COLUMN_MAP[header];
@@ -146,6 +172,8 @@
       movie.runtime || '',
       movie.notes,
       movie.mediaType,
+      movie.totalEpisodes || '',
+      movie.watchedEpisodes || '',
     ].map(escapeCell).join(','));
     return [EXPORT_HEADERS.join(','), ...rows].join('\n');
   }

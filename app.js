@@ -717,7 +717,46 @@ async function loadUserData(options = {}) {
   }
 }
 
-async function saveUserData() {
+let cloudSaveChain = Promise.resolve();
+let cloudSaveRetryTimer = null;
+let cloudSaveRetryDelayMs = 0;
+const CLOUD_SAVE_RETRY_MIN_MS = 30 * 1000;
+const CLOUD_SAVE_RETRY_MAX_MS = 5 * 60 * 1000;
+
+// Retry a failed cloud save in the background with capped backoff. Without
+// this, a transient network failure left changes local-only until the next
+// edit or a manual sync, while the pill quietly showed "saved locally".
+function scheduleCloudSaveRetry() {
+  clearTimeout(cloudSaveRetryTimer);
+  cloudSaveRetryDelayMs = Math.min(
+    CLOUD_SAVE_RETRY_MAX_MS,
+    cloudSaveRetryDelayMs ? cloudSaveRetryDelayMs * 2 : CLOUD_SAVE_RETRY_MIN_MS
+  );
+  cloudSaveRetryTimer = setTimeout(() => {
+    cloudSaveRetryTimer = null;
+    if (!sb || !currentUser || offlineMode) return;
+    if (!hasUnsyncedLocalChanges()) return;
+    saveUserData();
+  }, cloudSaveRetryDelayMs);
+}
+
+function clearCloudSaveRetry() {
+  clearTimeout(cloudSaveRetryTimer);
+  cloudSaveRetryTimer = null;
+  cloudSaveRetryDelayMs = 0;
+}
+
+// Serialise cloud saves: a save fired while another is in flight waits for it,
+// so its payload is built against the updated cloud version baseline.
+// Overlapping saves used to send a stale base_version, which the server treats
+// as a stale client and "protectively" restores titles the user just deleted.
+function saveUserData() {
+  const run = cloudSaveChain.then(() => performCloudSave());
+  cloudSaveChain = run.catch(() => {});
+  return run;
+}
+
+async function performCloudSave() {
   const saveDecision = syncModel.shouldSaveUserData({
     hasClient: Boolean(sb),
     hasUser: Boolean(currentUser),
@@ -749,12 +788,14 @@ async function saveUserData() {
     lastCloudItemCount = nextSyncState.lastCloudItemCount;
     lastSavedLocalVersion = nextSyncState.lastSavedLocalVersion;
     clearPendingSyncMarker();
+    clearCloudSaveRetry();
     setSyncState('saved');
     return { ok: true };
   } catch (e) {
     logAppError('sync.save', e);
     setSyncState('error', e.message);
-    showToast('Cloud sync failed — your changes are saved locally only. (' + e.message + ')', true);
+    showToast('Cloud sync failed — your changes are saved locally only. Will retry automatically. (' + e.message + ')', true);
+    scheduleCloudSaveRetry();
     return { ok: false, error: e?.message || String(e) };
   }
 }
@@ -4441,9 +4482,6 @@ csvController.createCsvImportController({
 const TEMPLATE_URL = URL.createObjectURL(new Blob([csvModel.TEMPLATE_CSV], { type: 'text/csv' }));
 
 // ── Auth UI ──────────────────────────────────────────────
-const signoutBtn      = document.getElementById('signout-btn');
-const reloadCloudBtn  = document.getElementById('reload-cloud-btn');
-
 const authUi = authController.createAuthController({
   getSupabase: () => sb,
   profileModel,
@@ -4475,6 +4513,7 @@ function closeUsernameForm() { authUi.closeUsernameForm(); }
 function clearPendingCloudSave() {
   clearTimeout(cloudSyncTimer);
   cloudSyncTimer = null;
+  clearCloudSaveRetry();
 }
 
 syncController.createCloudControlsController({
@@ -4539,28 +4578,8 @@ metadataController.createBulkMetadataRefreshController({
 });
 
 
-// ── Sign out ────────────────────────────────────────────
-signoutBtn.addEventListener('click', async () => {
-  try { if (sb) await sb.auth.signOut(); } catch {}
-  const signOutPlan = syncModel.signOutCleanupPlan({ storageKey: STORAGE_KEY });
-  stopCloudPolling();
-  writeLocalLibraryBackup(signOutPlan.backupReason, movies);
-  currentUser = signOutPlan.reset.currentUser;
-  currentUsername = signOutPlan.reset.currentUsername;
-  sharingEnabled = signOutPlan.reset.sharingEnabled;
-  replaceLibrary([]);
-  initialLibrarySyncPending = signOutPlan.reset.initialLibrarySyncPending;
-  updateMutationLockUI();
-  lastCloudUpdatedAt = signOutPlan.reset.lastCloudUpdatedAt;
-  lastCloudItemCount = signOutPlan.reset.lastCloudItemCount;
-  localChangeVersion = signOutPlan.reset.localChangeVersion;
-  lastSavedLocalVersion = signOutPlan.reset.lastSavedLocalVersion;
-  signOutPlan.clearStorageKeys.forEach(key => localStorage.removeItem(key));
-  clearPendingSyncMarker();
-  document.getElementById('user-dropdown').classList.add('hidden');
-  updateUserMenu();
-  showAuthOverlay(signOutPlan.nextAuthMode);
-});
+// Sign-out is handled by the cloud-controls controller above — it owns the
+// #signout-btn click (backup, state reset, storage cleanup, auth overlay).
 
 // ── Flush pending save when tab is hidden/closed ────────
 document.addEventListener('visibilitychange', () => {
