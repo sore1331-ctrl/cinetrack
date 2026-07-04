@@ -64,8 +64,8 @@
     return {
       type: 'toggle',
       title: markWatched ? 'Mark watched' : 'Mark in progress',
-      labelLg: markWatched ? '✓ Watched' : '▶ In Progress',
-      labelMd: markWatched ? 'Watched' : 'In Prog',
+      labelLg: markWatched ? '✓ Watched' : '▶ Start',
+      labelMd: markWatched ? 'Watched' : '▶ Start',
       labelSm: markWatched ? '✓' : '▶',
     };
   }

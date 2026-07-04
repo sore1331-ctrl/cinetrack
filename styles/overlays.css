@@ -129,6 +129,18 @@
   margin: 0 0 28px;
   font-size: 1rem;
 }
+/* Reusable in-panel empty state (calendar, discover, planned) sharing the
+   onboarding card look — slightly tighter, centred in its container. */
+.empty-state-card {
+  margin: 28px auto;
+  padding: 32px 36px;
+  max-width: 520px;
+}
+.empty-state-card .onboarding-subtitle {
+  margin-bottom: 0;
+  font-size: .92rem;
+}
+
 .onboarding-steps {
   display: flex;
   flex-direction: column;
@@ -254,6 +266,9 @@
   transition: all .15s;
 }
 .type-btn:hover { color: var(--text); }
+.type-btn:disabled { cursor: not-allowed; opacity: .45; }
+.type-btn:disabled.active { opacity: 1; }
+.type-btn:disabled:hover { color: inherit; }
 .type-btn.active {
   background: var(--accent);
   color: #fff;

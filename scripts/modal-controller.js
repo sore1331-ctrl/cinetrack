@@ -544,6 +544,15 @@
       applyTypeUi(currentMediaType);
     }
 
+    // Switching type on an existing entry would silently re-type it on save
+    // (movie ↔ tv ↔ anime), so the switcher locks while editing.
+    function setLocked(locked) {
+      buttons.forEach(button => {
+        button.disabled = Boolean(locked);
+        button.title = locked ? 'Type cannot be changed for an existing title' : '';
+      });
+    }
+
     buttons.forEach(button => {
       button.addEventListener('click', () => {
         activate(button.dataset.type);
@@ -553,6 +562,7 @@
 
     return {
       activate,
+      setLocked,
       current: () => currentMediaType,
     };
   }
@@ -597,6 +607,7 @@
       if (droppedOption) droppedOption.hidden = !entry?.id;
       const mediaType = modalModel.mediaTypeForOpen(entry, activeType);
       typeController.activate(mediaType);
+      typeController.setLocked?.(Boolean(entry?.id));
       resetUi();
       refreshTitle(entry);
       const values = populateFields(entry);

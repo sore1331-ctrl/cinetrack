@@ -418,6 +418,12 @@
   padding-bottom: 40px;
   margin-top: 32px;
 }
+/* Collapse the row when everything inside is hidden — it otherwise leaves a
+   ~72px dead band above the stats/calendar/home panels and below short
+   library pages. */
+.pagination-row:not(:has(> :not(.hidden))) {
+  display: none;
+}
 .pagination-row .pagination {
   margin-top: 0;
   padding-bottom: 0;

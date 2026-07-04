@@ -65,6 +65,19 @@ header {
   flex-shrink: 0;
 }
 
+/* "You are here" marker while on the Home dashboard (the logo is Home's
+   only entry point, so it doubles as its nav indicator). */
+.header-brand.active::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: -7px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
 :root.light .header-brand {
   color: #15151d;
 }
@@ -383,6 +396,17 @@ main {
   border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: 8px;
   background: color-mix(in srgb, var(--bg) 28%, transparent);
+  /* Rows are buttons that open the title's edit modal */
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.home-row:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
 }
 
 .home-poster {
@@ -433,7 +457,14 @@ main {
 
 .home-empty {
   margin: 0;
-  padding: 10px 2px 4px;
+  min-height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 16px;
+  border: 1px dashed color-mix(in srgb, var(--border) 85%, transparent);
+  border-radius: 8px;
 }
 
 @media (max-width: 860px) {
