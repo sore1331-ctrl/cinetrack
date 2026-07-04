@@ -188,7 +188,9 @@ header {
   background: transparent;
   border: none;
   border-bottom: 3px solid transparent;
-  color: var(--muted);
+  /* One step brighter than --muted: inactive tabs were hard to scan,
+     especially against the dark header. */
+  color: color-mix(in srgb, var(--text) 42%, var(--muted));
   position: relative;
   padding: 16px 24px 15px;
   cursor: pointer;
