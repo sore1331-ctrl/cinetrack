@@ -58,6 +58,15 @@
       ? `<button type="button" class="card-menu-item" data-clear-plan="${entry.id}" role="menuitem"${mutationDisabled}>Clear plan</button>`
       : '';
 
+    // One stable fact line — "2010 · United States · 2h 28m" — instead of the
+    // old inline-wrapping stream that laid out differently on every card. The
+    // runtime keeps its own span so the small grid can hide it.
+    const primaryFacts = [entry.year, entry.country].filter(Boolean).map(esc).join(' · ');
+    const runtimeHTML = runtimeStr ? `<span class="meta-runtime">${primaryFacts ? ' · ' : ''}${runtimeStr}</span>` : '';
+    const metaPrimaryHTML = (primaryFacts || runtimeHTML)
+      ? `<span class="meta-primary">${primaryFacts}${runtimeHTML}</span>`
+      : '';
+
     const hoverInfoParts = [
       entry.genre && `<div class="chi-genre">${esc(entry.genre)}</div>`,
       entry.director && `<div class="chi-dir">${isTV ? 'Created by' : 'Dir.'} ${esc(entry.director)}</div>`,
@@ -84,11 +93,9 @@
         ? `<a class="card-title card-title-link" href="${esc(infoUrl)}" target="_blank" rel="noopener noreferrer" title="${titleLabel}">${titleLabel}</a>`
         : `<div class="card-title" title="${titleLabel}">${titleLabel}</div>`}
       <div class="card-meta">
-        ${entry.year ? `<span class="meta-year">${entry.year}</span>` : ''}
-        ${entry.country ? `<span class="meta-country">🌍 ${esc(entry.country)}</span>` : ''}
+        ${metaPrimaryHTML}
         ${entry.genre ? `<span class="meta-genre">${esc(entry.genre)}</span>` : ''}
         ${entry.director ? `<span class="meta-director">${isTV ? 'Created by' : 'Dir.'} ${esc(entry.director)}</span>` : ''}
-        ${runtimeStr ? `<span class="meta-runtime">⏱ ${runtimeStr}</span>` : ''}
       </div>
       ${entry.rating ? starsHTML(entry.rating) : ''}
       ${epHTML}

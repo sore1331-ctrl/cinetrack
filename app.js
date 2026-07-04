@@ -1110,8 +1110,10 @@ function switchView(view, type) {
   const isCalendar  = view === 'calendar';
   const isHome      = view === 'home';
 
-  // Sync header profile button active state
+  // Sync header profile button + logo active states (Home has no nav tab —
+  // the logo is its entry point, so it carries the "you are here" marker).
   document.getElementById('header-profile-btn')?.classList.toggle('active', isProfile);
+  document.getElementById('logo')?.classList.toggle('active', isHome);
   updateMobileNav();
 
   document.querySelector('.controls').classList.toggle('hidden', !isContent);
@@ -2129,7 +2131,7 @@ function renderStats() {
     </div>
 
     <div class="stats-hero-summary">
-      <div>
+      <div title="Total runtime, prorated by your progress on each series. Click to switch format.">
         <span class="stats-hero-label">Time watched</span>
         <strong data-time-spent-toggle>${formatTimeSpent(totalMin) || '—'}</strong>
       </div>
@@ -2165,14 +2167,6 @@ function renderStats() {
         <div class="stat-card-value">${epsWatched.toLocaleString()}<span class="stat-card-sub">/ ${epsTotal.toLocaleString()}</span></div>
         <div class="stat-card-label">Episodes</div>
       </div>` : ''}
-      <div class="stat-card" data-time-spent-toggle title="Total runtime, prorated by your progress on each series">
-        <div class="stat-card-value">${formatTimeSpent(totalMin) || '—'}</div>
-        <div class="stat-card-label">Time Spent</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-card-value">${avgRating ? '★ ' + avgRating : '—'}</div>
-        <div class="stat-card-label">Avg Rating</div>
-      </div>
     </div>
 
     ${topRatedHTML}
@@ -2294,14 +2288,14 @@ function homeList(items, emptyText) {
   return `
     <div class="home-list">
       ${items.map(item => `
-        <article class="home-row">
+        <button type="button" class="home-row" data-home-open="${esc(item.id)}" title="Open ${esc(item.title)}">
           ${homeItemPoster(item)}
           <div class="home-row-main">
             <strong>${esc(item.title)}</strong>
             <span>${esc(item.detail || homeItemMeta(item) || 'No extra details')}</span>
           </div>
           ${item.badge ? `<span class="home-row-badge">${esc(item.badge)}</span>` : ''}
-        </article>
+        </button>
       `).join('')}
     </div>
   `;
@@ -2411,6 +2405,12 @@ function renderHome() {
       </div>
     </section>
   `;
+  panel.querySelectorAll('[data-home-open]').forEach(row => {
+    row.addEventListener('click', () => {
+      const entry = movies.find(m => m.id === row.dataset.homeOpen);
+      if (entry) openModal(entry);
+    });
+  });
   applyTheme(document.documentElement.classList.contains('light') ? 'light' : 'dark');
 }
 
@@ -2431,6 +2431,18 @@ function jumpToContent(type, opts = {}) {
   currentPage = 0;
   render();
   window.scrollTo(0, 0);
+}
+
+// Shared in-panel empty state, matching the library onboarding card. `body`
+// may contain markup (e.g. <em>), so callers pass trusted copy only.
+function emptyStateCardHTML({ icon = '📭', title = '', body = '' } = {}) {
+  return `
+    <div class="onboarding-card empty-state-card">
+      <div class="onboarding-icon">${icon}</div>
+      <h2 class="onboarding-title">${esc(title)}</h2>
+      ${body ? `<p class="onboarding-subtitle">${body}</p>` : ''}
+    </div>
+  `;
 }
 
 function renderEmptyState(isFiltered) {
@@ -3066,7 +3078,11 @@ function renderCalendarPlanned(body) {
   `;
   const list = body.querySelector('.calendar-list');
   if (!rows.length) {
-    list.innerHTML = `<p class="recs-empty">No planned watches yet. Use a title card's more menu and choose Plan.</p>`;
+    list.innerHTML = emptyStateCardHTML({
+      icon: '🗓',
+      title: 'No planned watches yet',
+      body: `Use a title card's ⋯ menu and choose <em>Plan</em> to schedule a watch night.`,
+    });
     return;
   }
   const groups = calendarModel.groupRowsByDate(rows);
@@ -3191,7 +3207,11 @@ async function renderCalendarTracked(body, { force = false } = {}) {
   const ids = tracked.map(calendarKeyForEntry).filter(Boolean);
 
   if (!ids.length) {
-    body.innerHTML = `<p class="recs-empty">Add a TV show or anime to your <em>Watchlist</em> or mark it <em>In Progress</em>, or add a movie to your <em>Watchlist</em>, to see what's coming up.</p>`;
+    body.innerHTML = emptyStateCardHTML({
+      icon: '📅',
+      title: 'Nothing scheduled yet',
+      body: `Add a TV show or anime to your <em>Watchlist</em> or mark it <em>In Progress</em>, or add a movie to your <em>Watchlist</em>, to see what's coming up.`,
+    });
     return;
   }
 
@@ -3237,8 +3257,11 @@ async function renderCalendarTracked(body, { force = false } = {}) {
 
     if (!dated.length) {
       if (isFinal) {
-        list.innerHTML =
-          `<p class="recs-empty">Nothing confirmed on the horizon. Calendar only shows titles with a future episode or release date from connected sources.</p>`;
+        list.innerHTML = emptyStateCardHTML({
+          icon: '🗓',
+          title: 'Nothing on the horizon',
+          body: 'The calendar only shows titles with a confirmed future episode or release date from connected sources.',
+        });
       }
       return 0;
     }
@@ -3406,10 +3429,11 @@ async function renderCalendarDiscover(body, { force = false } = {}) {
 
   const items = (data.results || []).slice(0, 24);
   if (!items.length) {
-    const more = isMovie
-      ? `No upcoming films found for ${esc(discoverRegion)}. Try a different region.`
-      : 'No upcoming titles found right now. Check back later.';
-    body.querySelector('#cal-discover-grid').innerHTML = `<p class="recs-empty">${more}</p>`;
+    body.querySelector('#cal-discover-grid').innerHTML = emptyStateCardHTML({
+      icon: '✨',
+      title: isMovie ? `No upcoming films for ${discoverRegion}` : 'No upcoming titles right now',
+      body: isMovie ? 'Try a different region.' : 'Check back later.',
+    });
     return;
   }
 
