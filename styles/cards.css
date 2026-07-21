@@ -285,27 +285,24 @@ a.card-title-link:hover {
   background: var(--border);
   border-radius: 2px;
   overflow: hidden;
+  display: flex;
 }
 .ep-progress-fill {
   height: 100%;
   background: #5ba3f5;
   transition: width .3s ease;
 }
+.ep-progress-aired {
+  height: 100%;
+  background: color-mix(in srgb, #f5a623 55%, transparent);
+  transition: width .3s ease;
+}
 .ep-progress-label {
   margin-top: 3px;
 }
 .ep-behind {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 0 7px;
-  border-radius: 999px;
-  font-size: .68rem;
-  font-weight: 600;
-  line-height: 1.5;
-  color: #f5a623;
-  background: color-mix(in srgb, #f5a623 16%, transparent);
-  border: 1px solid color-mix(in srgb, #f5a623 34%, transparent);
-  vertical-align: baseline;
+  color: var(--muted);
+  font-weight: 500;
   white-space: nowrap;
 }
 .grid-sm .ep-progress-label { display: none; }
