@@ -5,6 +5,7 @@
     const {
       checked = false,
       airingToday = false,
+      behind = 0,
       mutationDisabled = '',
       cardView = {},
       esc = value => String(value ?? ''),
@@ -21,10 +22,14 @@
       ? `${fallbackPosterHTML}<img class="card-poster-img" src="${esc(entry.posterUrl)}" alt="${titleLabel}" loading="lazy" onerror="this.remove()" />`
       : fallbackPosterHTML;
 
+    const behindCount = Math.max(0, Number(behind) || 0);
+    const behindHTML = behindCount > 0
+      ? `<span class="ep-behind" title="${behindCount} aired episode${behindCount === 1 ? '' : 's'} you haven't watched yet">${behindCount} behind</span>`
+      : '';
     const epHTML = (cardView.isShow && episodeState.total > 0)
       ? `<div class="ep-progress" title="${esc(episodeState.title)}">
            <div class="ep-progress-bar"><div class="ep-progress-fill" style="width:${episodeState.pct}%"></div></div>
-           <div class="ep-progress-label">${episodeState.label}</div>
+           <div class="ep-progress-label">${episodeState.label}${behindHTML}</div>
          </div>`
       : '';
 

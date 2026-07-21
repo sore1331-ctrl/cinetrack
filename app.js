@@ -4063,6 +4063,7 @@ function render() {
     card.innerHTML = cardViewRenderer.renderLibraryCard(m, {
       checked,
       airingToday,
+      behind: calendarModel.episodesBehind(m, upcomingCache),
       mutationDisabled,
       cardView: cardModel.view(m, { activeSeason, posterEmoji, formatRuntime, infoUrlForEntry }),
       esc,
