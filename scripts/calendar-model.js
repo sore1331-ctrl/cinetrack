@@ -102,25 +102,51 @@
     return null;
   }
 
-  // How many aired-but-unwatched episodes an in-progress/watchlist show has,
-  // using the upcoming cache's next-to-air episode. TMDB's next_episode_to_air
-  // is the first UNAIRED episode, so everything before it has already aired:
-  // aired = ordinal(nextEpisode) - 1, and "behind" = aired - watched.
-  // Returns 0 when we have no air data (e.g. an ended show) so the badge only
-  // appears for currently-releasing titles the viewer has fallen behind on.
-  function episodesBehind(entry, cache) {
-    if (!entry || !cache?.byId) return 0;
+  // Aired-but-unwatched progress for an in-progress/watchlist show, using the
+  // upcoming cache's next-to-air episode. TMDB's next_episode_to_air is the
+  // first UNAIRED episode, so everything before it has already aired. Returns
+  // { behind, airedPct } where behind is the episode count the viewer trails
+  // by and airedPct is how far the "already aired" point sits along the same
+  // frame the card's progress bar uses (active season for multi-season shows,
+  // otherwise the flat total). Returns zeroes when there's no air data (e.g.
+  // an ended show) so the indicator only shows for currently-releasing titles.
+  function airedProgress(entry, cache, activeSeasonFn) {
+    const none = { behind: 0, airedPct: 0 };
+    if (!entry || !cache?.byId) return none;
     const isShow = entry.mediaType === 'tv' || entry.mediaType === 'anime';
-    if (!isShow) return 0;
-    if (entry.status !== 'in_progress' && entry.status !== 'watchlist') return 0;
+    if (!isShow) return none;
+    if (entry.status !== 'in_progress' && entry.status !== 'watchlist') return none;
     const key = keyForEntry(entry);
     const episode = key ? cache.byId[key]?.nextEpisode : null;
-    if (!episode) return 0;
+    if (!episode) return none;
+
+    const seasons = Array.isArray(entry.seasons) ? entry.seasons : [];
+    const active = seasons.length && typeof activeSeasonFn === 'function' ? activeSeasonFn(entry) : null;
+
+    if (seasons.length && active) {
+      const total = Math.max(0, Number(active.total) || 0);
+      const watched = Math.min(Math.max(0, Number(active.watched) || 0), total);
+      const nextSeason = Number(episode.season) || 1;
+      const nextEp = Number(episode.episode) || 0;
+      let aired;
+      if (nextSeason > active.number) aired = total;            // active season fully aired
+      else if (nextSeason === active.number) aired = Math.max(0, Math.min(total, nextEp - 1));
+      else aired = 0;                                           // airing trails the watched season
+      return {
+        behind: Math.max(0, aired - watched),
+        airedPct: total > 0 ? Math.round((aired / total) * 100) : 0,
+      };
+    }
+
     const ordinal = episodeOrdinalForProgress(entry, episode);
-    if (ordinal == null) return 0;
-    const aired = ordinal - 1;
+    if (ordinal == null) return none;
+    const aired = Math.max(0, ordinal - 1);
+    const total = Math.max(0, Number(entry.totalEpisodes) || 0);
     const watched = Math.max(0, Number(entry.watchedEpisodes) || 0);
-    return Math.max(0, aired - watched);
+    return {
+      behind: Math.max(0, aired - watched),
+      airedPct: total > 0 ? Math.round((Math.min(aired, total) / total) * 100) : 0,
+    };
   }
 
   function cacheHasFreshKeys({
@@ -439,7 +465,7 @@
     episodeOrdinalForProgress,
     hasUnwatchedAiringEpisodeToday,
     airingTodaySignal,
-    episodesBehind,
+    airedProgress,
     cacheHasFreshKeys,
     cacheWarmPlan,
     discoverActionFromDataset,

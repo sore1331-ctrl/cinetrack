@@ -4089,10 +4089,12 @@ function render() {
       + (airingToday ? ' card-airing-today' : '')
       + (plannedToday ? ' card-planned-today' : '');
     card.dataset.id = m.id;
+    const aired = calendarModel.airedProgress(m, upcomingCache, activeSeason);
     card.innerHTML = cardViewRenderer.renderLibraryCard(m, {
       checked,
       airingToday,
-      behind: calendarModel.episodesBehind(m, upcomingCache),
+      behind: aired.behind,
+      airedPct: aired.airedPct,
       mutationDisabled,
       cardView: cardModel.view(m, { activeSeason, posterEmoji, formatRuntime, infoUrlForEntry }),
       esc,
