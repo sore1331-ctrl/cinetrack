@@ -102,6 +102,27 @@
     return null;
   }
 
+  // How many aired-but-unwatched episodes an in-progress/watchlist show has,
+  // using the upcoming cache's next-to-air episode. TMDB's next_episode_to_air
+  // is the first UNAIRED episode, so everything before it has already aired:
+  // aired = ordinal(nextEpisode) - 1, and "behind" = aired - watched.
+  // Returns 0 when we have no air data (e.g. an ended show) so the badge only
+  // appears for currently-releasing titles the viewer has fallen behind on.
+  function episodesBehind(entry, cache) {
+    if (!entry || !cache?.byId) return 0;
+    const isShow = entry.mediaType === 'tv' || entry.mediaType === 'anime';
+    if (!isShow) return 0;
+    if (entry.status !== 'in_progress' && entry.status !== 'watchlist') return 0;
+    const key = keyForEntry(entry);
+    const episode = key ? cache.byId[key]?.nextEpisode : null;
+    if (!episode) return 0;
+    const ordinal = episodeOrdinalForProgress(entry, episode);
+    if (ordinal == null) return 0;
+    const aired = ordinal - 1;
+    const watched = Math.max(0, Number(entry.watchedEpisodes) || 0);
+    return Math.max(0, aired - watched);
+  }
+
   function cacheHasFreshKeys({
     cache = null,
     keys = [],
@@ -418,6 +439,7 @@
     episodeOrdinalForProgress,
     hasUnwatchedAiringEpisodeToday,
     airingTodaySignal,
+    episodesBehind,
     cacheHasFreshKeys,
     cacheWarmPlan,
     discoverActionFromDataset,
