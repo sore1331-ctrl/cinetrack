@@ -321,6 +321,33 @@
 .page-size-select:focus { border-color: var(--accent); }
 .page-size-select option { background: var(--surface2); }
 
+/* ── Control-button icons (shared SVG language with the nav tabs, replacing
+      per-OS emoji like 🎲 ⚙ ☑) ── */
+.random-pick-btn,
+.more-filters-btn,
+.select-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ctrl-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+.ctrl-icon svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 /* ── Stats bar ── */
 .stats-bar {
   display: flex;
@@ -417,6 +444,12 @@
   flex-wrap: wrap;
   padding-bottom: 40px;
   margin-top: 32px;
+}
+/* Collapse the row when everything inside is hidden — it otherwise leaves a
+   ~72px dead band above the stats/calendar/home panels and below short
+   library pages. */
+.pagination-row:not(:has(> :not(.hidden))) {
+  display: none;
 }
 .pagination-row .pagination {
   margin-top: 0;
@@ -553,8 +586,9 @@
     flex-shrink: 0;
   }
   .status-tabs::-webkit-scrollbar { display: none; }
-  /* Secondary controls beneath */
-  .size-toggle      { order: 4; flex-shrink: 0; }
+  /* Secondary controls beneath. The S/M/L grid-size toggle is desktop-only —
+     on a phone the grid is forced to 2-up anyway, so it only cost a row. */
+  .size-toggle      { display: none; }
   .random-pick-btn  { order: 5; flex-shrink: 0; }
   .more-filters-btn { order: 6; flex-shrink: 0; }
   .select-mode-btn  { order: 7; flex-shrink: 0; }
@@ -587,6 +621,18 @@
 
   /* Hide lowest-priority controls */
   .page-info { display: none; }
+
+  /* Stats bar: one horizontally-scrollable line instead of wrapping
+     "1 on watchlist" alone onto a second row. */
+  .stats-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .stats-bar::-webkit-scrollbar { display: none; }
+  .stats-bar .stat-item,
+  .stats-bar .country-stats { white-space: nowrap; flex-shrink: 0; }
 
   /* Grid: force 2+ columns even on MD */
   .movie-grid.grid-md { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }

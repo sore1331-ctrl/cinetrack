@@ -89,6 +89,18 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Light mode: the pastel orbs are so faint at the dark-tuned mix levels that
+   the page reads as flat grey and the glass identity disappears. Stronger
+   mixes keep the same hues visible behind the translucent panels. */
+:root.light body {
+  background:
+    radial-gradient(54vmax at 0% 0%, color-mix(in srgb, var(--orb-a) 82%, transparent) 0%, transparent 58%),
+    radial-gradient(54vmax at 100% 100%, color-mix(in srgb, var(--orb-b) 76%, transparent) 0%, transparent 58%),
+    radial-gradient(42vmax at 100% 30%, color-mix(in srgb, var(--orb-c) 68%, transparent) 0%, transparent 58%),
+    var(--bg);
+  background-attachment: fixed;
+}
+
 body > * {
   position: relative;
   z-index: 1;

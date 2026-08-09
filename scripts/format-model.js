@@ -37,7 +37,8 @@
   function starsHtml(rating) {
     const value = Number(rating) || 0;
     if (!value) return '';
-    return `<span class="card-stars" title="${value}/10">${'★'.repeat(value)}${'☆'.repeat(10 - value)}</span>`;
+    // Compact chip — a row of ten tiny stars per card was visual noise.
+    return `<span class="card-stars" title="Rated ${value}/10">★ ${value}<span class="card-stars-max">/10</span></span>`;
   }
 
   function runtime(mins) {

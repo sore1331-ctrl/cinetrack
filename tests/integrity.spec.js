@@ -1438,6 +1438,17 @@ test.describe('tracker data integrity', () => {
     }));
   });
 
+  test('modal type switcher locks while editing an existing title', () => {
+    const controller = fs.readFileSync(path.join(root, 'scripts', 'modal-controller.js'), 'utf8');
+    const overlays = fs.readFileSync(path.join(root, 'styles', 'overlays.css'), 'utf8');
+
+    // Switching Movie/TV/Anime on an existing entry silently re-typed it on
+    // save; the switcher must be disabled whenever an entry is being edited.
+    expect(controller).toContain('function setLocked(locked)');
+    expect(controller).toContain('typeController.setLocked?.(Boolean(entry?.id));');
+    expect(overlays).toContain('.type-btn:disabled');
+  });
+
   test('modal metadata refresh does not mark newly-aired episodes watched', () => {
     const model = loadModalModel();
     // A 12-episode show marked watched gains a 13th episode on refresh: the
@@ -2224,7 +2235,11 @@ test.describe('tracker data integrity', () => {
     expect(model.normaliseYear('Released in 2026')).toBe('2026');
     expect(model.runtime(125)).toBe('2h 5m');
     expect(model.calendarDuration(1440 * 400 + 60)).toBe('1y 1mo 5d');
-    expect(model.starsHtml(2)).toContain('★★☆☆');
+    // Compact rating chip, not a ten-star row.
+    expect(model.starsHtml(9)).toContain('★ 9');
+    expect(model.starsHtml(9)).toContain('/10');
+    expect(model.starsHtml(9)).not.toContain('★★');
+    expect(model.starsHtml(0)).toBe('');
   });
 
   test('network model parses JSON responses with timeout wrapper', async () => {
