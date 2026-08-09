@@ -3056,3 +3056,113 @@ test.describe('tracker data integrity', () => {
     expect(controller).toContain('const errorToast = syncModel.manualSyncErrorToast(e);');
   });
 });
+
+test.describe('aired-vs-scheduled episode tracking', () => {
+  test('TMDB mapper derives per-season aired counts and keeps announced seasons', () => {
+    // Mirrors api/movie.js: a currently-airing season publishes its full
+    // episode order up front, so `aired` must come from last_episode_to_air.
+    const source = fs.readFileSync(path.join(root, 'api', 'movie.js'), 'utf8');
+    expect(source).toContain('last_episode_to_air');
+    expect(source).toContain('aired_episodes');
+    // The old filter dropped confirmed-but-unscheduled seasons entirely.
+    expect(source).not.toContain("(s.episode_count || 0) > 0");
+  });
+
+  test('progress model falls back to fully-aired for pre-existing entries', () => {
+    const model = loadProgressModel();
+    // Legacy season rows carry no `aired` field — treat them as fully aired
+    // so an existing library does not suddenly become un-incrementable.
+    expect(model.seasonAired({ number: 1, total: 12 })).toBe(12);
+    expect(model.seasonAired({ number: 1, total: 12, aired: 3 })).toBe(3);
+    // aired can never exceed total even if the source disagrees.
+    expect(model.seasonAired({ number: 1, total: 12, aired: 99 })).toBe(12);
+    expect(model.airedTotal({ seasons: [
+      { number: 1, total: 16, aired: 16 },
+      { number: 2, total: 16, aired: 3 },
+    ] })).toBe(19);
+  });
+
+  test('card cannot increment past the last aired episode', () => {
+    const model = loadCardModel();
+    const activeSeason = entry => entry.seasons.find(s => s.watched < s.total) || null;
+
+    // Season 2 has premiered: 16 scheduled, 3 aired, none watched.
+    const airing = model.episodeState({
+      mediaType: 'tv',
+      seasons: [
+        { number: 1, total: 16, aired: 16, watched: 16 },
+        { number: 2, total: 16, aired: 3, watched: 0 },
+      ],
+    }, activeSeason);
+    expect(airing.aired).toBe(3);
+    expect(airing.canIncrement).toBe(true);
+    expect(airing.label).toContain('0/3 aired');
+
+    // All aired episodes watched — nothing left to tick despite 16 scheduled.
+    const caughtUp = model.episodeState({
+      mediaType: 'tv',
+      seasons: [
+        { number: 1, total: 16, aired: 16, watched: 16 },
+        { number: 2, total: 16, aired: 3, watched: 3 },
+      ],
+    }, activeSeason);
+    expect(caughtUp.canIncrement).toBe(false);
+
+    // Announced season with nothing aired reads as unavailable, not 0/16.
+    const announced = model.episodeState({
+      mediaType: 'tv',
+      seasons: [
+        { number: 1, total: 16, aired: 16, watched: 16 },
+        { number: 2, total: 16, aired: 0, watched: 0 },
+      ],
+    }, activeSeason);
+    expect(announced.canIncrement).toBe(false);
+    expect(announced.label).toContain('not aired yet');
+  });
+
+  test('incrementEpisode stops at the aired boundary', () => {
+    const model = loadLibraryModel();
+    const entry = {
+      mediaType: 'tv',
+      status: 'in_progress',
+      seasons: [
+        { number: 1, total: 16, aired: 16, watched: 16 },
+        { number: 2, total: 16, aired: 2, watched: 1 },
+      ],
+    };
+    const once = model.incrementEpisode(entry);
+    expect(once.seasons[1].watched).toBe(2);
+    // Already level with the aired count — a further click must be a no-op
+    // rather than marking an episode that has not been broadcast.
+    const twice = model.incrementEpisode(once);
+    expect(twice.seasons[1].watched).toBe(2);
+    expect(twice.status).not.toBe('watched');
+  });
+
+  test('new-season detection fires once per season and ignores ongoing runs', () => {
+    const model = loadCalendarModel();
+    const keyFor = entry => `tv:${entry.tmdbId}`;
+    const tracked = [{
+      id: 'a', tmdbId: 111, title: 'Flex X Cop', mediaType: 'tv',
+      seasons: [{ number: 1, total: 16, aired: 16, watched: 16 }],
+    }];
+    const cache = { byId: { 'tv:111': { nextEpisode: { season: 2, episode: 1, airDate: '2026-03-14' } } } };
+
+    const events = model.newSeasonEvents({ tracked, cache, seen: new Set(), keyFor });
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ season: 2, airDate: '2026-03-14' });
+
+    // Already announced — must not re-fire on the next daily refresh.
+    const repeat = model.newSeasonEvents({ tracked, cache, seen: new Set([events[0].key]), keyFor });
+    expect(repeat).toHaveLength(0);
+
+    // A mid-run episode of a season we already track is not news.
+    const ongoing = model.newSeasonEvents({
+      tracked,
+      cache: { byId: { 'tv:111': { nextEpisode: { season: 1, episode: 9, airDate: '2026-03-14' } } } },
+      seen: new Set(),
+      keyFor,
+    });
+    expect(ongoing).toHaveLength(0);
+  });
+});
