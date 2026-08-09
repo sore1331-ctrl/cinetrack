@@ -48,6 +48,26 @@
     return seasons.reduce((sum, season) => sum + Math.max(0, Number(season?.[field]) || 0), 0);
   }
 
+  // How many episodes of a season have actually aired. Entries saved before
+  // aired-tracking existed have no `aired` field — treat those as fully aired
+  // so nothing regresses for an existing library.
+  function seasonAired(season) {
+    if (!season) return 0;
+    const total = Math.max(0, Number(season.total) || 0);
+    if (season.aired == null) return total;
+    return Math.min(total, Math.max(0, Number(season.aired) || 0));
+  }
+
+  // Aired episode count for a whole entry, across seasons or flat tracking.
+  function airedTotal(entry) {
+    if (!entry) return 0;
+    const seasons = Array.isArray(entry.seasons) ? entry.seasons : [];
+    if (seasons.length) return seasons.reduce((sum, s) => sum + seasonAired(s), 0);
+    const total = Math.max(0, Number(entry.totalEpisodes) || 0);
+    if (entry.airedEpisodes == null) return total;
+    return Math.min(total, Math.max(0, Number(entry.airedEpisodes) || 0));
+  }
+
   function activeSeason(entry) {
     if (!Array.isArray(entry?.seasons) || !entry.seasons.length) return null;
     const sorted = [...entry.seasons].sort((a, b) => a.number - b.number);
@@ -77,6 +97,8 @@
     recomputeShowProgress,
     applyWatchedCountAcrossSeasons,
     seasonTotal,
+    seasonAired,
+    airedTotal,
     activeSeason,
     syncEpisodeProgress,
   };

@@ -11,6 +11,15 @@
     return posterEmoji(entry.title || '');
   }
 
+  // Episodes of a season that have aired. Entries predating aired-tracking
+  // carry no `aired` field, so fall back to the full total.
+  function airedOf(season) {
+    if (!season) return 0;
+    const total = Math.max(0, Number(season.total) || 0);
+    if (season.aired == null) return total;
+    return Math.min(total, Math.max(0, Number(season.aired) || 0));
+  }
+
   function episodeState(entry = {}, activeSeason) {
     const show = isShow(entry);
     const seasons = Array.isArray(entry.seasons) ? entry.seasons : [];
@@ -18,9 +27,36 @@
     const active = hasSeasons && typeof activeSeason === 'function' ? activeSeason(entry) : null;
     const fallbackTotal = entry.totalEpisodes || 0;
     const fallbackWatched = Math.min(entry.watchedEpisodes || 0, fallbackTotal);
+    const fallbackAired = entry.airedEpisodes == null
+      ? fallbackTotal
+      : Math.min(fallbackTotal, Math.max(0, Number(entry.airedEpisodes) || 0));
     const total = hasSeasons ? (active ? active.total : 0) : fallbackTotal;
     const watched = hasSeasons ? (active ? active.watched : 0) : fallbackWatched;
+    const aired = hasSeasons ? (active ? airedOf(active) : 0) : fallbackAired;
     const pct = total > 0 ? Math.round((watched / total) * 100) : 0;
+    // A scheduled-but-unaired episode can't be watched, so progress is gated
+    // on aired rather than the full episode order TMDB publishes up front.
+    const partiallyAired = aired < total;
+    const seasonPrefix = hasSeasons && active && seasons.length > 1 ? `S${active.number} ` : '';
+
+    let label;
+    let title;
+    if (partiallyAired && aired === 0) {
+      label = `▶ ${seasonPrefix}not aired yet`;
+      title = hasSeasons && active
+        ? `${active.name || `Season ${active.number}`}: none of ${total} episodes have aired yet`
+        : `None of ${total} episodes have aired yet`;
+    } else if (partiallyAired) {
+      label = `▶ ${seasonPrefix}${watched}/${aired} aired`;
+      title = hasSeasons && active
+        ? `${active.name || `Season ${active.number}`}: ${watched} of ${aired} aired episodes watched (${total} scheduled)`
+        : `${watched} of ${aired} aired episodes watched (${total} scheduled)`;
+    } else {
+      label = `▶ ${seasonPrefix}${watched}/${total} eps`;
+      title = hasSeasons && active
+        ? `${active.name || `Season ${active.number}`}: ${watched} of ${total} episodes watched`
+        : `${watched} of ${total} episodes watched`;
+    }
 
     return {
       isShow: show,
@@ -29,14 +65,12 @@
       active,
       total,
       watched,
+      aired,
+      partiallyAired,
       pct,
-      canIncrement: show && total > 0 && watched < total,
-      label: hasSeasons && active && seasons.length > 1
-        ? `▶ S${active.number} ${watched}/${total} eps`
-        : `▶ ${watched}/${total} eps`,
-      title: hasSeasons && active
-        ? `${active.name || `Season ${active.number}`}: ${watched} of ${total} episodes watched`
-        : `${watched} of ${total} episodes watched`,
+      canIncrement: show && total > 0 && watched < aired,
+      label,
+      title,
     };
   }
 

@@ -363,6 +363,46 @@
     return rows.sort((a, b) => a.date.localeCompare(b.date));
   }
 
+  // ── New-season detection ──────────────────────────────
+  // The daily upcoming refresh already returns `nextEpisode.season`, so a
+  // premiere can be spotted without spending an extra request per show:
+  // if the next episode belongs to a season the library has never recorded,
+  // that season is new. Returns one event per newly-seen season.
+  //
+  // `seen` is a Set of previously-emitted event keys so a premiere is
+  // announced once rather than every refresh.
+  function newSeasonEvents({ tracked = [], cache = null, seen = new Set(), keyFor = keyForEntry } = {}) {
+    const byId = cache?.byId || {};
+    const events = [];
+    for (const entry of tracked) {
+      if (entry?.mediaType !== 'tv' && entry?.mediaType !== 'anime') continue;
+      const item = byId[keyFor(entry)];
+      const next = item?.nextEpisode;
+      if (!next || next.season == null) continue;
+
+      const knownSeasons = Array.isArray(entry.seasons) ? entry.seasons : [];
+      const maxKnown = knownSeasons.reduce((max, s) => Math.max(max, Number(s?.number) || 0), 0);
+      // A season we already track isn't news, even if it's mid-run.
+      if (maxKnown && Number(next.season) <= maxKnown) continue;
+      // With no season breakdown at all we can't tell new from ongoing, so
+      // only treat an explicit episode 1 as a premiere.
+      if (!maxKnown && Number(next.episode) !== 1) continue;
+
+      const key = `${keyFor(entry)}:s${next.season}:premiere`;
+      if (seen.has(key)) continue;
+      events.push({
+        key,
+        entryId: entry.id,
+        title: entry.title || item.title || '',
+        season: Number(next.season),
+        episode: Number(next.episode) || 1,
+        airDate: next.airDate || null,
+        posterUrl: entry.posterUrl || '',
+      });
+    }
+    return events;
+  }
+
   function groupRowsByDate(rows = []) {
     return (rows || []).reduce((groups, row) => {
       (groups[row.date] ||= []).push(row);
@@ -390,6 +430,7 @@
     trackedEntries,
     cachedUpcomingForTracked,
     mergeUpcomingForTracked,
+    newSeasonEvents,
     trackedRows,
     groupRowsByDate,
   };

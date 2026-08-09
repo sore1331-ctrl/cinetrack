@@ -1735,6 +1735,8 @@ function applyMetadataRefresh(movie, details) {
       movie.seasons = details.seasons.map(s => ({
         number:  s.number,
         total:   s.total,
+        aired:   s.aired == null ? s.total : s.aired,
+        airDate: s.air_date || null,
         watched: 0,
         name:    s.name,
       }));
@@ -1743,6 +1745,7 @@ function applyMetadataRefresh(movie, details) {
       movie.totalEpisodes = details.total_episodes;
       movie.watchedEpisodes = Math.max(previousWatched, movie.watchedEpisodes || 0);
     }
+    if (details.aired_episodes != null) movie.airedEpisodes = details.aired_episodes;
     if (previousStatus === 'watched' && (movie.totalEpisodes || 0) > 0) {
       if (previousWatched >= (movie.totalEpisodes || 0)) {
         // Episode count unchanged or corrected downward — still fully watched.
@@ -2749,6 +2752,55 @@ function updateCalendarAiringBadge() {
   else delete tab.dataset.airingCount;
 }
 
+const SEASON_ANNOUNCE_KEY = 'cinetrack_announced_seasons';
+
+// Surface newly-detected seasons. Runs off the upcoming cache that the daily
+// refresh already populates, so it costs no extra requests. Deliberately does
+// NOT park hiatus shows in the calendar — a show with no scheduled episode
+// stays invisible until TMDB publishes a date, at which point this fires once.
+function checkNewSeasonAnnouncements() {
+  const cache = readUpcomingCache();
+  if (!cache?.byId) return;
+
+  let seen;
+  try { seen = new Set(JSON.parse(localStorage.getItem(SEASON_ANNOUNCE_KEY) || '[]')); }
+  catch { seen = new Set(); }
+
+  const events = calendarModel.newSeasonEvents({
+    tracked: trackedCalendarEntries(),
+    cache,
+    seen,
+    keyFor: calendarKeyForEntry,
+  });
+  if (!events.length) return;
+
+  const notifyEnabled = localStorage.getItem('cinetrack_notif') === 'on'
+    && typeof Notification !== 'undefined'
+    && Notification.permission === 'granted';
+
+  for (const ev of events) {
+    seen.add(ev.key);
+    if (!notifyEnabled) continue;
+    const when = ev.airDate ? relativeDayLabel(ev.airDate) : 'date TBC';
+    try {
+      new Notification('🆕 New season', {
+        body: `${ev.title} — Season ${ev.season} premieres ${when}`,
+        icon: ev.posterUrl || undefined,
+        tag: ev.key,
+      });
+    } catch { /* notification creation failed */ }
+  }
+
+  const arr = [...seen];
+  localStorage.setItem(SEASON_ANNOUNCE_KEY, JSON.stringify(arr.length > 200 ? arr.slice(-200) : arr));
+
+  const first = events[0];
+  const when = first.airDate ? relativeDayLabel(first.airDate) : 'date TBC';
+  showToast(events.length === 1
+    ? `🆕 ${first.title} — Season ${first.season} premieres ${when}`
+    : `🆕 ${events.length} shows have a new season — ${first.title} S${first.season} premieres ${when}`);
+}
+
 async function checkEpisodeNotifications() {
   if (localStorage.getItem('cinetrack_notif') !== 'on') return;
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
@@ -2914,6 +2966,7 @@ async function maybeRefreshCalendarOncePerAccountToday() {
     await mergeProfilePreferences({ [CALENDAR_DAILY_REFRESH_PREF]: today });
     localStorage.setItem(CALENDAR_DAILY_REFRESH_PREF, today);
     updateCalendarAiringBadge();
+    checkNewSeasonAnnouncements();
     if (activeView === 'calendar') renderCalendar();
   } catch (e) {
     logAppError('calendar.daily_refresh', e, {}, 'warn');

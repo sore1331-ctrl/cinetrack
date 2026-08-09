@@ -202,13 +202,25 @@
     });
   }
 
+  // Episodes of a season that have aired. Entries saved before aired-tracking
+  // existed carry no `aired` field, so fall back to the full total.
+  function airedOfSeason(season) {
+    if (!season) return 0;
+    const total = Math.max(0, Number(season.total) || 0);
+    if (season.aired == null) return total;
+    return Math.min(total, Math.max(0, Number(season.aired) || 0));
+  }
+
   function incrementEpisode(entry = {}) {
     const next = clone(entry) || {};
     if (Array.isArray(next.seasons) && next.seasons.length) {
       const sorted = [...next.seasons].sort((a, b) => (a.number || 0) - (b.number || 0));
-      const active = sorted.find(season => (season.watched || 0) < (season.total || 0));
+      // Only advance into episodes that have actually aired. TMDB publishes a
+      // season's full episode order the day it premieres, so `total` alone
+      // would let you tick off episodes that don't exist yet.
+      const active = sorted.find(season => (season.watched || 0) < airedOfSeason(season));
       if (active) {
-        active.watched = Math.min((active.watched || 0) + 1, active.total || 0);
+        active.watched = Math.min((active.watched || 0) + 1, airedOfSeason(active));
         let lastTouched = -1;
         for (let i = 0; i < sorted.length; i++) {
           sorted[i].watched = Math.min(sorted[i].watched || 0, sorted[i].total || 0);
@@ -222,9 +234,14 @@
         next.status = next.watchedEpisodes >= next.totalEpisodes ? 'watched' : 'in_progress';
       }
     } else if ((next.totalEpisodes || 0) > 0) {
-      const watched = Math.min((next.watchedEpisodes || 0) + 1, next.totalEpisodes);
-      next.watchedEpisodes = watched;
-      next.status = watched >= next.totalEpisodes ? 'watched' : 'in_progress';
+      const aired = next.airedEpisodes == null
+        ? next.totalEpisodes
+        : Math.min(next.totalEpisodes, Math.max(0, Number(next.airedEpisodes) || 0));
+      if ((next.watchedEpisodes || 0) < aired) {
+        const watched = Math.min((next.watchedEpisodes || 0) + 1, aired);
+        next.watchedEpisodes = watched;
+        next.status = watched >= next.totalEpisodes ? 'watched' : 'in_progress';
+      }
     }
     return next;
   }
