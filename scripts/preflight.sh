@@ -34,11 +34,26 @@ echo "── unmerged work (most recent first) ───────────
 echo "  Anything listed here can be live in a deployment while"
 echo "  being absent from main. Check before saying 'not found'."
 echo
+echo "  Counts use 'git cherry', so cherry-picked commits are"
+echo "  recognised as applied even though their SHAs differ."
+echo
+# Collected to a file rather than a pipeline: piping the loop into `sort`
+# would run it in a subshell, so any flag set inside would not survive.
+UNMERGED=$(mktemp) || exit 1
+trap 'rm -f "$UNMERGED"' EXIT
 for ref in $(git for-each-ref --format='%(refname:short)' refs/remotes/origin | grep -v 'origin/main$\|HEAD'); do
-  ahead=$(git rev-list --count origin/main.."$ref" 2>/dev/null || echo 0)
-  [ "$ahead" = "0" ] && continue
-  printf "  %s  ahead:%-4s %s\n" "$(git log -1 --format='%ad' --date=short "$ref")" "$ahead" "$ref"
-done | sort -r | head -12
+  # Skip refs fully contained in main before doing the (slower) patch compare.
+  [ "$(git rev-list --count origin/main.."$ref" 2>/dev/null || echo 0)" = "0" ] && continue
+  # '+' means no patch-equivalent commit exists on main; '-' means already applied.
+  missing=$(git cherry origin/main "$ref" 2>/dev/null | grep -c '^+' || true)
+  [ "${missing:-0}" = "0" ] && continue
+  printf "  %s  missing:%-4s %s\n" "$(git log -1 --format='%ad' --date=short "$ref")" "$missing" "$ref" >> "$UNMERGED"
+done
+if [ -s "$UNMERGED" ]; then
+  sort -r "$UNMERGED" | head -12
+else
+  echo "  (none — every branch is patch-equivalent to main)"
+fi
 
 if [ -z "$URL" ]; then
   echo
