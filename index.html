@@ -96,6 +96,13 @@
           <span id="user-avatar">?</span>
         </button>
         <div class="user-dropdown hidden" id="user-dropdown">
+          <!-- Offline / not-signed-in: the only way back to the auth form -->
+          <div id="user-dropdown-signed-out" class="hidden">
+            <div class="account-panel-label">Not signed in</div>
+            <p class="signed-out-hint">Changes are saved on this device only.</p>
+            <button id="menu-signin-btn" class="auth-submit menu-signin-btn">Sign in</button>
+          </div>
+          <div id="user-dropdown-signed-in">
           <div class="user-name-row">
             <span id="username-display" class="username-display">Set username</span>
             <button id="username-edit-btn" class="username-edit-btn" title="Edit username">✏</button>
@@ -117,6 +124,7 @@
           <button id="reload-cloud-btn" class="reload-cloud-btn" title="Fetch your latest data from the cloud and replace local data. Use this if changes from another device aren't showing up.">↻ Reload from cloud</button>
           <button id="tmdb-refresh-btn" class="reload-cloud-btn" title="Re-fetch metadata from each title's source. Your status, rating, notes, and episode progress are preserved.">↻ Refresh metadata</button>
           <button id="signout-btn" class="signout-btn">Sign out</button>
+          </div>
         </div>
       </div>
       <button id="header-profile-btn" class="header-profile-btn" title="Profile" aria-label="Profile">

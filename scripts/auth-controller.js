@@ -16,6 +16,7 @@
       getActiveView = () => 'content',
       getCurrentUser = () => null,
       setOfflineMode = () => {},
+      getOfflineMode = () => false,
       getCurrentUsername = () => null,
       setCurrentUsername = () => {},
       getSharingEnabled = () => false,
@@ -37,6 +38,9 @@
     const authSubmit   = documentRef.getElementById('auth-submit');
     const authOffline  = documentRef.getElementById('auth-offline');
     const userMenu     = documentRef.getElementById('user-menu');
+    const signedInView  = documentRef.getElementById('user-dropdown-signed-in');
+    const signedOutView = documentRef.getElementById('user-dropdown-signed-out');
+    const signInButton  = documentRef.getElementById('menu-signin-btn');
     const userAvatar   = documentRef.getElementById('user-avatar');
     const userEmailEl  = documentRef.getElementById('user-email');
     const userDropdown = documentRef.getElementById('user-dropdown');
@@ -78,11 +82,33 @@
 
     function updateUserMenu() {
       const currentUser = getCurrentUser();
-      if (!currentUser) {
+      // Only offer sign-in when there is actually a backend to sign in to.
+      // The "database not configured" path also sets offlineMode, and there
+      // the button would be dead.
+      const offline = !currentUser && getOfflineMode() && Boolean(getSupabase?.());
+
+      // Offline ("Continue without account") previously left the header with
+      // no account control at all, so once the auth overlay was dismissed
+      // there was no way back to the sign-in form. Keep the menu available in
+      // that state, showing a single Sign in action instead of the account
+      // panel. Reload used to be the only escape, which is awkward on mobile
+      // and absent entirely from a home-screen shortcut.
+      signedOutView?.classList.toggle('hidden', !offline);
+      signedInView?.classList.toggle('hidden', offline);
+
+      if (!currentUser && !offline) {
         userMenu?.classList.add('hidden');
         return;
       }
       userMenu?.classList.remove('hidden');
+      if (offline) {
+        if (userAvatar) userAvatar.textContent = '?';
+        avatarButton?.setAttribute('title', 'Not signed in');
+        avatarButton?.setAttribute('aria-label', 'Not signed in — sign in');
+        return;
+      }
+      avatarButton?.setAttribute('title', 'Account');
+      avatarButton?.setAttribute('aria-label', 'Account');
       const displayName = currentUserDisplayName();
       if (userAvatar) userAvatar.textContent = userInitial(displayName);
       if (userEmailEl) userEmailEl.textContent = currentUser.email;
@@ -147,10 +173,21 @@
       }
     });
 
+    // Returning to the sign-in form from offline mode. Leaves offlineMode set
+    // until a sign-in actually succeeds, so dismissing the overlay again drops
+    // the user back where they were rather than into a broken half-state.
+    signInButton?.addEventListener('click', () => {
+      userDropdown?.classList.add('hidden');
+      showAuthOverlay('form');
+    });
+
     authOffline?.addEventListener('click', () => {
       setOfflineMode(true);
       hideAuthOverlay();
       setSyncState('error', 'Offline mode - changes saved locally only');
+      // Reveal the header menu so the sign-in route stays reachable; without
+      // this the overlay closes onto a UI with no account control at all.
+      updateUserMenu();
       updateCountryDropdown();
       render();
     });
