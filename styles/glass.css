@@ -418,6 +418,19 @@ label textarea:focus,
   text-transform: uppercase;
 }
 
+/* Signed-out / offline state of the account dropdown. */
+.signed-out-hint {
+  color: var(--muted);
+  font-size: .78rem;
+  line-height: 1.4;
+  padding: 6px 8px 10px;
+  margin: 0;
+}
+.menu-signin-btn {
+  width: 100%;
+  margin: 0;
+}
+
 .reload-cloud-btn,
 .signout-btn {
   background: var(--surface2);

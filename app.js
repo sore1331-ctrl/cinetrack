@@ -4592,6 +4592,7 @@ const authUi = authController.createAuthController({
   getActiveView: () => activeView,
   getCurrentUser: () => currentUser,
   setOfflineMode: value => { offlineMode = value; },
+  getOfflineMode: () => offlineMode,
   getCurrentUsername: () => currentUsername,
   setCurrentUsername: value => { currentUsername = value; },
   getSharingEnabled: () => sharingEnabled,
