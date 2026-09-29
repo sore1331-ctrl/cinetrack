@@ -37,6 +37,7 @@
       'notes',
       'mediaType',
       'tmdbId',
+      'tmdbType',
       'externalSource',
       'externalId',
       'watchedEpisodes',

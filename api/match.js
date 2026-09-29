@@ -21,6 +21,7 @@ async function fetchDetails(id, mediaType, key) {
   return {
     matched:     true,
     tmdbId:      data.id,
+    media_type:  mediaType,
     title:       data.title || data.name || '',
     year:        (data.release_date || data.first_air_date || '').slice(0, 4),
     genre:       data.genres?.map(g => g.name).join(', ') || '',

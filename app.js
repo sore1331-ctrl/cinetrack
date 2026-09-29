@@ -1694,10 +1694,43 @@ async function fetchDetailsForEntry(movie) {
   }
   if (source === 'anilist') return fetchExternalDetails(movie.externalId, 'anime');
   if (source === 'tmdb') {
-    const fetchType = movie.mediaType === 'anime' ? 'tv' : (movie.mediaType || 'movie');
-    return fetchTMDBDetails(movie.tmdbId, fetchType);
+    if (movie.mediaType === 'anime' && !sourceModel.validTmdbType(movie.tmdbType)) {
+      return fetchLegacyAnimeTMDBDetails(movie);
+    }
+    return fetchTMDBDetails(movie.tmdbId, sourceModel.tmdbTypeForEntry(movie));
   }
   throw new Error('No metadata source saved for this title.');
+}
+
+function normalisedTitle(value) {
+  return String(value || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+}
+
+// Anime linked to TMDB before tmdbType was recorded could be a film or a
+// series, and TMDB reuses the same numeric ID across both. Blindly fetching
+// /tv/{id} for an anime film returns an unrelated show and overwrites the
+// entry, so confirm the type by title and remember it once known.
+async function fetchLegacyAnimeTMDBDetails(movie) {
+  const wanted = normalisedTitle(movie.title);
+  const tryType = async type => {
+    try { return await fetchTMDBDetails(movie.tmdbId, type); } catch { return null; }
+  };
+  const tv = await tryType('tv');
+  const matches = details => details && wanted && normalisedTitle(details.title) === wanted;
+  let verified = matches(tv) ? tv : null;
+  if (!verified) {
+    const film = await tryType('movie');
+    if (matches(film)) verified = film;
+  }
+  if (verified) {
+    movie.tmdbType = sourceModel.validTmdbType(verified.media_type);
+    return verified;
+  }
+  // Neither title matched (e.g. the user renamed the entry): keep the
+  // previous series behaviour rather than failing a refresh that used to
+  // work, but don't record the guess so the check runs again next time.
+  if (tv) return tv;
+  throw new Error('Could not load details from TMDB.');
 }
 
 function applyMetadataRefresh(movie, details) {
@@ -3762,6 +3795,7 @@ async function loadRecommendations({ force = false } = {}) {
 
   const selectedPool = selectRecommendationSeeds(topPool, Math.min(8, topPool.length), refreshIndex, force);
   const seededPool = (await Promise.all(selectedPool.map(resolveRecommendationSeed))).filter(Boolean);
+  if (loadSeq !== recommendationLoadSeq) return;
   if (!seededPool.length) {
     section.innerHTML = '<p class="recs-empty">Could not match your watched titles to recommendation sources yet. Try refreshing after adding a few more watched titles.</p>';
     return;
@@ -3794,6 +3828,7 @@ async function loadRecommendations({ force = false } = {}) {
     limit: 8,
   });
   if (!tmdbSeededPool.length) {
+    if (loadSeq !== recommendationLoadSeq) return;
     section.innerHTML = `<p class="recs-empty">No ${scope === 'anime' ? 'anime ' : ''}recommendations found yet. Try marking a few more titles as watched or in progress.</p>`;
     return;
   }
@@ -4557,7 +4592,7 @@ async function processImportedRow(row, { title }) {
   const epTotalUsed = isShow ? (totalEpisodes || (tmdb?.total_episodes || 0)) : 0;
   const epWatchUsed = isShow ? Math.min(watchedEpisodes, epTotalUsed || watchedEpisodes) : 0;
   if (tmdb) {
-    movies.push({ id: genId(), addedAt: Date.now(), title: tmdb.title, year: tmdb.year, genre: tmdb.genre, director: tmdb.director, country: tmdb.country, notes: row.notes || tmdb.overview || '', posterUrl: tmdb.poster_path ? `https://image.tmdb.org/t/p/w200${tmdb.poster_path}` : '', tmdbId: tmdb.tmdbId, runtime: tmdb.runtime || runtime, mediaType, status, rating, totalEpisodes: epTotalUsed, watchedEpisodes: epWatchUsed });
+    movies.push({ id: genId(), addedAt: Date.now(), title: tmdb.title, year: tmdb.year, genre: tmdb.genre, director: tmdb.director, country: tmdb.country, notes: row.notes || tmdb.overview || '', posterUrl: tmdb.poster_path ? `https://image.tmdb.org/t/p/w200${tmdb.poster_path}` : '', tmdbId: tmdb.tmdbId, tmdbType: sourceModel.validTmdbType(tmdb.media_type), runtime: tmdb.runtime || runtime, mediaType, status, rating, totalEpisodes: epTotalUsed, watchedEpisodes: epWatchUsed });
     return { imported: true };
   }
   movies.push({ id: genId(), addedAt: Date.now(), title, year, genre: row.genre || '', director: row.director || '', country: row.country || '', notes: row.notes || '', posterUrl: safeImageUrl(row.posterUrl), tmdbId: null, runtime, mediaType, status, rating, totalEpisodes: epTotalUsed, watchedEpisodes: epWatchUsed });

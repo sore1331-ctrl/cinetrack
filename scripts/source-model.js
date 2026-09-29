@@ -29,11 +29,21 @@
     return 'manual';
   }
 
+  function validTmdbType(value) {
+    return value === 'movie' || value === 'tv' ? value : null;
+  }
+
+  // TMDB keeps films and series in separate ID spaces, so a tmdbId only means
+  // something alongside its type. Anime can be either; entries saved before
+  // tmdbType was recorded fall back to the old "anime is a series" guess.
+  function tmdbTypeForEntry(entry) {
+    return validTmdbType(entry?.tmdbType) || (entry?.mediaType === 'movie' ? 'movie' : 'tv');
+  }
+
   function infoUrlForEntry(entry) {
     if (!entry) return '';
     if (entry.tmdbId) {
-      const tmdbType = entry.mediaType === 'movie' ? 'movie' : 'tv';
-      return `https://www.themoviedb.org/${tmdbType}/${encodeURIComponent(entry.tmdbId)}`;
+      return `https://www.themoviedb.org/${tmdbTypeForEntry(entry)}/${encodeURIComponent(entry.tmdbId)}`;
     }
     if (entry.externalSource === 'anilist' && entry.externalId) {
       return `https://anilist.co/anime/${encodeURIComponent(entry.externalId)}`;
@@ -65,6 +75,9 @@
     posterUrl,
     safeImageUrl,
     sourceForEntry,
+    validTmdbType,
+    tmdbTypeForEntry,
+    detailsFetchTypeForEntry: tmdbTypeForEntry,
     infoUrlForEntry,
     metadataRefreshLabel,
     metadataRefreshTooltip,

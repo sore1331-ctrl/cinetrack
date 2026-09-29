@@ -1436,6 +1436,36 @@ test.describe('tracker data integrity', () => {
       externalSource: 'tmdb',
       externalId: '123',
     }));
+    // An anime film picked from TMDB keeps its real TMDB type for refreshes.
+    expect(model.entryPayload({
+      fields: { title: 'Spirited Away', status: 'watched' },
+      mediaType: 'anime',
+      progress: { isShow: true, totalEpisodes: 0, watchedEpisodes: 0, seasons: [] },
+      selection: { id: 129, media_type: 'movie' },
+      selectedSource: 'tmdb',
+      selectedExternalId: '129',
+    })).toEqual(expect.objectContaining({ tmdbId: 129, tmdbType: 'movie' }));
+    // Editing without a new selection preserves the stored type.
+    expect(model.entryPayload({
+      fields: { title: 'Spirited Away', status: 'watched' },
+      mediaType: 'anime',
+      progress: { isShow: true, totalEpisodes: 0, watchedEpisodes: 0, seasons: [] },
+      existing: { tmdbId: 129, tmdbType: 'movie' },
+    })).toEqual(expect.objectContaining({ tmdbId: 129, tmdbType: 'movie' }));
+  });
+
+  test('legacy anime TMDB refresh confirms film vs series before overwriting', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const match = fs.readFileSync(path.join(root, 'api', 'match.js'), 'utf8');
+    const movie = fs.readFileSync(path.join(root, 'api', 'movie.js'), 'utf8');
+    expect(app).toContain('async function fetchLegacyAnimeTMDBDetails(movie)');
+    expect(app).toContain("fetchTMDBDetails(movie.tmdbId, sourceModel.tmdbTypeForEntry(movie))");
+    expect(app).not.toContain("movie.mediaType === 'anime' ? 'tv' : (movie.mediaType || 'movie')");
+    // CSV import needs the matched type to store it.
+    expect(match).toContain('media_type:  mediaType');
+    expect(app).toContain('tmdbType: sourceModel.validTmdbType(tmdb.media_type)');
+    // The id is placed in the TMDB path, so it must be numeric.
+    expect(movie).toContain('/^\\d+$/.test(String(id))');
   });
 
   test('modal type switcher locks while editing an existing title', () => {
@@ -2073,6 +2103,12 @@ test.describe('tracker data integrity', () => {
     expect(model.sourceForEntry({ tmdbId: 42, externalSource: 'anilist' })).toBe('tmdb');
     expect(model.sourceForEntry({ externalSource: 'anilist' })).toBe('anilist');
     expect(model.infoUrlForEntry({ tmdbId: 42, mediaType: 'movie' })).toBe('https://www.themoviedb.org/movie/42');
+    // Anime can be a TMDB film; a recorded tmdbType wins over the series guess.
+    expect(model.infoUrlForEntry({ tmdbId: 129, mediaType: 'anime', tmdbType: 'movie' })).toBe('https://www.themoviedb.org/movie/129');
+    expect(model.infoUrlForEntry({ tmdbId: 1429, mediaType: 'anime' })).toBe('https://www.themoviedb.org/tv/1429');
+    expect(model.tmdbTypeForEntry({ mediaType: 'anime', tmdbType: 'movie' })).toBe('movie');
+    expect(model.tmdbTypeForEntry({ mediaType: 'anime', tmdbType: 'bogus' })).toBe('tv');
+    expect(model.detailsFetchTypeForEntry({ mediaType: 'movie' })).toBe('movie');
     expect(model.infoUrlForEntry({ externalSource: 'anilist', externalId: '123 45' })).toBe('https://anilist.co/anime/123%2045');
     expect(model.infoUrlForEntry({ externalSource: 'tvmaze', externalId: '90839' })).toBe('https://www.tvmaze.com/shows/90839');
     expect(model.metadataRefreshLabel({ externalSource: 'anilist' })).toBe('Refresh from AniList');

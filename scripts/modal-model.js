@@ -180,11 +180,20 @@
     return status;
   }
 
+  function tmdbTypeOf(value) {
+    return value === 'movie' || value === 'tv' ? value : null;
+  }
+
   function externalFields({ selection = null, selectedSource = null, selectedExternalId = '', existing = {} } = {}) {
     return {
       tmdbId: selectedSource === 'tmdb'
         ? (selection?.id || existing?.tmdbId || null)
         : (selection ? null : existing?.tmdbId || null),
+      // Anime can be a TMDB film or series; remember which so later refreshes
+      // and links hit the right endpoint instead of assuming a series.
+      tmdbType: selectedSource === 'tmdb'
+        ? (tmdbTypeOf(selection?.media_type) || tmdbTypeOf(existing?.tmdbType))
+        : (selection ? null : tmdbTypeOf(existing?.tmdbType)),
       externalSource: selectedSource || existing?.externalSource || (existing?.tmdbId ? 'tmdb' : 'manual'),
       externalId: selectedExternalId || existing?.externalId || (existing?.tmdbId ? String(existing.tmdbId) : null),
       sourceStatus: selection?.source_status || existing?.sourceStatus || '',
