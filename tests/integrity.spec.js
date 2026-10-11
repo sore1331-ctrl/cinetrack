@@ -1753,7 +1753,40 @@ test.describe('tracker data integrity', () => {
     expect(sharedFn).toContain('p.user_id <> (select auth.uid())');
 
     expect(api).toContain("supabaseFetch('rpc/shared_libraries'");
-    expect(api).not.toContain('user_data?select');
+    expect(api).toContain('legacySharedLibraries(token');
+  });
+
+  test('community API falls back to direct queries until the database is migrated', async () => {
+    const source = fs.readFileSync(path.join(root, 'api', 'community.js'), 'utf8');
+    const run = async rpcResponse => {
+      const calls = [];
+      const sandbox = {
+        process: { env: { SUPABASE_URL: 'http://sb', SUPABASE_ANON_KEY: 'k' } },
+        AbortController, setTimeout, clearTimeout, encodeURIComponent,
+        fetch: async url => {
+          calls.push(url);
+          const reply = (status, body) => ({ ok: status < 400, status, text: async () => JSON.stringify(body) });
+          if (url.includes('rpc/shared_libraries')) return rpcResponse(reply);
+          if (url.includes('/profiles?')) return reply(200, [{ user_id: 'u2', username: 'Pat' }]);
+          return reply(200, [{ user_id: 'u2', movies: [{ title: 'T', notes: 'private' }] }]);
+        },
+      };
+      vm.runInNewContext(source.replace('export default async function handler', 'handler = async function'), sandbox);
+      let body;
+      await sandbox.handler(
+        { headers: { authorization: 'Bearer t' }, query: { currentUserId: 'u1' } },
+        { setHeader() {}, status() { return { json(b) { body = b; } }; } }
+      );
+      return { body: JSON.parse(JSON.stringify(body)), calls };
+    };
+
+    const migrated = await run(reply => reply(200, [{ user_id: 'u2', username: 'Pat', movies: [{ title: 'T' }] }]));
+    expect(migrated.calls).toHaveLength(1);
+    expect(migrated.body).toEqual({ profiles: [{ user_id: 'u2', username: 'Pat' }], sharedData: [{ user_id: 'u2', movies: [{ title: 'T' }] }] });
+
+    const legacy = await run(reply => reply(404, { code: 'PGRST202', message: 'Could not find the function public.shared_libraries without parameters in the schema cache' }));
+    expect(legacy.calls).toHaveLength(3);
+    expect(legacy.body).toEqual(migrated.body);
   });
 
   test('cloud backups are pruned to a bounded number per user', () => {
@@ -1781,6 +1814,26 @@ test.describe('tracker data integrity', () => {
     expect(tag).toMatch(/supabase-js@\d+\.\d+\.\d+\//);
     expect(tag).toMatch(/integrity="sha384-[A-Za-z0-9+/=]+"/);
     expect(tag).toContain('crossorigin="anonymous"');
+  });
+
+  test('library sanitising keeps aired counts so +1 still stops at the aired boundary', () => {
+    const sandbox = { window: {} };
+    vm.runInNewContext(fs.readFileSync(path.join(root, 'scripts', 'library-model.js'), 'utf8'), sandbox);
+    const library = sandbox.window.CineTrack.library;
+
+    let entry = library.sanitiseEntry({
+      id: 'x', title: 'Airing Show', mediaType: 'tv', status: 'in_progress',
+      seasons: [{ number: 1, total: 16, aired: 3, airDate: '2026-10-01', watched: 1, name: 'Season 1' }],
+    });
+    expect(entry.seasons[0].aired).toBe(3);
+    expect(entry.seasons[0].airDate).toBe('2026-10-01');
+
+    for (let i = 0; i < 5; i += 1) entry = library.sanitiseEntry(library.incrementEpisode(entry));
+    expect(entry.seasons[0].watched).toBe(3);
+    expect(entry.status).toBe('in_progress');
+
+    const legacy = library.sanitiseEntry({ title: 'Old', mediaType: 'tv', seasons: [{ number: 1, total: 10, watched: 2 }] });
+    expect('aired' in legacy.seasons[0]).toBe(false);
   });
 
   test('community setup SQL is loaded from the canonical setup file', () => {

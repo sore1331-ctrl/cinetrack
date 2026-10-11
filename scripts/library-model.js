@@ -36,12 +36,17 @@
       .map((season, index) => {
         const total = Math.max(0, toInt(season?.total, 0));
         const watched = Math.min(total || Math.max(0, toInt(season?.watched, 0)), Math.max(0, toInt(season?.watched, 0)));
-        return {
+        const next = {
           number: toInt(season?.number, index + 1) || index + 1,
           total,
           watched,
           name: season?.name || '',
         };
+        // Keep aired-tracking fields: without `aired` a season reads as fully
+        // aired and the +1 control runs past the last broadcast episode.
+        if (season?.aired != null) next.aired = Math.min(total, Math.max(0, toInt(season.aired, 0)));
+        if (season?.airDate) next.airDate = String(season.airDate);
+        return next;
       })
       .filter(season => season.total > 0 || season.watched > 0 || season.name);
   }

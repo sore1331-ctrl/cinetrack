@@ -77,6 +77,26 @@ async function supabaseFetch(path, token, signal) {
   return data;
 }
 
+// Pre-migration path: same shape as shared_libraries(). Remove once every
+// deployment's database has the function.
+async function legacySharedLibraries(token, currentUserId, signal) {
+  const profiles = await supabaseFetch(
+    `profiles?select=user_id,username&sharing_enabled=eq.true` +
+      (currentUserId ? `&user_id=neq.${encodeURIComponent(currentUserId)}` : ''),
+    token,
+    signal
+  );
+  const ids = (profiles || []).map(p => p.user_id).filter(Boolean);
+  if (!ids.length) return [];
+  const libraries = await supabaseFetch(
+    `user_data?select=user_id,movies&user_id=in.(${ids.map(encodeURIComponent).join(',')})`,
+    token,
+    signal
+  );
+  const moviesById = new Map((libraries || []).map(row => [row.user_id, row.movies]));
+  return profiles.map(p => ({ user_id: p.user_id, username: p.username, movies: moviesById.get(p.user_id) || [] }));
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
@@ -92,7 +112,15 @@ export default async function handler(req, res) {
     // Row-level security only lets a user read their own profile and library.
     // shared_libraries() is the single door to other users' data: it returns
     // sharing-enabled users (never the caller) with the public fields only.
-    const sharedData = await supabaseFetch('rpc/shared_libraries', token, controller.signal);
+    let sharedData;
+    try {
+      sharedData = await supabaseFetch('rpc/shared_libraries', token, controller.signal);
+    } catch (e) {
+      // Database not migrated yet (SUPABASE_SETUP.sql has not been re-run):
+      // fall back to the direct queries the old policies still allow.
+      if (!/could not find the function/i.test(e?.message || '')) throw e;
+      sharedData = await legacySharedLibraries(token, String(req.query.currentUserId || ''), controller.signal);
+    }
     const rows = Array.isArray(sharedData) ? sharedData : [];
     const profiles = rows
       .filter(row => row?.user_id)
