@@ -1,0 +1,12 @@
+# Development-only files: keep them out of the deployed site.
+# SUPABASE_SETUP.sql stays deployed (the Community setup-help screen fetches it)
+# and package.json stays so Vercel builds the API functions as before.
+tests/
+playwright.config.js
+playwright-report/
+test-results/
+CLAUDE.md
+API_INTEGRATIONS.md
+scripts/dev-server.js
+scripts/preflight.sh
+.claude/
