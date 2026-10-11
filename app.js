@@ -783,12 +783,23 @@ async function performCloudSave() {
       lastSavedLocalVersion,
       saveVersion,
     });
-    lastCloudUpdatedAt = nextSyncState.lastCloudUpdatedAt;
-    lastCloudVersion = nextSyncState.lastCloudVersion;
     lastCloudItemCount = nextSyncState.lastCloudItemCount;
     lastSavedLocalVersion = nextSyncState.lastSavedLocalVersion;
     clearPendingSyncMarker();
     clearCloudSaveRetry();
+    if (result.stale_client) {
+      // The server merged this save into cloud data this device has not seen,
+      // so the cloud now holds more than the local library. Keep the old
+      // baseline until that merged copy is pulled down: adopting the new
+      // version first would make the next save authoritative and delete
+      // whatever the other device added.
+      if (localChangeVersion === saveVersion && !cloudSyncTimer) {
+        await loadUserData({ silent: true, force: true });
+      }
+    } else {
+      lastCloudUpdatedAt = nextSyncState.lastCloudUpdatedAt;
+      lastCloudVersion = nextSyncState.lastCloudVersion;
+    }
     setSyncState('saved');
     return { ok: true };
   } catch (e) {

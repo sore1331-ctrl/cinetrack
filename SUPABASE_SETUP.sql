@@ -96,6 +96,39 @@ BEGIN
   END IF;
 END $$;
 
+-- Keep only the newest 30 backups per user. Every save writes a full copy of
+-- the library, so without this the table grows until the database is full.
+-- Runs as the table owner because signed-in users cannot delete backups.
+CREATE INDEX IF NOT EXISTS user_data_backups_user_id_idx
+  ON public.user_data_backups (user_id, id DESC);
+
+CREATE OR REPLACE FUNCTION public.prune_user_data_backups()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  DELETE FROM public.user_data_backups b
+  WHERE b.user_id = NEW.user_id
+    AND b.id NOT IN (
+      SELECT k.id
+      FROM public.user_data_backups k
+      WHERE k.user_id = NEW.user_id
+      ORDER BY k.id DESC
+      LIMIT 30
+    );
+  RETURN NULL;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS user_data_backups_prune ON public.user_data_backups;
+CREATE TRIGGER user_data_backups_prune
+  AFTER INSERT ON public.user_data_backups
+  FOR EACH ROW EXECUTE FUNCTION public.prune_user_data_backups();
+
+REVOKE EXECUTE ON FUNCTION public.prune_user_data_backups() FROM PUBLIC, anon, authenticated;
+
 -- 4. Append-only progress event log for audit and targeted recovery.
 CREATE TABLE IF NOT EXISTS public.progress_events (
   id              bigserial PRIMARY KEY,
@@ -194,6 +227,7 @@ DROP POLICY IF EXISTS "profiles_select_authenticated" ON public.profiles;
 DROP POLICY IF EXISTS "profiles_insert_own" ON public.profiles;
 DROP POLICY IF EXISTS "profiles_update_own" ON public.profiles;
 DROP POLICY IF EXISTS "profiles_delete_own" ON public.profiles;
+DROP POLICY IF EXISTS "profiles_select_own" ON public.profiles;
 
 DROP POLICY IF EXISTS "user_data_own" ON public.user_data;
 DROP POLICY IF EXISTS "user_data_shared" ON public.user_data;
@@ -213,10 +247,11 @@ DROP POLICY IF EXISTS "progress_events_update_none" ON public.progress_events;
 DROP POLICY IF EXISTS "progress_events_delete_none" ON public.progress_events;
 
 -- Profiles:
--- Signed-in users can read profile display data for community features.
-CREATE POLICY "profiles_select_authenticated" ON public.profiles
+-- Users can read only their own profile row. Other users' display names reach
+-- the community page through public.shared_libraries() below.
+CREATE POLICY "profiles_select_own" ON public.profiles
   FOR SELECT TO authenticated
-  USING (true);
+  USING ((select auth.uid()) = user_id);
 
 -- Users can create/update/delete only their own profile row.
 CREATE POLICY "profiles_insert_own" ON public.profiles
@@ -233,18 +268,11 @@ CREATE POLICY "profiles_delete_own" ON public.profiles
   USING ((select auth.uid()) = user_id);
 
 -- User data:
--- Users can read their own library, plus shared community libraries.
-CREATE POLICY "user_data_select_authenticated" ON public.user_data
+-- Users can read only their own library. Shared libraries are never readable
+-- as raw rows, because those include private fields such as notes.
+CREATE POLICY "user_data_select_own" ON public.user_data
   FOR SELECT TO authenticated
-  USING (
-    ((select auth.uid()) = user_id)
-    OR EXISTS (
-      SELECT 1
-      FROM public.profiles p
-      WHERE p.user_id = user_data.user_id
-        AND p.sharing_enabled = true
-    )
-  );
+  USING ((select auth.uid()) = user_id);
 
 CREATE POLICY "user_data_insert_own" ON public.user_data
   FOR INSERT TO authenticated
@@ -289,6 +317,47 @@ REVOKE UPDATE, DELETE ON public.progress_events FROM authenticated;
 REVOKE ALL ON public.user_data FROM anon;
 REVOKE ALL ON public.user_data_backups FROM anon;
 REVOKE ALL ON public.progress_events FROM anon;
+
+-- 8. Community sharing.
+-- The only way to read another user's library. Returns users who turned
+-- sharing on (never the caller) and only the fields the community page shows.
+CREATE OR REPLACE FUNCTION public.shared_libraries()
+RETURNS TABLE (user_id uuid, username text, movies jsonb)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT
+    p.user_id,
+    p.username,
+    COALESCE((
+      SELECT jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
+        'title',           m -> 'title',
+        'year',            m -> 'year',
+        'genre',           m -> 'genre',
+        'country',         m -> 'country',
+        'status',          m -> 'status',
+        'rating',          m -> 'rating',
+        'runtime',         m -> 'runtime',
+        'mediaType',       m -> 'mediaType',
+        'tmdbId',          m -> 'tmdbId',
+        'posterUrl',       m -> 'posterUrl',
+        'watchedEpisodes', m -> 'watchedEpisodes',
+        'totalEpisodes',   m -> 'totalEpisodes',
+        'addedAt',         m -> 'addedAt'
+      )))
+      FROM jsonb_array_elements(d.movies) AS m
+      WHERE jsonb_typeof(m) = 'object'
+    ), '[]'::jsonb) AS movies
+  FROM public.profiles p
+  LEFT JOIN public.user_data d ON d.user_id = p.user_id
+  WHERE p.sharing_enabled = true
+    AND p.user_id <> (select auth.uid());
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.shared_libraries() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.shared_libraries() TO authenticated;
 
 -- This helper is not used by CineTrack at runtime and should not be callable
 -- from the API if it exists.

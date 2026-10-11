@@ -82,7 +82,6 @@ export default async function handler(req, res) {
 
   const auth = req.headers.authorization || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-  const currentUserId = String(req.query.currentUserId || '');
 
   if (!token) return json(res, 401, { error: 'Missing user session token.' });
 
@@ -90,21 +89,14 @@ export default async function handler(req, res) {
   const timeout = setTimeout(() => controller.abort(), 12000);
 
   try {
-    const profilesPath =
-      `profiles?select=user_id,username&sharing_enabled=eq.true` +
-      (currentUserId ? `&user_id=neq.${encodeURIComponent(currentUserId)}` : '');
-
-    const profiles = await supabaseFetch(profilesPath, token, controller.signal);
-
-    if (!profiles?.length) {
-      return json(res, 200, { profiles: [], sharedData: [] });
-    }
-
-    const ids = profiles.map(p => p.user_id).filter(Boolean);
-    const idsFilter = ids.map(encodeURIComponent).join(',');
-    const sharedData = ids.length
-      ? await supabaseFetch(`user_data?select=user_id,movies&user_id=in.(${idsFilter})`, token, controller.signal)
-      : [];
+    // Row-level security only lets a user read their own profile and library.
+    // shared_libraries() is the single door to other users' data: it returns
+    // sharing-enabled users (never the caller) with the public fields only.
+    const sharedData = await supabaseFetch('rpc/shared_libraries', token, controller.signal);
+    const rows = Array.isArray(sharedData) ? sharedData : [];
+    const profiles = rows
+      .filter(row => row?.user_id)
+      .map(row => ({ user_id: row.user_id, username: typeof row.username === 'string' ? row.username : '' }));
 
     return json(res, 200, { profiles, sharedData: slimSharedData(sharedData) });
   } catch (e) {

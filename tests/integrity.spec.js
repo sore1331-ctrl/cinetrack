@@ -1738,6 +1738,51 @@ test.describe('tracker data integrity', () => {
     expect(sql).toContain("IF to_regprocedure('public.rls_auto_enable()') IS NOT NULL THEN");
   });
 
+  test('other users are only readable through the shared_libraries function', () => {
+    const sql = fs.readFileSync(path.join(root, 'SUPABASE_SETUP.sql'), 'utf8');
+    const api = fs.readFileSync(path.join(root, 'api', 'community.js'), 'utf8');
+
+    expect(sql).toContain('CREATE POLICY "user_data_select_own" ON public.user_data');
+    expect(sql).toContain('CREATE POLICY "profiles_select_own" ON public.profiles');
+    expect(sql).not.toContain('CREATE POLICY "user_data_select_authenticated"');
+    expect(sql).not.toContain('CREATE POLICY "profiles_select_authenticated"');
+    expect(sql).toContain('CREATE OR REPLACE FUNCTION public.shared_libraries()');
+    expect(sql).toContain('REVOKE EXECUTE ON FUNCTION public.shared_libraries() FROM PUBLIC, anon;');
+    const sharedFn = sql.slice(sql.indexOf('FUNCTION public.shared_libraries()'), sql.indexOf('GRANT EXECUTE ON FUNCTION public.shared_libraries()'));
+    expect(sharedFn).not.toContain('notes');
+    expect(sharedFn).toContain('p.user_id <> (select auth.uid())');
+
+    expect(api).toContain("supabaseFetch('rpc/shared_libraries'");
+    expect(api).not.toContain('user_data?select');
+  });
+
+  test('cloud backups are pruned to a bounded number per user', () => {
+    const sql = fs.readFileSync(path.join(root, 'SUPABASE_SETUP.sql'), 'utf8');
+
+    expect(sql).toContain('CREATE OR REPLACE FUNCTION public.prune_user_data_backups()');
+    expect(sql).toContain('CREATE TRIGGER user_data_backups_prune');
+    expect(sql).toContain('LIMIT 30');
+  });
+
+  test('a stale-merge save pulls the merged library before adopting the new baseline', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const save = app.slice(app.indexOf('async function performCloudSave()'), app.indexOf('// ── Season-tracking helpers'));
+    const staleBranch = save.slice(save.indexOf('if (result.stale_client) {'), save.indexOf('} else {'));
+
+    expect(staleBranch).toContain('await loadUserData({ silent: true, force: true });');
+    expect(staleBranch).not.toContain('lastCloudVersion =');
+    expect(save.slice(save.indexOf('} else {'))).toContain('lastCloudVersion = nextSyncState.lastCloudVersion;');
+  });
+
+  test('supabase client script is pinned with an integrity hash', () => {
+    const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+    const tag = html.match(/<script[^>]+supabase-js[^>]*>/)[0];
+
+    expect(tag).toMatch(/supabase-js@\d+\.\d+\.\d+\//);
+    expect(tag).toMatch(/integrity="sha384-[A-Za-z0-9+/=]+"/);
+    expect(tag).toContain('crossorigin="anonymous"');
+  });
+
   test('community setup SQL is loaded from the canonical setup file', () => {
     const controller = fs.readFileSync(path.join(root, 'scripts', 'community-controller.js'), 'utf8');
 
