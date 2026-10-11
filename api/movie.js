@@ -1,6 +1,8 @@
 export default async function handler(req, res) {
   const { id, type } = req.query;
-  if (!id) return res.status(400).json({ error: 'Missing id' });
+  // id is interpolated into the TMDB path; anything but digits would let a
+  // caller reach other TMDB endpoints with our key.
+  if (!id || !/^\d+$/.test(String(id))) return res.status(400).json({ error: 'Invalid id' });
 
   const mediaType = type === 'tv' ? 'tv' : 'movie';
   const url = `https://api.themoviedb.org/3/${mediaType}/${id}?api_key=${process.env.TMDB_API_KEY}&append_to_response=credits,watch/providers&language=en-US`;

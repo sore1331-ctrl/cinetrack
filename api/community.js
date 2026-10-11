@@ -20,11 +20,23 @@ const SHARED_MOVIE_FIELDS = [
   'addedAt',
 ];
 
+// Rows are written by other users, and a user can write to their own row
+// directly through Supabase without passing /api/user-data validation. Coerce
+// every field to the type the UI expects so nothing unexpected gets rendered.
+const SHARED_NUMBER_FIELDS = new Set(['rating', 'runtime', 'watchedEpisodes', 'totalEpisodes', 'addedAt']);
+
 function slimSharedMovie(movie) {
   if (!movie || typeof movie !== 'object') return null;
   const slim = {};
   for (const field of SHARED_MOVIE_FIELDS) {
-    if (movie[field] !== undefined) slim[field] = movie[field];
+    const value = movie[field];
+    if (value === undefined || value === null) continue;
+    if (SHARED_NUMBER_FIELDS.has(field)) {
+      const number = Number(value);
+      if (typeof value !== 'object' && Number.isFinite(number) && number >= 0) slim[field] = number;
+    } else if (typeof value === 'string' || typeof value === 'number') {
+      slim[field] = value;
+    }
   }
   return slim;
 }

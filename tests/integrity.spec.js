@@ -636,6 +636,59 @@ test.describe('tracker data integrity', () => {
     expect(api).toContain('sharedData: slimSharedData(sharedData)');
   });
 
+  test('community API coerces shared fields so other users cannot inject markup', () => {
+    const { slimSharedData } = loadCommunityApiHelpers();
+
+    const [row] = slimSharedData([{
+      user_id: 'user-1',
+      movies: [{
+        title: 'Hostile Show',
+        status: 'in_progress',
+        mediaType: 'tv',
+        rating: '8',
+        totalEpisodes: 10,
+        watchedEpisodes: '<img src=x onerror=alert(1)>',
+        runtime: ['<b>'],
+        genre: { nested: 'object' },
+      }],
+    }]);
+
+    expect(JSON.parse(JSON.stringify(row.movies[0]))).toEqual({
+      title: 'Hostile Show',
+      status: 'in_progress',
+      rating: 8,
+      mediaType: 'tv',
+      totalEpisodes: 10,
+    });
+  });
+
+  test('community profile renders hostile numeric fields as plain numbers', () => {
+    const sandbox = { window: {} };
+    vm.runInNewContext(fs.readFileSync(path.join(root, 'scripts', 'community-view.js'), 'utf8'), sandbox);
+    const hostile = '<img src=x onerror=alert(1)>';
+    const html = sandbox.window.CineTrack.communityView.profileModalHtml({ username: 'x' }, [
+      { title: 'A', status: 'in_progress', mediaType: 'tv', totalEpisodes: 10, watchedEpisodes: hostile },
+      { title: 'B', status: 'watched', mediaType: 'movie', rating: [hostile] },
+    ], {
+      esc: value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
+      actualWatchedMinutes: () => 0,
+      formatTimeSpent: () => '',
+      renderBarChart: () => '',
+    });
+
+    expect(html).not.toContain('<img src=x');
+    expect(html).toContain('0 / 10 eps');
+  });
+
+  test('movie API rejects non-numeric ids before building the TMDB URL', async () => {
+    const source = fs.readFileSync(path.join(root, 'api', 'movie.js'), 'utf8');
+    const sandbox = { process: { env: {} }, fetch: () => { throw new Error('must not fetch'); } };
+    vm.runInNewContext(source.replace('export default async function handler', 'handler = async function'), sandbox);
+    let status = 0;
+    await sandbox.handler({ query: { id: '../search/movie?query=x&' } }, { status(code) { status = code; return { json() {} }; } });
+    expect(status).toBe(400);
+  });
+
   test('community posters from other users are sanitised before rendering', () => {
     const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
     const view = fs.readFileSync(path.join(root, 'scripts', 'community-view.js'), 'utf8');

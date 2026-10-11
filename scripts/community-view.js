@@ -30,6 +30,12 @@
     return { overlap, ratingMatch, combined, sharedCount: sharedKeys.length };
   }
 
+  // Shared libraries come from other users: never trust a field to be a number.
+  function num(value) {
+    const number = Number(value);
+    return typeof value !== 'object' && Number.isFinite(number) && number >= 0 ? number : 0;
+  }
+
   function cardData(profiles = [], sharedData = [], myMovies = []) {
     const dataMap = Object.fromEntries(
       (sharedData || []).map(row => [row.user_id, Array.isArray(row.movies) ? row.movies : []])
@@ -130,8 +136,8 @@
       .sort((a, b) => (b.rating || 0) - (a.rating || 0) || (b.addedAt || 0) - (a.addedAt || 0))
       .slice(0, 4);
     const currentlyWatching = inProgress
-      .filter(m => (m.mediaType === 'tv' || m.mediaType === 'anime') && (m.totalEpisodes || 0) > 0)
-      .map(m => ({ m, pct: Math.round((Math.min(m.watchedEpisodes || 0, m.totalEpisodes) / m.totalEpisodes) * 100) }))
+      .filter(m => (m.mediaType === 'tv' || m.mediaType === 'anime') && num(m.totalEpisodes) > 0)
+      .map(m => ({ m, pct: Math.round((Math.min(num(m.watchedEpisodes), num(m.totalEpisodes)) / num(m.totalEpisodes)) * 100) }))
       .sort((a, b) => b.pct - a.pct)
       .slice(0, 6);
     const byType = ['movie', 'tv', 'anime'].map(type => ({
@@ -181,13 +187,13 @@
           <h3>Top Favourites</h3>
           <div class="fav-grid">
             ${favourites.map(m => `
-              <div class="fav-card" title="${esc(m.title)}${m.rating ? ' · ★ ' + m.rating : ''}">
+              <div class="fav-card" title="${esc(m.title)}${num(m.rating) ? ' · ★ ' + num(m.rating) : ''}">
                 ${safeImageUrl(m.posterUrl)
                   ? `<img class="fav-poster" src="${esc(safeImageUrl(m.posterUrl))}" alt="${esc(m.title)}" loading="lazy" />`
                   : `<div class="fav-poster fav-poster-emoji">${m.mediaType === 'anime' ? '🎌' : m.mediaType === 'tv' ? '📺' : '🎬'}</div>`}
                 <div class="fav-meta">
                   <div class="fav-title">${esc(m.title)}</div>
-                  ${m.rating ? `<div class="fav-rating">★ ${m.rating}</div>` : ''}
+                  ${num(m.rating) ? `<div class="fav-rating">★ ${num(m.rating)}</div>` : ''}
                 </div>
               </div>
             `).join('')}
@@ -207,7 +213,7 @@
                   <div class="curr-watching-title">${esc(m.title)}</div>
                   <div class="curr-watching-progress">
                     <div class="curr-watching-bar"><div class="curr-watching-bar-fill" style="width:${pct}%"></div></div>
-                    <span class="curr-watching-pct">${m.watchedEpisodes || 0} / ${m.totalEpisodes} eps · ${pct}%</span>
+                    <span class="curr-watching-pct">${num(m.watchedEpisodes)} / ${num(m.totalEpisodes)} eps · ${pct}%</span>
                   </div>
                 </div>
               </div>
