@@ -33,6 +33,17 @@
     episodes_watched: 'watchedEpisodes',
     watched_episodes: 'watchedEpisodes',
     watchedepisodes: 'watchedEpisodes',
+    // Columns written by CineTrack's own export, so a backup restores exactly.
+    tmdb_id: 'tmdbId',
+    external_source: 'externalSource',
+    external_id: 'externalId',
+    seasons: 'seasons',
+    watch_count: 'watchCount',
+    planned_date: 'plannedWatchDate',
+    planned_time: 'plannedWatchTime',
+    added_at: 'addedAt',
+    aired_episodes: 'airedEpisodes',
+    source_status: 'sourceStatus',
   };
 
   const EXPORT_HEADERS = [
@@ -48,6 +59,17 @@
     'type',
     'total_episodes',
     'episodes_watched',
+    'tmdb_id',
+    'external_source',
+    'external_id',
+    'poster_url',
+    'seasons',
+    'watch_count',
+    'planned_date',
+    'planned_time',
+    'added_at',
+    'aired_episodes',
+    'source_status',
   ];
 
   const TEMPLATE_CSV = [
@@ -156,6 +178,67 @@
     return { mediaType, status, rating, year, runtime, totalEpisodes, watchedEpisodes };
   }
 
+  function exportSeasons(seasons) {
+    if (!Array.isArray(seasons) || !seasons.length) return '';
+    return JSON.stringify(seasons.map(season => {
+      const out = {
+        number: season?.number,
+        total: season?.total,
+        watched: season?.watched || 0,
+        name: season?.name || '',
+      };
+      if (season?.aired != null) out.aired = season.aired;
+      if (season?.airDate) out.airDate = season.airDate;
+      return out;
+    }));
+  }
+
+  function count(value) {
+    const number = parseInt(value, 10);
+    return Number.isFinite(number) && number >= 0 ? number : null;
+  }
+
+  // Extra fields from a CineTrack backup row, validated. Rows from other
+  // spreadsheets simply have none of these columns and get {}.
+  function restoreFields(row = {}) {
+    const out = {};
+    const tmdbId = String(row.tmdbId || '').trim();
+    if (/^\d+$/.test(tmdbId)) out.tmdbId = Number(tmdbId);
+    const source = String(row.externalSource || '').trim().toLowerCase();
+    if (['tmdb', 'anilist', 'tvmaze', 'manual'].includes(source)) out.externalSource = source;
+    const externalId = String(row.externalId || '').trim();
+    if (/^[A-Za-z0-9_-]{1,64}$/.test(externalId)) out.externalId = externalId;
+    const watchCount = count(row.watchCount);
+    if (watchCount != null) out.watchCount = watchCount;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(row.plannedWatchDate || '').trim())) out.plannedWatchDate = row.plannedWatchDate.trim();
+    if (/^\d{2}:\d{2}$/.test(String(row.plannedWatchTime || '').trim())) out.plannedWatchTime = row.plannedWatchTime.trim();
+    const addedAt = count(row.addedAt);
+    if (addedAt) out.addedAt = addedAt;
+    const airedEpisodes = count(row.airedEpisodes);
+    if (airedEpisodes != null && String(row.airedEpisodes).trim() !== '') out.airedEpisodes = airedEpisodes;
+    const sourceStatus = String(row.sourceStatus || '').trim();
+    if (sourceStatus && sourceStatus.length <= 40) out.sourceStatus = sourceStatus;
+    if (row.seasons) {
+      try {
+        const parsed = JSON.parse(row.seasons);
+        if (Array.isArray(parsed)) {
+          out.seasons = parsed.slice(0, 500).filter(s => s && typeof s === 'object').map((s, index) => {
+            const season = {
+              number: count(s.number) ?? index + 1,
+              total: count(s.total) ?? 0,
+              watched: count(s.watched) ?? 0,
+              name: typeof s.name === 'string' ? s.name.slice(0, 200) : '',
+            };
+            if (count(s.aired) != null) season.aired = count(s.aired);
+            if (typeof s.airDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.airDate)) season.airDate = s.airDate;
+            return season;
+          });
+        }
+      } catch {}
+    }
+    return out;
+  }
+
   function escapeCell(value) {
     return `"${String(value == null ? '' : value).replace(/"/g, '""')}"`;
   }
@@ -174,11 +257,23 @@
       movie.mediaType,
       movie.totalEpisodes || '',
       movie.watchedEpisodes || '',
+      movie.tmdbId || '',
+      movie.externalSource || '',
+      movie.externalId || '',
+      movie.posterUrl && /^https?:\/\//i.test(movie.posterUrl) ? movie.posterUrl : '',
+      exportSeasons(movie.seasons),
+      movie.watchCount || '',
+      movie.plannedWatchDate || '',
+      movie.plannedWatchTime || '',
+      movie.addedAt || '',
+      movie.airedEpisodes ?? '',
+      movie.sourceStatus || '',
     ].map(escapeCell).join(','));
     return [EXPORT_HEADERS.join(','), ...rows].join('\n');
   }
 
   function exportList(entries = [], activeType = 'movie') {
+    if (activeType === 'all') return entries.slice();
     return activeType === 'dropped'
       ? entries.filter(entry => entry.status === 'dropped')
       : entries.filter(entry => entry.mediaType === activeType && entry.status !== 'dropped');
@@ -207,6 +302,7 @@
     parse,
     normaliseRow,
     escapeCell,
+    restoreFields,
     exportText,
     exportList,
     exportFilename,

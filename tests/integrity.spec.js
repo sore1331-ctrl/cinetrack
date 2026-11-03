@@ -1896,6 +1896,128 @@ test.describe('tracker data integrity', () => {
     expect(model.bulkMetadataRefreshSummary(state)).toBe('Refreshed 2 titles · ⚠ check progress on 1 (seasons changed: Renumbered Anime)');
   });
 
+  test('add/edit dialog and quick-add paths keep aired counts', () => {
+    const modal = loadModalModel();
+    const plain = value => JSON.parse(JSON.stringify(value));
+
+    const cloned = plain(modal.cloneSeasons({ seasons: [{ number: 1, total: 16, watched: 6, name: 'S1', aired: 9, airDate: '2026-10-01' }] }));
+    expect(cloned[0]).toEqual({ number: 1, total: 16, watched: 6, name: 'S1', aired: 9, airDate: '2026-10-01' });
+
+    const saved = plain(modal.episodeState({ mediaType: 'tv', seasons: cloned }));
+    expect(saved.seasons[0]).toEqual(expect.objectContaining({ aired: 9, airDate: '2026-10-01' }));
+    // Lowering a season's total in the dialog clamps aired with it.
+    expect(plain(modal.episodeState({ mediaType: 'tv', seasons: [{ ...cloned[0], total: 8, watched: 6 }] })).seasons[0].aired).toBe(8);
+
+    const payload = plain(modal.entryPayload({ fields: { title: 'S', status: 'in_progress' }, mediaType: 'tv', progress: saved, selection: { id: 5, aired_episodes: 9 }, selectedSource: 'tmdb' }));
+    expect(payload.airedEpisodes).toBe(9);
+
+    const library = loadLibraryModel();
+    const patch = plain(library.metadataEnrichmentPatch({ seasons: [{ number: 1, total: 16, aired: 9, air_date: '2026-10-01', name: 'S1' }], aired_episodes: 9 }, {}));
+    expect(patch.seasons[0]).toEqual(expect.objectContaining({ aired: 9, airDate: '2026-10-01' }));
+    expect(patch.airedEpisodes).toBe(9);
+  });
+
+  test('local safety backups keep plans, posters and aired counts', () => {
+    const storage = memoryStorage({});
+    const model = loadStorageModel(storage);
+    model.writeLibraryBackup({
+      key: 'b',
+      reason: 'test',
+      movies: [{
+        id: 'x', title: 'Show', mediaType: 'tv', posterUrl: 'https://image.tmdb.org/t/p/w200/a.jpg',
+        plannedWatchDate: '2026-11-05', plannedWatchTime: '20:00', airedEpisodes: 9,
+        seasons: [{ number: 1, total: 16, watched: 6, aired: 9, airDate: '2026-10-01' }],
+      }, { id: 'y', title: 'Inline', posterUrl: 'data:image/png;base64,AAAA' }],
+      storage,
+    });
+    const [backup] = JSON.parse(storage.getItem('b'));
+    expect(backup.movies[0]).toEqual(expect.objectContaining({
+      posterUrl: 'https://image.tmdb.org/t/p/w200/a.jpg',
+      plannedWatchDate: '2026-11-05',
+      plannedWatchTime: '20:00',
+      airedEpisodes: 9,
+    }));
+    expect(backup.movies[0].seasons[0]).toEqual(expect.objectContaining({ aired: 9, airDate: '2026-10-01' }));
+    expect(backup.movies[1].posterUrl).toBeUndefined();
+  });
+
+  test('csv export is a full backup that restores exactly', () => {
+    const model = loadCsvModel();
+    const show = {
+      title: 'Backup Show', year: '2026', status: 'in_progress', mediaType: 'tv', rating: 8,
+      totalEpisodes: 22, watchedEpisodes: 15, tmdbId: 1399, externalSource: 'tmdb', externalId: '1399',
+      posterUrl: 'https://image.tmdb.org/t/p/w200/a.jpg', watchCount: 2, plannedWatchDate: '2026-11-05',
+      plannedWatchTime: '20:30', addedAt: 1700000000000, airedEpisodes: 20,
+      seasons: [{ number: 1, total: 12, watched: 12, name: 'Season 1', aired: 12 }, { number: 2, total: 10, watched: 3, name: 'Season 2', aired: 8, airDate: '2026-09-01' }],
+    };
+    const [row] = model.parse(model.exportText([show]));
+    expect(row.posterUrl).toBe(show.posterUrl);
+    expect(JSON.parse(JSON.stringify(model.restoreFields(row)))).toEqual({
+      tmdbId: 1399, externalSource: 'tmdb', externalId: '1399', watchCount: 2,
+      plannedWatchDate: '2026-11-05', plannedWatchTime: '20:30', addedAt: 1700000000000, airedEpisodes: 20,
+      seasons: [
+        { number: 1, total: 12, watched: 12, name: 'Season 1', aired: 12 },
+        { number: 2, total: 10, watched: 3, name: 'Season 2', aired: 8, airDate: '2026-09-01' },
+      ],
+    });
+    // Ordinary spreadsheets have none of these columns.
+    expect(JSON.parse(JSON.stringify(model.restoreFields({ title: 'x', seasons: 'not json', tmdbId: '12a' })))).toEqual({});
+
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    expect(app).toContain('const restored = csvModel.restoreFields(row);');
+    expect(app).toContain('if (movies.some(m => libraryModel.entryKey(m) === key)) return { skipped: true };');
+  });
+
+  test('server ranks dropped above watchlist, like the app', async () => {
+    const source = fs.readFileSync(path.join(root, 'api', 'user-data.js'), 'utf8');
+    const library = fs.readFileSync(path.join(root, 'scripts', 'library-model.js'), 'utf8');
+    const ranks = text => text.match(/\{ watchlist: 0, dropped: 1, in_progress: 2, watched: 3 \}/);
+    expect(ranks(source)).not.toBeNull();
+    expect(ranks(library)).not.toBeNull();
+  });
+
+  test('cards name the episode airing today and the episodes you are behind on', () => {
+    const sandbox = { window: { CineTrack: {} } };
+    vm.runInNewContext(fs.readFileSync(path.join(root, 'scripts', 'calendar-model.js'), 'utf8'), sandbox);
+    vm.runInNewContext(fs.readFileSync(path.join(root, 'scripts', 'card-view.js'), 'utf8'), sandbox);
+    const calendar = sandbox.window.CineTrack.calendar;
+    const cache = next => ({ byId: { 'tv:1': { nextEpisode: next } } });
+
+    const single = { mediaType: 'tv', status: 'in_progress', tmdbId: 1, totalEpisodes: 12, watchedEpisodes: 6, seasons: [{ number: 1, total: 12, watched: 6 }] };
+    const active = entry => entry.seasons.find(s => s.watched < s.total);
+    expect(calendar.episodeTag(single, { season: 1, episode: 10 })).toBe('E10');
+    expect(calendar.airedProgress(single, cache({ season: 1, episode: 10 }), active).behindLabel).toBe('E7–9');
+    expect(calendar.airedProgress(single, cache({ season: 1, episode: 8 }), active).behindLabel).toBe('E7');
+
+    const multi = { mediaType: 'tv', status: 'in_progress', tmdbId: 1, seasons: [{ number: 1, total: 10, watched: 10 }, { number: 2, total: 8, watched: 1 }] };
+    expect(calendar.episodeTag(multi, { season: 2, episode: 4 })).toBe('S2 E4');
+    expect(calendar.airedProgress(multi, cache({ season: 2, episode: 4 }), active).behindLabel).toBe('S2 E2–3');
+    // Source numbering that doesn't fit the tracked season shows no number.
+    expect(calendar.episodeTag(single, { season: 2, episode: 14 })).toBe('');
+
+    const html = sandbox.window.CineTrack.cardView.renderLibraryCard({ id: 'a', title: 'T', mediaType: 'tv', status: 'in_progress' }, {
+      airingToday: true, airingEpisode: 'E10', airingEpisodeName: 'Finale', behind: 3, behindLabel: 'E7–9',
+      cardView: { isShow: true, episode: { total: 12, pct: 50, label: '▶ 6/12 eps', title: '' } },
+      esc: value => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
+    });
+    expect(html).toContain('● E10 today');
+    expect(html).toContain('title="E10 · Finale airs today"');
+    expect(html).toContain('3 behind (E7–9)');
+  });
+
+  test('password reset: request link, then set a new password after the link', () => {
+    const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+    const auth = fs.readFileSync(path.join(root, 'scripts', 'auth-controller.js'), 'utf8');
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    expect(html).toContain('id="auth-forgot"');
+    expect(html).toContain('id="auth-reset-form"');
+    expect(auth).toContain('sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin })');
+    expect(auth).toContain('sb.auth.updateUser({ password })');
+    expect(auth).toContain('If an account exists for that email');
+    expect(app).toContain("if (event === 'PASSWORD_RECOVERY') {");
+    expect(app).toContain('if (passwordRecoveryLink) authUi.showPasswordRecovery();');
+  });
+
   test('community setup SQL is loaded from the canonical setup file', () => {
     const controller = fs.readFileSync(path.join(root, 'scripts', 'community-controller.js'), 'utf8');
 
@@ -2200,7 +2322,9 @@ test.describe('tracker data integrity', () => {
     const backups = JSON.parse(storage.getItem('backups'));
     expect(backups).toHaveLength(2);
     expect(backups[0].compact).toBe(true);
-    expect(backups[0].movies[0].posterUrl).toBeUndefined();
+    // Remote poster links are kept so a restored title isn't left blank;
+    // inline data: images are still dropped to protect the storage budget.
+    expect(backups[0].movies[0].posterUrl).toBe('https://image.example/new.jpg');
     expect(backups[0].movies[0].overview).toBeUndefined();
     expect(backups[0].movies[0].seasons[0].posterUrl).toBeUndefined();
     expect(backups[0].movies[0].watchedEpisodes).toBe(4);
@@ -2554,7 +2678,8 @@ test.describe('tracker data integrity', () => {
       filename: 'cinetrack-movie-2026-05-24.csv',
       list: [rows[0]],
     }));
-    expect(app).toContain('const payload = csvModel.exportPayload(movies, activeType);');
+    expect(app).toContain("const payload = csvModel.exportPayload(movies, 'all');");
+    expect(model.exportList(rows, 'all')).toHaveLength(2);
     expect(app).toContain('a.download = payload.filename;');
   });
 

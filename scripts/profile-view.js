@@ -252,12 +252,12 @@
       <h3>
         Import / Export
         <button type="button" class="info-btn" id="csv-info-btn" aria-label="What is this?"
-          title="Export your library as a CSV spreadsheet, or import one to bulk-add titles. Imported rows are matched against TMDB to fill in posters, runtimes, and genres automatically. Use the template link for the expected column format.">ⓘ</button>
+          title="Export saves every title as a CSV backup, including episode progress, posters and plans. Importing that file restores it exactly. Other spreadsheets can be imported too: their rows are matched against TMDB to fill in posters, runtimes, and genres. Use the template link for the expected column format.">ⓘ</button>
       </h3>
       <p class="profile-csv-hint">Back up your library or move it between accounts.</p>
       <div class="profile-csv-actions">
         <button id="profile-import-btn" class="csv-action-btn" title="Import from CSV">⬆ Import CSV</button>
-        <button id="profile-export-btn" class="csv-action-btn" title="Export to CSV">⬇ Export CSV</button>
+        <button id="profile-export-btn" class="csv-action-btn" title="Export every title as a CSV backup">⬇ Export CSV</button>
         <a id="profile-csv-template" class="csv-template-link" href="#" download="cinetrack-template.csv">Download template</a>
       </div>
     </div>

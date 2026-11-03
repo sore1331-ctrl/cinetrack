@@ -45,6 +45,9 @@
 .auth-success { color: #4caf82; font-size: .85rem; background: rgba(76,175,130,.1); border: 1px solid rgba(76,175,130,.3); border-radius: 8px; padding: 8px 12px; }
 .auth-offline-btn { width: 100%; background: transparent; border: 1px solid var(--border); color: var(--muted); padding: 9px; border-radius: var(--radius); font-size: .85rem; cursor: pointer; transition: all .15s; }
 .auth-offline-btn:hover { border-color: var(--text); color: var(--text); }
+.auth-link-btn { align-self: center; background: none; border: none; color: var(--muted); font-size: .82rem; padding: 2px 4px; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.auth-link-btn:hover { color: var(--text); }
+.auth-reset-intro { margin: 0; color: var(--muted); font-size: .88rem; }
 
 /* ── User menu ── */
 .user-menu { position: relative; flex-shrink: 0; }

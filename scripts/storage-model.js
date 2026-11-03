@@ -52,17 +52,28 @@
       'nextEpisodeName',
       'nextEpisodeNumber',
       'nextSeasonNumber',
+      'plannedWatchDate',
+      'plannedWatchTime',
+      'sourceStatus',
+      'airedEpisodes',
     ];
     const compact = {};
     keep.forEach(field => {
       if (entry[field] !== undefined && entry[field] !== null && entry[field] !== '') compact[field] = entry[field];
     });
+    // Remote poster links are short; inline data: images can be large, so
+    // backups skip those to stay inside the localStorage budget.
+    if (typeof entry.posterUrl === 'string' && /^https?:\/\//i.test(entry.posterUrl)) {
+      compact.posterUrl = entry.posterUrl;
+    }
     if (Array.isArray(entry.seasons)) {
       compact.seasons = entry.seasons.map(season => ({
         number: season?.number,
         total: season?.total,
         watched: season?.watched,
         name: season?.name,
+        ...(season?.aired != null ? { aired: season.aired } : {}),
+        ...(season?.airDate ? { airDate: season.airDate } : {}),
       })).filter(season => season.number !== undefined || season.total !== undefined || season.watched !== undefined);
     }
     return compact;

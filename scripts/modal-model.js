@@ -33,6 +33,20 @@
     };
   }
 
+  // Aired-tracking fields ride along with a season through the dialog. Only
+  // copied when present so entries that predate aired-tracking keep falling
+  // back to "fully aired".
+  function airedFields(season = {}, total = null) {
+    const fields = {};
+    if (season?.aired != null) {
+      const aired = Math.max(0, parseInt(season.aired, 10) || 0);
+      fields.aired = total == null ? aired : Math.min(aired, total);
+    }
+    const airDate = season?.airDate || season?.air_date;
+    if (airDate) fields.airDate = String(airDate);
+    return fields;
+  }
+
   function cloneSeasons(entry = {}) {
     return Array.isArray(entry?.seasons)
       ? entry.seasons.map(season => ({
@@ -40,6 +54,7 @@
         total: season.total,
         watched: season.watched || 0,
         name: season.name,
+        ...airedFields(season),
       }))
       : [];
   }
@@ -84,6 +99,7 @@
       total: numberValue(season.total),
       watched: 0,
       name: season.name,
+      ...airedFields(season, numberValue(season.total)),
     }));
 
     // Same rule as the bulk refresh: keep each season's own progress, matched
@@ -170,6 +186,7 @@
         total: numberValue(season.total),
         watched: Math.min(numberValue(season.watched), numberValue(season.total)),
         name: season.name,
+        ...airedFields(season, numberValue(season.total)),
       }));
       return {
         isShow,
@@ -232,6 +249,7 @@
       seasons: progress.seasons || [],
       watchCount: finalWatchCount(status, editingWatchCount, existing),
       posterUrl,
+      ...(selection?.aired_episodes != null ? { airedEpisodes: numberValue(selection.aired_episodes) } : {}),
       ...externalFields({ selection, selectedSource, selectedExternalId, existing }),
     };
   }

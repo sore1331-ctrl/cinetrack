@@ -283,17 +283,24 @@
     if (details.overview && !current.notes) patch.notes = details.overview;
     if (details.poster_path && !current.posterUrl) patch.posterUrl = posterUrl(details.poster_path);
     if (Array.isArray(details.seasons) && details.seasons.length) {
-      patch.seasons = details.seasons.map((season, index) => ({
-        number: toInt(season?.number, index + 1) || index + 1,
-        total: Math.max(0, toInt(season?.total, 0)),
-        watched: 0,
-        name: season?.name || '',
-      }));
+      patch.seasons = details.seasons.map((season, index) => {
+        const total = Math.max(0, toInt(season?.total, 0));
+        const next = {
+          number: toInt(season?.number, index + 1) || index + 1,
+          total,
+          watched: 0,
+          name: season?.name || '',
+        };
+        if (season?.aired != null) next.aired = Math.min(total, Math.max(0, toInt(season.aired, 0)));
+        if (season?.air_date || season?.airDate) next.airDate = String(season.air_date || season.airDate);
+        return next;
+      });
       patch.totalEpisodes = patch.seasons.reduce((sum, season) => sum + (season.total || 0), 0);
       patch.watchedEpisodes = 0;
     } else if (details.total_episodes) {
       patch.totalEpisodes = Math.max(0, toInt(details.total_episodes, 0));
     }
+    if (details.aired_episodes != null) patch.airedEpisodes = Math.max(0, toInt(details.aired_episodes, 0));
     return patch;
   }
 

@@ -60,6 +60,31 @@
     return seasonNo <= 1 ? epNo : null;
   }
 
+  function episodeRange(from, to, prefix = '') {
+    if (!(from > 0) || to < from) return '';
+    return from === to ? `${prefix}E${from}` : `${prefix}E${from}–${to}`;
+  }
+
+  // Short label for a source episode in the numbering the card's progress
+  // uses: "S2 E10" for multi-season tracking, "E10" otherwise. Returns '' when
+  // the source numbering can't be placed (e.g. an anime cour numbered from 13
+  // but tracked as 1-12), so a card never shows a misleading episode number.
+  function episodeTag(entry, episode) {
+    if (!episode) return '';
+    const seasonNo = Number(episode.season) || 1;
+    const epNo = Number(episode.episode) || 0;
+    if (!epNo) return '';
+    const seasons = Array.isArray(entry?.seasons) ? entry.seasons : [];
+    if (seasons.length > 1) {
+      const season = seasons.find(s => Number(s?.number) === seasonNo);
+      if (!season) return '';
+      const total = Number(season.total) || 0;
+      return total && epNo > total ? '' : `S${seasonNo} E${epNo}`;
+    }
+    const total = seasons.length ? (Number(seasons[0]?.total) || 0) : (Number(entry?.totalEpisodes) || 0);
+    return total && epNo > total ? '' : `E${epNo}`;
+  }
+
   function hasUnwatchedAiringEpisodeToday(entry, episode, todayStr = dateString()) {
     if (!episode || episode.airDate !== todayStr) return false;
     const ordinal = episodeOrdinalForProgress(entry, episode);
@@ -111,7 +136,7 @@
   // otherwise the flat total). Returns zeroes when there's no air data (e.g.
   // an ended show) so the indicator only shows for currently-releasing titles.
   function airedProgress(entry, cache, activeSeasonFn) {
-    const none = { behind: 0, airedPct: 0 };
+    const none = { behind: 0, airedPct: 0, behindLabel: '' };
     if (!entry || !cache?.byId) return none;
     const isShow = entry.mediaType === 'tv' || entry.mediaType === 'anime';
     if (!isShow) return none;
@@ -135,6 +160,7 @@
       return {
         behind: Math.max(0, aired - watched),
         airedPct: total > 0 ? Math.round((aired / total) * 100) : 0,
+        behindLabel: episodeRange(watched + 1, aired, seasons.length > 1 ? `S${active.number} ` : ''),
       };
     }
 
@@ -146,6 +172,7 @@
     return {
       behind: Math.max(0, aired - watched),
       airedPct: total > 0 ? Math.round((Math.min(aired, total) / total) * 100) : 0,
+      behindLabel: episodeRange(watched + 1, total > 0 ? Math.min(aired, total) : aired),
     };
   }
 
@@ -466,6 +493,7 @@
     hasUnwatchedAiringEpisodeToday,
     airingTodaySignal,
     airedProgress,
+    episodeTag,
     cacheHasFreshKeys,
     cacheWarmPlan,
     discoverActionFromDataset,

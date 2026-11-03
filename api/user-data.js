@@ -161,8 +161,11 @@ function entryKey(movie) {
   return movie.id ? `id:${movie.id}` : '';
 }
 
+// Must match statusRank in scripts/library-model.js. Dropping a title is a
+// deliberate step past "watchlist"; ranking it lower made a stale-device
+// merge quietly put dropped titles back on the watchlist.
 function statusRank(status) {
-  return { dropped: 0, watchlist: 1, in_progress: 2, watched: 3 }[status] ?? 0;
+  return { watchlist: 0, dropped: 1, in_progress: 2, watched: 3 }[status] ?? 0;
 }
 
 function stableString(value) {

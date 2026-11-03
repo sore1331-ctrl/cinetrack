@@ -50,6 +50,13 @@
     const usernameEditButton = documentRef.getElementById('username-edit-btn');
     const usernameSaveButton = documentRef.getElementById('username-save-btn');
     const sharingToggle = documentRef.getElementById('sharing-toggle');
+    const authTabs      = documentRef.querySelector('.auth-tabs');
+    const forgotButton  = documentRef.getElementById('auth-forgot');
+    const resetForm     = documentRef.getElementById('auth-reset-form');
+    const newPassword   = documentRef.getElementById('auth-new-password');
+    const newPasswordConfirm = documentRef.getElementById('auth-new-password-confirm');
+    const resetError    = documentRef.getElementById('auth-reset-error');
+    const resetSubmit   = documentRef.getElementById('auth-reset-submit');
 
     let authMode = 'signin';
 
@@ -127,6 +134,7 @@
         btn.classList.add('active');
         authMode = btn.dataset.tab;
         setSubmitText();
+        forgotButton?.classList.toggle('hidden', authMode !== 'signin');
         hideMessage(authError);
         hideMessage(authSuccess);
       });
@@ -171,6 +179,87 @@
         authSubmit.disabled = false;
         setSubmitText();
       }
+    });
+
+    function showError(el, message) {
+      if (!el) return;
+      el.textContent = message;
+      el.classList.remove('hidden');
+    }
+
+    // Password reset, step 1: email a recovery link. The reply is the same
+    // whether or not an account exists, so the form can't be used to probe
+    // which emails are registered.
+    forgotButton?.addEventListener('click', async () => {
+      const sb = getSupabase();
+      const email = authEmail?.value.trim() || '';
+      hideMessage(authError);
+      hideMessage(authSuccess);
+      if (!email) {
+        showError(authError, 'Enter your email above, then choose "Forgot password?" again.');
+        authEmail?.focus();
+        return;
+      }
+      if (!sb) {
+        showError(authError, 'Password reset needs the cloud connection, which is not available right now.');
+        return;
+      }
+      forgotButton.disabled = true;
+      try {
+        const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+        if (error) throw error;
+        if (authSuccess) {
+          authSuccess.textContent = 'If an account exists for that email, a reset link is on its way. Open it on this device to choose a new password.';
+          authSuccess.classList.remove('hidden');
+        }
+      } catch (err) {
+        showError(authError, err?.message || 'Could not send the reset email.');
+      }
+      forgotButton.disabled = false;
+    });
+
+    // Password reset, step 2: the recovery link signs the user in; ask for
+    // the new password before letting them carry on.
+    function showPasswordRecovery() {
+      showAuthOverlay('form');
+      authTabs?.classList.add('hidden');
+      authForm?.classList.add('hidden');
+      authOffline?.classList.add('hidden');
+      hideMessage(authSuccess);
+      hideMessage(resetError);
+      resetForm?.classList.remove('hidden');
+      newPassword?.focus();
+    }
+
+    function closePasswordRecovery() {
+      resetForm?.classList.add('hidden');
+      authTabs?.classList.remove('hidden');
+      authForm?.classList.remove('hidden');
+      authOffline?.classList.remove('hidden');
+      if (newPassword) newPassword.value = '';
+      if (newPasswordConfirm) newPasswordConfirm.value = '';
+    }
+
+    resetForm?.addEventListener('submit', async e => {
+      e.preventDefault();
+      hideMessage(resetError);
+      const password = newPassword?.value || '';
+      if (password !== (newPasswordConfirm?.value || '')) {
+        showError(resetError, 'The two passwords do not match.');
+        return;
+      }
+      const sb = getSupabase();
+      if (resetSubmit) resetSubmit.disabled = true;
+      try {
+        const { error } = await sb.auth.updateUser({ password });
+        if (error) throw error;
+        closePasswordRecovery();
+        hideAuthOverlay();
+        showToast('Password updated ✓');
+      } catch (err) {
+        showError(resetError, err?.message || 'Could not update the password.');
+      }
+      if (resetSubmit) resetSubmit.disabled = false;
     });
 
     // Returning to the sign-in form from offline mode. Leaves offlineMode set
@@ -288,6 +377,7 @@
       hideAuthOverlay,
       updateUserMenu,
       closeUsernameForm,
+      showPasswordRecovery,
     };
   }
 

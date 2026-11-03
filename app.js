@@ -449,6 +449,10 @@ function withTimeout(promise, label = 'Operation', timeoutMs = 10000) {
   return networkModel.withTimeout(promise, label, timeoutMs);
 }
 
+// Captured before the Supabase client reads and clears the URL: a password
+// recovery link arrives as #...&type=recovery.
+const passwordRecoveryLink = /(?:^|[#&])type=recovery(?:&|$)/.test(window.location.hash || '');
+
 async function initSupabase() {
   try {
     const r = await withTimeout(fetch('/api/config', { cache: 'no-store' }), 'Supabase config load', 15000);
@@ -4055,8 +4059,10 @@ function renderProfile() {
 
 // ── Export CSV ──────────────────────────────────────────
 function exportCSV() {
-  const payload = csvModel.exportPayload(movies, activeType);
-  if (!payload.list.length) { showToast('No titles to export for this tab.', true); return; }
+  // Export is a backup: every title, every type, with the fields needed to
+  // restore it exactly (ids, posters, per-season progress, plans).
+  const payload = csvModel.exportPayload(movies, 'all');
+  if (!payload.list.length) { showToast('No titles to export yet.', true); return; }
 
   const blob = new Blob([payload.text], { type: 'text/csv' });
   const url  = URL.createObjectURL(blob);
@@ -4101,7 +4107,7 @@ function render() {
   if (activeView !== 'content') return;
 
   const upcomingCache = readUpcomingCache();
-  const checkAiringToday = airingTodayChecker(upcomingCache);
+  const todayStr = todayDateString();
   const list = filtered(upcomingCache);
 
   const visibleIds = new Set(list.map(m => m.id));
@@ -4129,7 +4135,8 @@ function render() {
   pageList.forEach(m => {
     const card = document.createElement('div');
     const checked = bulkSelection.has(m.id);
-    const airingToday = checkAiringToday(m);
+    const airingSignal = getAiringTodaySignal(m, todayStr, upcomingCache);
+    const airingToday = Boolean(airingSignal);
     const plannedToday = isPlannedToday(m);
     card.className = 'movie-card'
       + (checked ? ' selected' : '')
@@ -4141,7 +4148,10 @@ function render() {
       checked,
       airingToday,
       behind: aired.behind,
+      behindLabel: aired.behindLabel,
       airedPct: aired.airedPct,
+      airingEpisode: airingSignal?.type === 'episode' ? calendarModel.episodeTag(m, airingSignal.episode) : '',
+      airingEpisodeName: airingSignal?.type === 'episode' ? (airingSignal.episode?.name || '') : '',
       mutationDisabled,
       cardView: cardModel.view(m, { activeSeason, posterEmoji, formatRuntime, infoUrlForEntry }),
       esc,
@@ -4565,6 +4575,41 @@ async function processImportedRow(row, { title }) {
   const { mediaType, status, rating, year, runtime, totalEpisodes, watchedEpisodes } = normaliseRow(row);
   const dup = movies.some(m => m.title.toLowerCase() === title.toLowerCase() && m.mediaType === mediaType && (m.year || '') === year);
   if (dup) return { skipped: true };
+
+  // A row from CineTrack's own export carries its source id: restore it as
+  // it was instead of re-matching the title against TMDB.
+  const restored = csvModel.restoreFields(row);
+  if (restored.tmdbId || (restored.externalId && restored.externalSource && restored.externalSource !== 'manual')) {
+    const entry = {
+      id: genId(),
+      addedAt: restored.addedAt || Date.now(),
+      title,
+      year,
+      genre: row.genre || '',
+      director: row.director || '',
+      country: row.country || '',
+      notes: row.notes || '',
+      posterUrl: safeImageUrl(row.posterUrl),
+      tmdbId: restored.tmdbId || null,
+      externalSource: restored.externalSource || 'tmdb',
+      externalId: restored.externalId || String(restored.tmdbId),
+      runtime,
+      mediaType,
+      status,
+      rating,
+      totalEpisodes,
+      watchedEpisodes,
+      seasons: restored.seasons || [],
+      watchCount: restored.watchCount,
+      ...(restored.plannedWatchDate ? { plannedWatchDate: restored.plannedWatchDate, plannedWatchTime: restored.plannedWatchTime || '' } : {}),
+      ...(restored.airedEpisodes != null ? { airedEpisodes: restored.airedEpisodes } : {}),
+      ...(restored.sourceStatus ? { sourceStatus: restored.sourceStatus } : {}),
+    };
+    const key = libraryModel.entryKey(entry);
+    if (movies.some(m => libraryModel.entryKey(m) === key)) return { skipped: true };
+    movies.push(entry);
+    return { imported: true };
+  }
   const tmdb = await matchWithTMDB(title, year, mediaType);
   const source = tmdb ? 'tmdb' : 'manual';
   const externalId = tmdb?.tmdbId ? String(tmdb.tmdbId) : '';
@@ -4866,7 +4911,9 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
   sb.auth.onAuthStateChange(async (event, session) => {
     const authPlan = syncModel.authStateChangePlan({ event, session, currentAccessToken });
     currentAccessToken = authPlan.currentAccessToken;
-    if (authPlan.type === 'sign-in') {
+    if (event === 'PASSWORD_RECOVERY') {
+      authUi.showPasswordRecovery();
+    } else if (authPlan.type === 'sign-in') {
       await handleUserSignIn(authPlan.user, authPlan.accessToken);
     } else if (authPlan.type === 'sign-out') {
       userDataFetched = authPlan.reset.userDataFetched;
@@ -4883,6 +4930,7 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
     const initialSessionPlan = syncModel.initialSessionPlan({ session });
     if (initialSessionPlan.type === 'sign-in') {
       await handleUserSignIn(initialSessionPlan.user, initialSessionPlan.accessToken);
+      if (passwordRecoveryLink) authUi.showPasswordRecovery();
     } else {
       showAuthOverlay(initialSessionPlan.authMode);
     }

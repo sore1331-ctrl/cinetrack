@@ -66,6 +66,18 @@
           </label>
           <p id="auth-error" class="auth-error hidden"></p>
           <button type="submit" id="auth-submit" class="auth-submit">Sign In</button>
+          <button type="button" id="auth-forgot" class="auth-link-btn">Forgot password?</button>
+        </form>
+        <form id="auth-reset-form" class="hidden" autocomplete="on">
+          <p class="auth-reset-intro">Choose a new password for your account.</p>
+          <label>New password
+            <input type="password" id="auth-new-password" required autocomplete="new-password" minlength="8" placeholder="At least 8 characters" />
+          </label>
+          <label>Confirm new password
+            <input type="password" id="auth-new-password-confirm" required autocomplete="new-password" minlength="8" />
+          </label>
+          <p id="auth-reset-error" class="auth-error hidden"></p>
+          <button type="submit" id="auth-reset-submit" class="auth-submit">Save new password</button>
         </form>
         <p id="auth-success" class="auth-success hidden"></p>
         <button id="auth-offline" class="auth-offline-btn">Continue without account</button>

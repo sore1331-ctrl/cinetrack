@@ -6,7 +6,10 @@
       checked = false,
       airingToday = false,
       behind = 0,
+      behindLabel = '',
       airedPct = 0,
+      airingEpisode = '',
+      airingEpisodeName = '',
       mutationDisabled = '',
       cardView = {},
       esc = value => String(value ?? ''),
@@ -30,8 +33,12 @@
       ? `<div class="ep-progress-aired" style="width:${airedGap}%"></div>`
       : '';
     const behindHTML = behindCount > 0
-      ? `<span class="ep-behind" title="${behindCount} aired episode${behindCount === 1 ? '' : 's'} you haven't watched yet"> · ${behindCount} behind</span>`
+      ? `<span class="ep-behind" title="${behindCount} aired episode${behindCount === 1 ? '' : 's'} you haven't watched yet${behindLabel ? `: ${esc(behindLabel)}` : ''}"> · ${behindCount} behind${behindLabel ? ` (${esc(behindLabel)})` : ''}</span>`
       : '';
+    const airingPillText = airingEpisode ? `● ${esc(airingEpisode)} today` : '● Today';
+    const airingPillTitle = entry.mediaType === 'movie'
+      ? 'Theatrical release today'
+      : `${airingEpisode ? `${airingEpisode}${airingEpisodeName ? ` · ${airingEpisodeName}` : ''}` : 'New episode'} airs today`;
     const epHTML = (cardView.isShow && episodeState.total > 0)
       ? `<div class="ep-progress" title="${esc(episodeState.title)}">
            <div class="ep-progress-bar"><div class="ep-progress-fill" style="width:${episodeState.pct}%"></div>${airedHTML}</div>
@@ -88,7 +95,7 @@
       <span class="badge badge-${entry.status} card-status-badge">
         ${cardView.statusLabel}
       </span>
-      ${airingToday ? `<span class="card-airing-pill" title="${entry.mediaType === 'movie' ? 'Theatrical release today' : 'New episode airs today'}">● Today</span>` : ''}
+      ${airingToday ? `<span class="card-airing-pill" title="${esc(airingPillTitle)}">${airingPillText}</span>` : ''}
       ${infoUrl
         ? `<a class="card-title card-title-link" href="${esc(infoUrl)}" target="_blank" rel="noopener noreferrer" title="${titleLabel}">${titleLabel}</a>`
         : `<div class="card-title" title="${titleLabel}">${titleLabel}</div>`}
