@@ -92,7 +92,52 @@
     }
   }
 
+  function isGenericSeasonName(name) {
+    return !name || /^season\s*\d+$/i.test(String(name).trim());
+  }
+
+  function sameSeason(previous, next) {
+    if (isGenericSeasonName(previous?.name) || isGenericSeasonName(next?.name)) return true;
+    const norm = value => String(value).toLowerCase().replace(/\s+/g, ' ').trim();
+    return norm(previous.name) === norm(next.name);
+  }
+
+  // Carry watch progress onto a refreshed season list without moving it.
+  // Each season keeps its own watched count, matched by season number, and is
+  // only lowered when that season itself got shorter (an episode was moved to
+  // Specials, merged, or the order was cut). Refilling seasons from a single
+  // running total instead would hand an unwatched episode of a later season
+  // to the viewer whenever an earlier season lost one.
+  //
+  // Returns null when the two lists don't line up (a season with progress has
+  // no counterpart, or a named season was renamed), so the caller can fall
+  // back to the running total and flag the title for a manual check.
+  function carrySeasonProgress(previousSeasons, nextSeasons) {
+    const previous = Array.isArray(previousSeasons) ? previousSeasons : [];
+    if (!previous.length || !Array.isArray(nextSeasons) || !nextSeasons.length) return null;
+
+    const nextByNumber = new Map(nextSeasons.map(season => [Number(season?.number), season]));
+    for (const season of previous) {
+      if (!(Number(season?.watched) > 0)) continue;
+      const counterpart = nextByNumber.get(Number(season.number));
+      if (!counterpart || !sameSeason(season, counterpart)) return null;
+    }
+
+    const watchedByNumber = new Map(previous.map(season => [
+      Number(season?.number),
+      Math.max(0, Number(season?.watched) || 0),
+    ]));
+    return nextSeasons.map(season => ({
+      ...season,
+      watched: Math.min(
+        Math.max(0, Number(season?.total) || 0),
+        watchedByNumber.get(Number(season?.number)) || 0
+      ),
+    }));
+  }
+
   root.progress = {
+    carrySeasonProgress,
     normaliseSeasons,
     recomputeShowProgress,
     applyWatchedCountAcrossSeasons,

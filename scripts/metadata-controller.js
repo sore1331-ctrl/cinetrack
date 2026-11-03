@@ -51,6 +51,7 @@
           const result = await refreshEntry(entry);
           libraryModel.recordBulkMetadataRefresh(refreshState, {
             demoted: result?.demoted,
+            realigned: result?.realigned,
             title: entry.title,
           });
         } catch {

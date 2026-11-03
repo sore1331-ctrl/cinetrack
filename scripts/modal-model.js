@@ -86,6 +86,18 @@
       name: season.name,
     }));
 
+    // Same rule as the bulk refresh: keep each season's own progress, matched
+    // by number, and only fall back to a running total when nothing lines up.
+    const carried = root.progress?.carrySeasonProgress?.(seasons, nextSeasons);
+    if (carried) {
+      return {
+        hasSeasons: true,
+        seasons: carried,
+        seasonIndex: initialSeasonIndex(carried),
+        totalInput,
+      };
+    }
+
     let remaining = previousWatched;
     nextSeasons
       .slice()

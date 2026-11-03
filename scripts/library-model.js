@@ -303,6 +303,8 @@
       failed: 0,
       demoted: 0,
       demotedTitles: [],
+      realigned: 0,
+      realignedTitles: [],
     };
   }
 
@@ -313,6 +315,11 @@
       return next;
     }
     next.updated += 1;
+    if (result.realigned) {
+      next.realigned = (next.realigned || 0) + 1;
+      next.realignedTitles = next.realignedTitles || [];
+      if (next.realignedTitles.length < 3 && result.title) next.realignedTitles.push(result.title);
+    }
     if (result.demoted) {
       next.demoted += 1;
       if (next.demotedTitles.length < 3 && result.title) next.demotedTitles.push(result.title);
@@ -332,6 +339,13 @@
       const more = demoted - demotedTitles.length;
       const list = more > 0 ? `${sample} +${more} more` : sample;
       parts.push(`⏳ ${demoted} back to In Progress (${list})`);
+    }
+    const realigned = Math.max(0, toInt(state.realigned, 0));
+    if (realigned) {
+      const titles = Array.isArray(state.realignedTitles) ? state.realignedTitles : [];
+      const more = realigned - titles.length;
+      const list = more > 0 ? `${titles.join(', ')} +${more} more` : titles.join(', ');
+      parts.push(`⚠ check progress on ${realigned} (seasons changed: ${list})`);
     }
     if (failed) parts.push(`${failed} failed`);
     if (cancelled) parts.push('cancelled');

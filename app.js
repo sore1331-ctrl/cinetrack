@@ -1743,9 +1743,13 @@ function applyMetadataRefresh(movie, details) {
   if (details.overview && !movie.notes) movie.notes = details.overview;
   if (details.poster_path) movie.posterUrl = externalPosterUrl(details.poster_path);
 
+  // A refresh never moves watch progress: each season keeps its own watched
+  // count and is only lowered where that season got shorter at the source.
+  let realigned = false;
   if (movie.mediaType === 'tv' || movie.mediaType === 'anime') {
     if (Array.isArray(details.seasons) && details.seasons.length) {
-      movie.seasons = details.seasons.map(s => ({
+      const previousSeasons = Array.isArray(movie.seasons) ? movie.seasons : [];
+      const nextSeasons = details.seasons.map(s => ({
         number:  s.number,
         total:   s.total,
         aired:   s.aired == null ? s.total : s.aired,
@@ -1753,27 +1757,35 @@ function applyMetadataRefresh(movie, details) {
         watched: 0,
         name:    s.name,
       }));
-      applyWatchedCountAcrossSeasons(movie, previousWatched);
+      const carried = progressModel.carrySeasonProgress(previousSeasons, nextSeasons);
+      if (carried) {
+        movie.seasons = carried;
+        normaliseSeasons(movie.seasons);
+        recomputeShowProgress(movie);
+        delete movie.progressOverflow;
+      } else {
+        // Nothing to match against (flat count, or the seasons were
+        // renumbered/renamed): spread the running total and flag the title.
+        movie.seasons = nextSeasons;
+        applyWatchedCountAcrossSeasons(movie, previousWatched);
+        realigned = previousSeasons.length > 0 && previousWatched > 0;
+      }
     } else if (details.total_episodes) {
       movie.totalEpisodes = details.total_episodes;
-      movie.watchedEpisodes = Math.max(previousWatched, movie.watchedEpisodes || 0);
+      movie.watchedEpisodes = Math.min(previousWatched, details.total_episodes);
     }
     if (details.aired_episodes != null) movie.airedEpisodes = details.aired_episodes;
     if (previousStatus === 'watched' && (movie.totalEpisodes || 0) > 0) {
-      if (previousWatched >= (movie.totalEpisodes || 0)) {
-        // Episode count unchanged or corrected downward — still fully watched.
-        movie.status = 'watched';
-        applyWatchedCountAcrossSeasons(movie, movie.totalEpisodes);
-        movie.watchedEpisodes = movie.totalEpisodes;
-      } else {
-        // The show gained episodes since it was marked watched — the new ones
-        // are unwatched, so it's back in progress rather than fully watched.
-        // The branches above already set watchedEpisodes to the previous count.
-        movie.status = 'in_progress';
-      }
+      // "Watched" means every episode watched. If the source now lists
+      // episodes this title hasn't seen, it is back in progress; the watched
+      // count itself was carried over unchanged above.
+      movie.status = (movie.watchedEpisodes || 0) >= (movie.totalEpisodes || 0) ? 'watched' : 'in_progress';
     }
   }
-  return { demoted: previousStatus === 'watched' && movie.status === 'in_progress' };
+  return {
+    demoted: previousStatus === 'watched' && movie.status === 'in_progress',
+    realigned,
+  };
 }
 
 function applyTMDBSelection(details) {
@@ -4670,9 +4682,12 @@ metadataController.createBulkMetadataRefreshController({
   refreshEntry: async m => {
     try {
       const d = await fetchDetailsForEntry(m);
-      const before = libraryModel.clone(m);
       const result = applyMetadataRefresh(m, d);
-      updateLibraryEntry(m.id, libraryModel.protectProgress(before, m), { allowDowngrade: false });
+      // applyMetadataRefresh already carries progress over exactly. The
+      // generic progress guard would undo its decisions (a finished show
+      // that gained a season would be forced back to Watched, ticking the
+      // new episodes), so it is bypassed here.
+      updateLibraryEntry(m.id, { ...m }, { allowDowngrade: true });
       return result;
     } catch (e) {
       logAppError('metadata.bulk_refresh', e, { title: m.title, id: m.id }, 'warn');

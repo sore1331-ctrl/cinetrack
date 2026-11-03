@@ -1836,6 +1836,66 @@ test.describe('tracker data integrity', () => {
     expect('aired' in legacy.seasons[0]).toBe(false);
   });
 
+  test('metadata refresh keeps each season where it was', () => {
+    const progress = loadProgressModel();
+    const carry = (previous, next) => JSON.parse(JSON.stringify(progress.carrySeasonProgress(previous, next)));
+
+    // A recap moved from S1 to Specials must not hand over an S2 episode.
+    expect(carry(
+      [{ number: 1, total: 12, watched: 12 }, { number: 2, total: 10, watched: 3 }],
+      [{ number: 1, total: 11 }, { number: 2, total: 10 }]
+    ).map(s => s.watched)).toEqual([11, 3]);
+
+    // A finished show that gained a season keeps its count; the new season is unwatched.
+    expect(carry(
+      [{ number: 1, total: 10, watched: 10, name: 'Season 1' }],
+      [{ number: 1, total: 10, aired: 10, name: 'Season 1' }, { number: 2, total: 8, aired: 2, name: 'Season 2' }]
+    )).toEqual([
+      { number: 1, total: 10, aired: 10, name: 'Season 1', watched: 10 },
+      { number: 2, total: 8, aired: 2, name: 'Season 2', watched: 0 },
+    ]);
+
+    // A season shortened before it finished airing keeps the watched count.
+    expect(carry([{ number: 1, total: 16, watched: 6 }], [{ number: 1, total: 12 }])[0].watched).toBe(6);
+
+    // Renamed or missing seasons can't be matched: caller falls back and flags it.
+    expect(progress.carrySeasonProgress(
+      [{ number: 1, total: 12, watched: 5, name: 'Shibuya Incident Arc' }],
+      [{ number: 1, total: 24, name: 'Hidden Inventory' }]
+    )).toBeNull();
+    expect(progress.carrySeasonProgress(
+      [{ number: 2, total: 12, watched: 5 }],
+      [{ number: 1, total: 24 }]
+    )).toBeNull();
+    expect(progress.carrySeasonProgress([], [{ number: 1, total: 12 }])).toBeNull();
+  });
+
+  test('edit-dialog refresh uses the same per-season rule', () => {
+    const sandbox = { window: { CineTrack: {} } };
+    vm.runInNewContext(fs.readFileSync(path.join(root, 'scripts', 'progress-model.js'), 'utf8'), sandbox);
+    vm.runInNewContext(fs.readFileSync(path.join(root, 'scripts', 'modal-model.js'), 'utf8'), sandbox);
+    const state = sandbox.window.CineTrack.modal.selectionSeasonState({
+      details: { seasons: [{ number: 1, total: 11, name: 'Season 1' }, { number: 2, total: 10, name: 'Season 2' }] },
+      seasons: [{ number: 1, total: 12, watched: 12, name: 'Season 1' }, { number: 2, total: 10, watched: 3, name: 'Season 2' }],
+      watchedInput: '15',
+      status: 'in_progress',
+    });
+    expect(JSON.parse(JSON.stringify(state.seasons)).map(s => s.watched)).toEqual([11, 3]);
+  });
+
+  test('bulk refresh bypasses the progress guard and names re-counted titles', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    const bulk = app.slice(app.indexOf('refreshEntry: async m => {'), app.indexOf('libraryModel,\n  save,'));
+    expect(bulk).toContain('updateLibraryEntry(m.id, { ...m }, { allowDowngrade: true });');
+    expect(bulk).not.toContain('protectProgress');
+
+    const model = loadLibraryModel();
+    const state = model.bulkMetadataRefreshState();
+    model.recordBulkMetadataRefresh(state, { title: 'Renumbered Anime', realigned: true });
+    model.recordBulkMetadataRefresh(state, { title: 'Fine Show' });
+    expect(model.bulkMetadataRefreshSummary(state)).toBe('Refreshed 2 titles · ⚠ check progress on 1 (seasons changed: Renumbered Anime)');
+  });
+
   test('community setup SQL is loaded from the canonical setup file', () => {
     const controller = fs.readFileSync(path.join(root, 'scripts', 'community-controller.js'), 'utf8');
 
@@ -2718,6 +2778,8 @@ test.describe('tracker data integrity', () => {
       failed: 1,
       demoted: 2,
       demotedTitles: ['Finished Show', 'Another Show'],
+      realigned: 0,
+      realignedTitles: [],
     });
     expect(model.bulkMetadataRefreshSummary(state, { cancelled: true }))
       .toBe('Refreshed 2 titles · ⏳ 2 back to In Progress (Finished Show, Another Show) · 1 failed · cancelled');
