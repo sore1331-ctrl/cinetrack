@@ -51,8 +51,19 @@ function scoreShow(candidate, entry) {
   return score;
 }
 
+// A title search can land on an unrelated show with the same name ("Signal",
+// "Family Matters"). Its episode dates now gate progress, so a candidate
+// that premiered more than a year away from the library entry is rejected.
+function plausibleYear(show, entry) {
+  const wanted = Number(String(entry?.year || '').slice(0, 4));
+  const premiered = Number(yearOf(show?.premiered));
+  if (!wanted || !premiered) return true;
+  return Math.abs(wanted - premiered) <= 1;
+}
+
 function chooseShow(results, entry) {
   return [...(results || [])]
+    .filter(candidate => plausibleYear(candidate?.show, entry))
     .sort((a, b) => scoreShow(b, entry) - scoreShow(a, entry))[0]?.show || null;
 }
 
@@ -62,8 +73,33 @@ function slimEpisode(ep = {}) {
     episode: ep.number || 0,
     name: ep.name || '',
     airDate: ep.airdate || null,
+    airstamp: ep.airstamp || null,
     overview: stripTags(ep.summary || ''),
   };
+}
+
+// An episode has aired once its broadcast time has passed. Without a time,
+// a date before today counts; an episode dated today does not until the
+// client sees its airstamp pass.
+function hasAired(ep, nowMs, today) {
+  const stamp = Date.parse(ep?.airstamp || '');
+  if (Number.isFinite(stamp)) return stamp <= nowMs;
+  return Boolean(ep?.airdate) && ep.airdate < today;
+}
+
+// Per-season episode counts and how many of them have aired, from the full
+// episode list. Specials (no episode number) are left out, matching TMDB's
+// season totals.
+function seasonAiring(episodes, nowMs, today) {
+  const totals = {};
+  const aired = {};
+  for (const ep of episodes || []) {
+    if (!ep?.season || !ep?.number) continue;
+    totals[ep.season] = (totals[ep.season] || 0) + 1;
+    if (hasAired(ep, nowMs, today)) aired[ep.season] = (aired[ep.season] || 0) + 1;
+    else aired[ep.season] = aired[ep.season] || 0;
+  }
+  return { seasonTotals: totals, airedBySeason: aired };
 }
 
 function findCalendarEpisode(episodes, today, horizon) {
@@ -90,7 +126,6 @@ async function calendarEntry(entry, today, horizon) {
 
   const episodes = await tvmaze(`/shows/${show.id}/episodes`);
   const episode = findCalendarEpisode(episodes, today, horizon);
-  if (!episode) return null;
 
   const sourceKey = entry.sourceKey || (entry.tmdbId ? `tv:${entry.tmdbId}` : `tvmaze:${show.id}`);
 
@@ -104,7 +139,11 @@ async function calendarEntry(entry, today, horizon) {
     status: show.status || '',
     poster_url: entry.posterUrl || show.image?.medium || show.image?.original || '',
     externalUrl: show.url || `https://www.tvmaze.com/shows/${show.id}`,
+    // Returned even when nothing airs inside the window, so the client can
+    // record that the show was checked and clear a next episode that passed.
     nextEpisode: episode ? slimEpisode(episode) : null,
+    checkedAt: new Date().toISOString(),
+    ...seasonAiring(episodes, Date.now(), today),
   };
 }
 

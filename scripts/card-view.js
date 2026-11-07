@@ -58,7 +58,13 @@
           <span class="lbl-lg">${cardView.primaryAction.labelLg}</span>
           <span class="lbl-md">${cardView.primaryAction.labelMd}</span>
           <span class="lbl-sm">${cardView.primaryAction.labelSm}</span>
-        </button>` : '');
+        </button>` : '')
+      || ((cardView.primaryAction?.type === 'uptodate') ? `
+        <span class="btn-sm card-uptodate" role="status" title="${cardView.primaryAction.title}">
+          <span class="lbl-lg">${cardView.primaryAction.labelLg}</span>
+          <span class="lbl-md">${cardView.primaryAction.labelMd}</span>
+          <span class="lbl-sm">${cardView.primaryAction.labelSm}</span>
+        </span>` : '');
     const actionRowClass = primaryActionHTML ? 'card-actions' : 'card-actions card-actions-compact';
     const planLabel = entry.plannedWatchDate ? 'Reschedule' : 'Plan';
     const clearPlanHTML = entry.plannedWatchDate

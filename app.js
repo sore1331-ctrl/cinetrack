@@ -1617,10 +1617,17 @@ async function fetchExternalDetails(id, type, rowData = null) {
     const data = await r.json();
     const episodes = data.episodes || [];
     const seasonMap = new Map();
+    const nowMs = Date.now();
+    const today = todayDateString();
+    let airedTotal = 0;
     for (const ep of episodes) {
       if (!ep.season) continue;
-      const curr = seasonMap.get(ep.season) || { number: ep.season, total: 0, watched: 0, name: `Season ${ep.season}` };
+      const curr = seasonMap.get(ep.season) || { number: ep.season, total: 0, aired: 0, watched: 0, name: `Season ${ep.season}` };
       curr.total += 1;
+      if (calendarModel.episodeHasAired({ airstamp: ep.airstamp, airDate: ep.airdate }, { nowMs, todayStr: today })) {
+        curr.aired += 1;
+        airedTotal += 1;
+      }
       seasonMap.set(ep.season, curr);
     }
     return {
@@ -1638,6 +1645,7 @@ async function fetchExternalDetails(id, type, rowData = null) {
       overview: show.summary || rowData?.summary || '',
       poster_path: show.image || rowData?.poster_path || '',
       total_episodes: episodes.length || 0,
+      aired_episodes: airedTotal,
       seasons: [...seasonMap.values()].sort((a, b) => a.number - b.number),
       providers: null,
     };
@@ -1663,7 +1671,16 @@ async function fetchExternalDetails(id, type, rowData = null) {
       overview: media.description || rowData?.summary || '',
       poster_path: media.coverImage || rowData?.poster_path || '',
       total_episodes: media.episodes || 0,
-      seasons: media.episodes ? [{ number: 1, total: media.episodes, watched: 0, name: 'Season 1' }] : [],
+      ...(anilistAiredCount(media) != null ? { aired_episodes: anilistAiredCount(media) } : {}),
+      seasons: media.episodes
+        ? [{
+            number: 1,
+            total: media.episodes,
+            ...(anilistAiredCount(media) != null ? { aired: anilistAiredCount(media) } : {}),
+            watched: 0,
+            name: 'Season 1',
+          }]
+        : [],
       providers: null,
     };
   }
@@ -2650,6 +2667,18 @@ function calendarKeyForEntry(m) {
   return calendarModel.keyForEntry(m);
 }
 
+// Episodes of an AniList title that have aired: everything before the next
+// airing episode while it is releasing, all of them once finished, none
+// before release. null when AniList gives no basis for a count.
+function anilistAiredCount(media = {}) {
+  const total = Number(media.episodes) || 0;
+  const next = Number(media.nextAiringEpisode?.episode) || 0;
+  if (next > 0) return total ? Math.min(total, next - 1) : next - 1;
+  if (media.status === 'FINISHED') return total || null;
+  if (media.status === 'NOT_YET_RELEASED') return 0;
+  return null;
+}
+
 async function fetchExternalUpcomingForEntries(entries) {
   const todayStr = todayDateString();
   const tvHorizonStr = calendarModel.addDaysString(UPCOMING_HORIZON_DAYS);
@@ -2660,24 +2689,34 @@ async function fetchExternalUpcomingForEntries(entries) {
       const r = await fetch(`/api/external?provider=anilist&action=details&id=${encodeURIComponent(m.externalId)}`);
       if (!r.ok) return null;
       const data = await r.json();
-      const airing = data.media?.nextAiringEpisode;
-      if (!airing?.airingAt) return null;
-      const airDate = new Date(airing.airingAt * 1000);
-      const airDateStr = `${airDate.getFullYear()}-${String(airDate.getMonth()+1).padStart(2,'0')}-${String(airDate.getDate()).padStart(2,'0')}`;
-      return {
+      const media = data.media || {};
+      const airing = media.nextAiringEpisode;
+      const aired = anilistAiredCount(media);
+      // Reported even when nothing is scheduled, so the show counts as
+      // checked and a next episode that already aired is cleared.
+      const item = {
         type: 'tv',
+        source: 'anilist',
         sourceKey: key,
-        title: m.title || data.media?.title || '',
-        poster_url: m.posterUrl || data.media?.coverImage || '',
-        externalUrl: data.media?.siteUrl || `https://anilist.co/anime/${m.externalId}`,
-        nextEpisode: {
+        title: m.title || media.title || '',
+        poster_url: m.posterUrl || media.coverImage || '',
+        externalUrl: media.siteUrl || `https://anilist.co/anime/${m.externalId}`,
+        nextEpisode: null,
+        checkedAt: new Date().toISOString(),
+        ...(aired != null ? { airedBySeason: { 1: aired }, seasonTotals: { 1: Number(media.episodes) || 0 } } : {}),
+      };
+      if (airing?.airingAt) {
+        const airDate = new Date(airing.airingAt * 1000);
+        item.nextEpisode = {
           season: 1,
           episode: airing.episode,
           name: '',
-          airDate: airDateStr,
+          airDate: `${airDate.getFullYear()}-${String(airDate.getMonth()+1).padStart(2,'0')}-${String(airDate.getDate()).padStart(2,'0')}`,
+          airstamp: airDate.toISOString(),
           overview: '',
-        },
-      };
+        };
+      }
+      return item;
     }
 
     return null;
@@ -2686,13 +2725,31 @@ async function fetchExternalUpcomingForEntries(entries) {
   return (await Promise.all(tasks)).filter(Boolean);
 }
 
-async function fetchTvmazeCalendarForEntries(entries, { force = false } = {}) {
-  const tvEntries = entries.filter(m =>
+// Start of today, local time: airing data checked before it is out of date.
+function startOfTodayMs() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+// The lookup endpoint takes at most 60 shows and TVmaze rate-limits, so
+// larger libraries go in batches; each batch is saved as soon as it returns.
+const TVMAZE_BATCH_SIZE = 25;
+
+// AniList-linked titles get their airing data from AniList directly; a
+// TVmaze title search for them is slow and often lands on the wrong show.
+function tvmazeLookupEntries(entries = []) {
+  return entries.filter(m =>
     m &&
     (m.mediaType === 'tv' || m.mediaType === 'anime') &&
     calendarKeyForEntry(m) &&
+    !calendarKeyForEntry(m).startsWith('anilist:') &&
     (m.status === 'in_progress' || m.status === 'watchlist')
   );
+}
+
+async function fetchTvmazeCalendarForEntries(entries, { force = false } = {}) {
+  const tvEntries = tvmazeLookupEntries(entries);
   if (!tvEntries.length) return [];
 
   const todayStr = todayDateString();
@@ -2707,32 +2764,45 @@ async function fetchTvmazeCalendarForEntries(entries, { force = false } = {}) {
     ttlMs: UPCOMING_TTL_MS,
     now,
     requiredSource: 'tvmaze',
+    notBefore: startOfTodayMs(),
   });
-  if (cached) return keys.map(key => cache.byId[key]).filter(item => item?.source === 'tvmaze');
+  if (cached) return keys.map(key => cache.byId[key]).filter(item => item?.source === 'tvmaze' && item.nextEpisode);
 
-  const r = await fetch('/api/tvmaze-calendar', {
-    method: 'POST',
-    cache: 'no-store',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      today: todayStr,
-      horizon: tvHorizonStr,
-      entries: tvEntries.map(m => ({
-        sourceKey: calendarKeyForEntry(m),
-        title: m.title || '',
-        year: m.year || '',
-        tmdbId: m.tmdbId || null,
-        externalSource: m.externalSource || null,
-        externalId: m.externalId || null,
-        posterUrl: m.posterUrl || '',
-      })),
-    }),
-  });
-  if (!r.ok) throw new Error(`TVMaze calendar lookup failed (${r.status})`);
-  const data = await r.json();
-  const results = data.results || [];
-  mergeUpcomingCache(results);
-  return results;
+  const results = [];
+  for (let start = 0; start < tvEntries.length; start += TVMAZE_BATCH_SIZE) {
+    const batch = tvEntries.slice(start, start + TVMAZE_BATCH_SIZE);
+    const r = await fetch('/api/tvmaze-calendar', {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        today: todayStr,
+        horizon: tvHorizonStr,
+        entries: batch.map(m => ({
+          sourceKey: calendarKeyForEntry(m),
+          title: m.title || '',
+          year: m.year || '',
+          tmdbId: m.tmdbId || null,
+          externalSource: m.externalSource || null,
+          externalId: m.externalId || null,
+          posterUrl: m.posterUrl || '',
+        })),
+      }),
+    });
+    if (!r.ok) throw new Error(`TVMaze calendar lookup failed (${r.status})`);
+    const data = await r.json();
+    const found = data.results || [];
+    // Shows TVmaze couldn't match are recorded as checked too; otherwise the
+    // cache never counts as up to date and every visit repeats the lookup.
+    const foundKeys = new Set(found.map(item => item?.sourceKey));
+    const checked = batch
+      .map(calendarKeyForEntry)
+      .filter(key => !foundKeys.has(key))
+      .map(key => ({ type: 'tv', source: 'tvmaze', sourceKey: key, nextEpisode: null, checkedAt: new Date().toISOString() }));
+    mergeUpcomingCache([...found, ...checked]);
+    results.push(...found);
+  }
+  return results.filter(item => item?.nextEpisode);
 }
 
 // ── Episode-air-today notifications ─────────────────────
@@ -2896,11 +2966,39 @@ function calendarWarmKeysForEntries(entries = movies) {
   return calendarModel.warmKeysForEntries(entries);
 }
 
+// The aired view of an entry that every card part reads (see
+// calendarModel.effectiveAired): saved counts, raised by live airing data
+// and never below what has been watched.
+function airedViewOf(m, cache = readUpcomingCache()) {
+  const key = calendarKeyForEntry(m);
+  return calendarModel.effectiveAired(m, key ? cache?.byId?.[key] : null, { todayStr: todayDateString() });
+}
+
+// When live airing data shows more episodes out than an entry has saved,
+// save the higher count so every device and the cloud copy agree. Only the
+// aired fields change; watch progress is never touched.
+function saveNewlyAiredCounts(cache = readUpcomingCache()) {
+  if (!cache?.byId || isLibraryMutationLocked()) return 0;
+  const clock = { todayStr: todayDateString() };
+  const editing = modal && !modal.classList.contains('hidden') ? editingId : null;
+  let changed = 0;
+  for (const m of movies) {
+    if (m.id === editing) continue;
+    const key = calendarKeyForEntry(m);
+    const patch = key ? calendarModel.airedUpdatePatch(m, cache.byId[key], clock) : null;
+    if (!patch) continue;
+    updateLibraryEntry(m.id, patch, { allowDowngrade: true });
+    changed += 1;
+  }
+  if (changed) save();
+  return changed;
+}
+
 async function warmUpcomingCacheForBadge({ force = false, reason = 'badge' } = {}) {
   const { ids, tvEntries, externalEntries } = calendarWarmKeysForEntries();
   const tmdbCalendarIds = ids.filter(id => String(id).startsWith('movie:'));
   const externalKeys = externalEntries.map(calendarKeyForEntry).filter(Boolean);
-  const tvmazeKeys = tvEntries.map(calendarKeyForEntry).filter(Boolean);
+  const tvmazeKeys = tvmazeLookupEntries(tvEntries).map(calendarKeyForEntry).filter(Boolean);
   const cache = readUpcomingCache();
   const now = Date.now();
   const primaryPlan = calendarModel.cacheWarmPlan({
@@ -2912,6 +3010,7 @@ async function warmUpcomingCacheForBadge({ force = false, reason = 'badge' } = {
     inFlight: upcomingWarmInFlight,
     lastWarmAt: lastUpcomingWarmAt,
     minIntervalMs: UPCOMING_WARM_MIN_MS,
+    notBefore: startOfTodayMs(),
   });
   const tvmazePlan = calendarModel.cacheWarmPlan({
     keys: tvmazeKeys,
@@ -2923,6 +3022,7 @@ async function warmUpcomingCacheForBadge({ force = false, reason = 'badge' } = {
     lastWarmAt: lastUpcomingWarmAt,
     minIntervalMs: UPCOMING_WARM_MIN_MS,
     requiredSource: 'tvmaze',
+    notBefore: startOfTodayMs(),
   });
   if (!primaryPlan.shouldWarm && !tvmazePlan.shouldWarm) {
     updateCalendarAiringBadge();
@@ -2940,6 +3040,7 @@ async function warmUpcomingCacheForBadge({ force = false, reason = 'badge' } = {
       try { await fetchTvmazeCalendarForEntries(tvEntries, { force }); } catch (e) { logAppError('calendar.warm_tvmaze', e, { reason, force }, 'warn'); }
     }
     updateCalendarAiringBadge();
+    saveNewlyAiredCounts();
     // Re-render the content grid so any "Today" highlights appear without
     // waiting for the next user interaction.
     if (activeView === 'content') render();
@@ -2980,6 +3081,7 @@ async function refreshTrackedCalendarSources({ force = false } = {}) {
   mergeUpcomingCache(externalUpcoming);
   const tvmazeUpcoming = enrichTvmazeEpisodeNames(tvmazeRaw, tmdbEpisodeHints);
   mergeUpcomingCache(tvmazeUpcoming);
+  saveNewlyAiredCounts();
   return { tracked, upcoming: [...tmdbUpcoming, ...externalUpcoming, ...tvmazeUpcoming] };
 }
 
@@ -4143,7 +4245,8 @@ function render() {
       + (airingToday ? ' card-airing-today' : '')
       + (plannedToday ? ' card-planned-today' : '');
     card.dataset.id = m.id;
-    const aired = calendarModel.airedProgress(m, upcomingCache, activeSeason);
+    const airedView = airedViewOf(m, upcomingCache);
+    const aired = calendarModel.airedProgress(m, upcomingCache, activeSeason, { todayStr });
     card.innerHTML = cardViewRenderer.renderLibraryCard(m, {
       checked,
       airingToday,
@@ -4153,7 +4256,7 @@ function render() {
       airingEpisode: airingSignal?.type === 'episode' ? calendarModel.episodeTag(m, airingSignal.episode) : '',
       airingEpisodeName: airingSignal?.type === 'episode' ? (airingSignal.episode?.name || '') : '',
       mutationDisabled,
-      cardView: cardModel.view(m, { activeSeason, posterEmoji, formatRuntime, infoUrlForEntry }),
+      cardView: cardModel.view(airedView, { activeSeason, posterEmoji, formatRuntime, infoUrlForEntry }),
       esc,
       starsHTML,
     });
@@ -4492,6 +4595,8 @@ document.getElementById('sort-order').addEventListener('change', e => {
 });
 
 cardController.attachGridActions(grid, {
+  // +1 is limited by the same aired count the card shows.
+  incrementEpisode: entry => libraryModel.incrementEpisode(airedViewOf(entry)),
   getMovies: () => movies,
   isSelectMode: () => selectMode,
   openModal,

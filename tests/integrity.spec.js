@@ -554,7 +554,8 @@ test.describe('tracker data integrity', () => {
     expect(app).toContain('async function fetchTvmazeCalendarForEntries');
     expect(app).toContain("(m.mediaType === 'tv' || m.mediaType === 'anime')");
     expect(app).toContain("requiredSource: 'tvmaze'");
-    expect(app).toContain('mergeUpcomingCache(results)');
+    // Every show in a batch is recorded, matched or not, so the cache can be fresh.
+    expect(app).toContain('mergeUpcomingCache([...found, ...checked]);');
     expect(app).toContain("const tmdbIds = ids.filter(id => id.startsWith('movie:'));");
     expect(app).toContain('async function fetchTmdbEpisodeTitleHints');
     expect(app).toContain('function enrichTvmazeEpisodeNames');
@@ -768,7 +769,9 @@ test.describe('tracker data integrity', () => {
     expect(calendarModel).toContain('episode.airDate >= todayStr && episode.airDate <= tvHorizonStr');
     expect(app).not.toContain('Between seasons / no date yet');
     expect(app).not.toContain('No date scheduled');
-    expect(tvmazeApi).toContain('if (!episode) return null;');
+    // Shows with nothing in the window come back with no next episode (so the
+    // client records the check); rows still need a confirmed air date.
+    expect(tvmazeApi).toContain('nextEpisode: episode ? slimEpisode(episode) : null,');
   });
 
   test('calendar model formats keys, dates, and airing-today signals', () => {
@@ -1260,7 +1263,8 @@ test.describe('tracker data integrity', () => {
     expect(cardView).toContain('function renderLibraryCard');
     expect(cardView).toContain('const infoUrl = cardView.infoUrl;');
     expect(cardController).toContain('function attachGridActions');
-    expect(cardController).toContain('updateLibraryEntry?.(epIncId, libraryModel?.incrementEpisode');
+    expect(cardController).toContain('updateLibraryEntry?.(epIncId, incrementEpisode, { allowDowngrade: true });');
+    expect(app).toContain('incrementEpisode: entry => libraryModel.incrementEpisode(airedViewOf(entry)),');
     expect(cardController).toContain('updateLibraryEntry?.(toggleId, libraryModel?.cycleCardStatus');
     expect(cardView).toContain('data-plan="${entry.id}"');
     expect(cardController).toContain('planEntry?.(planId)');
@@ -2016,6 +2020,158 @@ test.describe('tracker data integrity', () => {
     expect(auth).toContain('If an account exists for that email');
     expect(app).toContain("if (event === 'PASSWORD_RECOVERY') {");
     expect(app).toContain('if (passwordRecoveryLink) authUi.showPasswordRecovery();');
+  });
+
+  test.describe('one aired count for every part of a card', () => {
+    const load = () => {
+      const sandbox = { window: { CineTrack: {} } };
+      for (const file of ['calendar-model.js', 'progress-model.js', 'card-model.js', 'library-model.js']) {
+        vm.runInNewContext(fs.readFileSync(path.join(root, 'scripts', file), 'utf8'), sandbox);
+      }
+      return sandbox.window.CineTrack;
+    };
+    const plain = value => JSON.parse(JSON.stringify(value));
+    const clock = { nowMs: Date.parse('2026-11-07T20:00:00Z'), todayStr: '2026-11-07' };
+    const show = (seasons, extra = {}) => ({
+      id: 'x', mediaType: 'tv', status: 'in_progress', tmdbId: 1, seasons,
+      totalEpisodes: seasons.reduce((sum, s) => sum + s.total, 0),
+      watchedEpisodes: seasons.reduce((sum, s) => sum + s.watched, 0),
+      ...extra,
+    });
+    const cache = item => ({ byId: { 'tv:1': item } });
+    const card = (ct, entry, item) => ct.cards.view(ct.calendar.effectiveAired(entry, item, clock), { activeSeason: ct.progress.activeSeason });
+
+    test('Doctor X: watched past a stale snapshot reads 10/10, never 10/9', () => {
+      const ct = load();
+      const entry = show([{ number: 1, total: 12, watched: 10, aired: 9 }]);
+      const view = card(ct, entry, null);
+      expect(view.episode.label).toBe('▶ 10/10 aired');
+      expect(view.episode.canIncrement).toBe(false);
+    });
+
+    test('Love in Disguise: caught up on an airing show offers "Up to date", not "Watched"', () => {
+      const ct = load();
+      const entry = show([{ number: 1, total: 12, watched: 5, aired: 5 }]);
+      const view = card(ct, entry, null);
+      expect(view.primaryAction.type).toBe('uptodate');
+      // Announced next season with nothing aired yet: same.
+      const between = show([{ number: 1, total: 10, watched: 10, aired: 10 }, { number: 2, total: 1, watched: 0, aired: 0 }]);
+      expect(card(ct, between, null).primaryAction.type).toBe('uptodate');
+      // A fully aired show still offers Watched.
+      const done = show([{ number: 1, total: 12, watched: 11, aired: 12 }]);
+      expect(card(ct, done, null).primaryAction.type).toBe('episode');
+    });
+
+    test('Between Steps: live data raises a stale snapshot for label, behind and +1 alike', () => {
+      const ct = load();
+      const entry = show([{ number: 1, total: 12, watched: 6, aired: 9 }]);
+      const item = { nextEpisode: { season: 1, episode: 11, airDate: '2026-11-09' }, airedBySeason: { 1: 10 }, seasonTotals: { 1: 12 } };
+      expect(card(ct, entry, item).episode.label).toBe('▶ 6/10 aired');
+      expect(plain(ct.calendar.airedProgress(entry, cache(item), ct.progress.activeSeason, clock))).toEqual({ behind: 4, airedPct: 83, behindLabel: 'E7–10' });
+      let next = entry;
+      for (let i = 0; i < 6; i += 1) next = ct.library.incrementEpisode(ct.calendar.effectiveAired(next, item, clock));
+      expect(next.seasons[0].watched).toBe(10);
+    });
+
+    test('behind counts the whole show and only while it is still airing', () => {
+      const ct = load();
+      const mobland = show([{ number: 1, total: 10, watched: 10, aired: 10 }, { number: 2, total: 10, watched: 0, aired: 7 }]);
+      const item = { nextEpisode: { season: 2, episode: 9, airDate: '2026-11-13' }, airedBySeason: { 1: 10, 2: 8 }, seasonTotals: { 1: 10, 2: 10 } };
+      expect(plain(ct.calendar.airedProgress(mobland, cache(item), ct.progress.activeSeason, clock)))
+        .toEqual({ behind: 8, airedPct: 80, behindLabel: 'S2 E1–8' });
+      const across = show([{ number: 1, total: 10, watched: 4, aired: 10 }, { number: 2, total: 10, watched: 0, aired: 3 }]);
+      expect(plain(ct.calendar.airedProgress(across, null, ct.progress.activeSeason, clock)).behindLabel).toBe('S1 E5 – S2 E3');
+      expect(ct.calendar.airedProgress(across, null, ct.progress.activeSeason, clock).behind).toBe(9);
+      // Finished show you are part-way through: no behind count.
+      const ended = show([{ number: 1, total: 20, watched: 5 }]);
+      expect(ct.calendar.airedProgress(ended, null, ct.progress.activeSeason, clock).behind).toBe(0);
+    });
+
+    test("today's episode counts as aired once its broadcast time has passed", () => {
+      const ct = load();
+      const entry = show([{ number: 1, total: 12, watched: 9, aired: 9 }]);
+      const before = { nextEpisode: { season: 1, episode: 10, airDate: '2026-11-07', airstamp: '2026-11-07T21:00:00Z' } };
+      const after = { nextEpisode: { season: 1, episode: 10, airDate: '2026-11-07', airstamp: '2026-11-07T12:00:00Z' } };
+      expect(ct.calendar.effectiveAired(entry, before, clock).seasons[0].aired).toBe(9);
+      expect(ct.calendar.effectiveAired(entry, after, clock).seasons[0].aired).toBe(10);
+    });
+
+    test('live counts from a differently-numbered source are ignored', () => {
+      const ct = load();
+      const entry = show([{ number: 1, total: 12, watched: 2, aired: 3 }]);
+      // Source has one 24-episode season: sizes don't match, so it can't be mapped.
+      const item = { airedBySeason: { 1: 20 }, seasonTotals: { 1: 24 }, nextEpisode: { season: 1, episode: 21, airDate: '2026-11-09' } };
+      expect(ct.calendar.effectiveAired(entry, item, clock).seasons[0].aired).toBe(3);
+    });
+
+    test('saving newly aired counts touches aired only, and only upward', () => {
+      const ct = load();
+      const entry = show([{ number: 1, total: 12, watched: 6, aired: 9 }]);
+      const item = { airedBySeason: { 1: 10 }, seasonTotals: { 1: 12 } };
+      expect(plain(ct.calendar.airedUpdatePatch(entry, item, clock))).toEqual({ seasons: [{ number: 1, total: 12, watched: 6, aired: 10 }] });
+      expect(ct.calendar.airedUpdatePatch(entry, { airedBySeason: { 1: 8 }, seasonTotals: { 1: 12 } }, clock)).toBeNull();
+      expect(ct.calendar.airedUpdatePatch(entry, null, clock)).toBeNull();
+    });
+
+    test('metadata refresh keeps the higher aired count', () => {
+      const ct = load();
+      const carried = plain(ct.progress.carrySeasonProgress(
+        [{ number: 1, total: 12, watched: 6, aired: 10 }],
+        [{ number: 1, total: 12, aired: 9 }]
+      ));
+      expect(carried[0]).toEqual({ number: 1, total: 12, aired: 10, watched: 6 });
+    });
+
+    test('AniList titles get an aired count', () => {
+      const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+      const start = app.indexOf('function anilistAiredCount');
+      const fn = app.slice(start).split(/\r?\n\}\r?\n/)[0] + '\n}';
+      const sandbox = {};
+      vm.runInNewContext(`${fn}; result = anilistAiredCount;`, sandbox);
+      expect(sandbox.result({ episodes: 13, nextAiringEpisode: { episode: 11 } })).toBe(10);
+      expect(sandbox.result({ episodes: 13, status: 'FINISHED' })).toBe(13);
+      expect(sandbox.result({ episodes: 12, status: 'NOT_YET_RELEASED' })).toBe(0);
+      expect(sandbox.result({ status: 'RELEASING' })).toBeNull();
+    });
+  });
+
+  test('airing lookup returns aired counts for every checked show and rejects wrong-year matches', () => {
+    const source = fs.readFileSync(path.join(root, 'api', 'tvmaze-calendar.js'), 'utf8');
+    const sandbox = {};
+    vm.runInNewContext(`${source.slice(source.indexOf('function norm('), source.indexOf('async function calendarEntry'))}; helpers = { seasonAiring, chooseShow };`, sandbox);
+    const { seasonAiring, chooseShow } = sandbox.helpers;
+    const now = Date.parse('2026-11-07T20:00:00Z');
+    const result = JSON.parse(JSON.stringify(seasonAiring([
+      { season: 1, number: 1, airdate: '2026-10-01' },
+      { season: 1, number: 2, airdate: '2026-11-07', airstamp: '2026-11-07T12:00:00Z' },
+      { season: 1, number: 3, airdate: '2026-11-07', airstamp: '2026-11-07T22:00:00Z' },
+      { season: 1, number: null, airdate: '2026-10-05' },
+    ], now, '2026-11-07')));
+    expect(result).toEqual({ seasonTotals: { 1: 3 }, airedBySeason: { 1: 2 } });
+
+    const picked = chooseShow([
+      { score: 0.9, show: { id: 1, name: 'Family Matters', premiered: '1989-09-22' } },
+      { score: 0.6, show: { id: 2, name: 'Family Matters', premiered: '2024-11-29' } },
+    ], { title: 'Family Matters', year: '2024' });
+    expect(picked.id).toBe(2);
+    expect(source).toContain('nextEpisode: episode ? slimEpisode(episode) : null,');
+  });
+
+  test('airing data cache: batches, records every show, skips AniList titles, goes stale at midnight', () => {
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    expect(app).toContain('const TVMAZE_BATCH_SIZE = 25;');
+    expect(app).toContain('mergeUpcomingCache([...found, ...checked]);');
+    expect(app).toContain("!calendarKeyForEntry(m).startsWith('anilist:') &&");
+    expect(app).toContain('notBefore: startOfTodayMs(),');
+    expect(app).toContain('saveNewlyAiredCounts();');
+
+    const model = loadCalendarModel();
+    const now = Date.parse('2026-11-07T09:00:00Z');
+    const midnight = Date.parse('2026-11-07T00:00:00Z');
+    const cacheAt = stamp => ({ fetchedAt: stamp, byId: { 'tv:1': { source: 'tvmaze', nextEpisode: null } }, fetchedAtById: { 'tv:1': stamp } });
+    const fresh = stamp => model.cacheHasFreshKeys({ cache: cacheAt(stamp), keys: ['tv:1'], ttlMs: 6 * 3600e3, now, requiredSource: 'tvmaze', notBefore: midnight });
+    expect(fresh(Date.parse('2026-11-07T08:00:00Z'))).toBe(true);
+    expect(fresh(Date.parse('2026-11-06T23:30:00Z'))).toBe(false);
   });
 
   test('community setup SQL is loaded from the canonical setup file', () => {

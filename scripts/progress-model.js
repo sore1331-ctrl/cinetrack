@@ -123,17 +123,22 @@
       if (!counterpart || !sameSeason(season, counterpart)) return null;
     }
 
-    const watchedByNumber = new Map(previous.map(season => [
-      Number(season?.number),
-      Math.max(0, Number(season?.watched) || 0),
-    ]));
-    return nextSeasons.map(season => ({
-      ...season,
-      watched: Math.min(
-        Math.max(0, Number(season?.total) || 0),
-        watchedByNumber.get(Number(season?.number)) || 0
-      ),
-    }));
+    const previousByNumber = new Map(previous.map(season => [Number(season?.number), season]));
+    return nextSeasons.map(season => {
+      const total = Math.max(0, Number(season?.total) || 0);
+      const before = previousByNumber.get(Number(season?.number));
+      const carried = {
+        ...season,
+        watched: Math.min(total, Math.max(0, Number(before?.watched) || 0)),
+      };
+      // Episodes don't un-air. If the season already recorded more aired
+      // episodes (e.g. from the daily airing check) than the source reports
+      // right now, keep the higher count.
+      if (before?.aired != null && season?.aired != null) {
+        carried.aired = Math.min(total, Math.max(Number(season.aired) || 0, Number(before.aired) || 0));
+      }
+      return carried;
+    });
   }
 
   root.progress = {

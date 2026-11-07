@@ -74,6 +74,15 @@
     };
   }
 
+  // True when any season (or a flat entry) still has scheduled episodes that
+  // have not aired.
+  function episodeHasUnaired(entry = {}, episode = {}) {
+    if (episode.partiallyAired) return true;
+    const seasons = Array.isArray(entry.seasons) ? entry.seasons : [];
+    if (seasons.length) return seasons.some(season => airedOf(season) < (Math.max(0, Number(season.total) || 0)));
+    return false;
+  }
+
   function statusLabel(entry = {}) {
     if (entry.status === 'watched') {
       return `✓ Watched${(entry.watchCount || 0) > 1 ? ` ×${entry.watchCount}` : ''}`;
@@ -94,6 +103,18 @@
       };
     }
     if (entry.status === 'watched') return null;
+    // Caught up on a show that is still airing: there is nothing to do until
+    // the next episode is out. Offering "Watched" here used to tick every
+    // scheduled episode, unaired ones included, in a single press.
+    if (episode.isShow && entry.status === 'in_progress' && episode.total > 0 && episodeHasUnaired(entry, episode)) {
+      return {
+        type: 'uptodate',
+        title: 'All aired episodes watched — the next one isn’t out yet',
+        labelLg: 'Up to date',
+        labelMd: 'Up to date',
+        labelSm: '✓',
+      };
+    }
     const markWatched = entry.status === 'in_progress';
     return {
       type: 'toggle',

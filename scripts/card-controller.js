@@ -18,6 +18,7 @@
       openModal,
       updateLibraryEntry,
       libraryModel,
+      incrementEpisode = entry => libraryModel?.incrementEpisode(entry),
       save,
       render,
       planEntry,
@@ -67,7 +68,7 @@
         }
       } else if (epIncId) {
         if (!movies.some(m => m.id === epIncId)) return;
-        updateLibraryEntry?.(epIncId, libraryModel?.incrementEpisode, { allowDowngrade: true });
+        updateLibraryEntry?.(epIncId, incrementEpisode, { allowDowngrade: true });
         save?.();
         render?.();
       } else if (editId) {

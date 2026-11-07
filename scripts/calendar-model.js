@@ -127,52 +127,208 @@
     return null;
   }
 
-  // Aired-but-unwatched progress for an in-progress/watchlist show, using the
-  // upcoming cache's next-to-air episode. TMDB's next_episode_to_air is the
-  // first UNAIRED episode, so everything before it has already aired. Returns
-  // { behind, airedPct } where behind is the episode count the viewer trails
-  // by and airedPct is how far the "already aired" point sits along the same
-  // frame the card's progress bar uses (active season for multi-season shows,
-  // otherwise the flat total). Returns zeroes when there's no air data (e.g.
-  // an ended show) so the indicator only shows for currently-releasing titles.
-  function airedProgress(entry, cache, activeSeasonFn) {
+  // ── Aired episodes: one rule for every part of a card ──────────────────
+  //
+  // A show's "aired" count used to come from three places that disagreed: a
+  // snapshot saved at the last metadata refresh (label and +1), the cached
+  // next episode (behind count, bar, Today pill), and nothing at all for
+  // AniList/TVmaze titles. Everything now reads effectiveAired(), which takes
+  // the highest of:
+  //   - the saved per-season `aired` (refresh snapshot, raised by live checks),
+  //   - what the live airing data proves has aired (per-season counts from the
+  //     full episode list, and "everything before the next episode"),
+  //   - what the viewer has watched (you can't have watched an unaired episode),
+  // clamped to the season's episode total. Aired counts only ever go up, so
+  // the highest trustworthy value is the most recent one.
+
+  function seasonTotal(season) {
+    return Math.max(0, Number(season?.total) || 0);
+  }
+
+  // Live counts from another source only apply to a season whose size roughly
+  // matches ours; a mismatch means the sources number seasons differently
+  // (common for anime) and the counts can't be mapped safely.
+  function similarSize(liveTotal, ourTotal) {
+    if (!liveTotal || !ourTotal) return true;
+    return Math.abs(liveTotal - ourTotal) <= Math.max(2, Math.round(ourTotal * 0.25));
+  }
+
+  function episodeHasAired(episode, { nowMs = Date.now(), todayStr = dateString() } = {}) {
+    const stamp = Date.parse(episode?.airstamp || '');
+    if (Number.isFinite(stamp)) return stamp <= nowMs;
+    return Boolean(episode?.airDate) && episode.airDate < todayStr;
+  }
+
+  // Lower bounds on aired episodes proven by live data, in the entry's own
+  // season numbering: { bySeason: Map<seasonNumber, aired>, flat: number|null }.
+  function liveAired(entry, item, clock = {}) {
+    const out = { bySeason: new Map(), flat: null };
+    if (!entry || !item || typeof item !== 'object') return out;
+    const seasons = Array.isArray(entry.seasons) ? entry.seasons : [];
+    const byNumber = new Map(seasons.map(season => [Number(season?.number), season]));
+    const raise = (number, value) => {
+      const season = byNumber.get(number);
+      if (!season) return;
+      const capped = Math.min(seasonTotal(season), Math.max(0, value));
+      out.bySeason.set(number, Math.max(out.bySeason.get(number) || 0, capped));
+    };
+
+    if (seasons.length) {
+      for (const [key, value] of Object.entries(item.airedBySeason || {})) {
+        const number = Number(key);
+        const season = byNumber.get(number);
+        if (!season || !similarSize(Number(item.seasonTotals?.[key]) || 0, seasonTotal(season))) continue;
+        raise(number, Number(value) || 0);
+      }
+    }
+
+    const next = item.nextEpisode;
+    const nextSeason = Number(next?.season) || 1;
+    const nextEp = Number(next?.episode) || 0;
+    if (nextEp > 0) {
+      const airedInSeason = episodeHasAired(next, clock) ? nextEp : nextEp - 1;
+      if (seasons.length) {
+        const season = byNumber.get(nextSeason);
+        if (season && nextEp <= seasonTotal(season) + 1) {
+          raise(nextSeason, airedInSeason);
+          // Every earlier season has finished airing.
+          for (const other of seasons) {
+            if (Number(other?.number) < nextSeason) raise(Number(other.number), seasonTotal(other));
+          }
+        }
+      } else if (nextSeason <= 1) {
+        out.flat = Math.max(0, airedInSeason);
+      }
+    }
+
+    if (!seasons.length && item.airedBySeason && Object.keys(item.airedBySeason).length === 1) {
+      const only = Number(Object.values(item.airedBySeason)[0]) || 0;
+      const liveTotal = Number(Object.values(item.seasonTotals || {})[0]) || 0;
+      if (similarSize(liveTotal, Number(entry.totalEpisodes) || 0)) out.flat = Math.max(out.flat || 0, only);
+    }
+    return out;
+  }
+
+  // The entry as every card part should see it: same fields, with `aired`
+  // on each season (and airedEpisodes for flat entries) set by the rule above.
+  function effectiveAired(entry, item, clock = {}) {
+    const isShow = entry?.mediaType === 'tv' || entry?.mediaType === 'anime';
+    if (!isShow) return entry;
+    const live = liveAired(entry, item, clock);
+    const seasons = Array.isArray(entry.seasons) ? entry.seasons : [];
+    if (seasons.length) {
+      return {
+        ...entry,
+        seasons: seasons.map(season => {
+          const total = seasonTotal(season);
+          const number = Number(season?.number);
+          const liveValue = live.bySeason.get(number);
+          // A season saved before aired-tracking reads as fully aired, unless
+          // live data now says otherwise.
+          const saved = season?.aired != null
+            ? Number(season.aired) || 0
+            : (liveValue != null ? 0 : total);
+          const watched = Math.min(total, Math.max(0, Number(season?.watched) || 0));
+          const aired = Math.min(total, Math.max(saved, liveValue || 0, watched));
+          return { ...season, aired };
+        }),
+      };
+    }
+    const total = Math.max(0, Number(entry.totalEpisodes) || 0);
+    if (!total) return entry;
+    const saved = entry.airedEpisodes != null ? Number(entry.airedEpisodes) || 0 : (live.flat != null ? 0 : total);
+    const watched = Math.max(0, Number(entry.watchedEpisodes) || 0);
+    return { ...entry, airedEpisodes: Math.min(total, Math.max(saved, live.flat || 0, watched)) };
+  }
+
+  // Saved-value update when live data proves more episodes have aired than
+  // the entry records. Only aired fields change; watch progress never does.
+  // Returns the patch, or null when nothing needs saving.
+  function airedUpdatePatch(entry, item, clock = {}) {
+    const isShow = entry?.mediaType === 'tv' || entry?.mediaType === 'anime';
+    if (!isShow || !item) return null;
+    const live = liveAired(entry, item, clock);
+    const seasons = Array.isArray(entry.seasons) ? entry.seasons : [];
+    if (seasons.length) {
+      let changed = false;
+      const next = seasons.map(season => {
+        const liveValue = live.bySeason.get(Number(season?.number));
+        if (liveValue == null) return season;
+        const saved = season?.aired != null ? Number(season.aired) || 0 : null;
+        if (saved != null && liveValue <= saved) return season;
+        if (saved == null && liveValue >= seasonTotal(season)) return season;
+        changed = true;
+        return { ...season, aired: liveValue };
+      });
+      return changed ? { seasons: next } : null;
+    }
+    if (live.flat == null) return null;
+    const saved = entry.airedEpisodes != null ? Number(entry.airedEpisodes) || 0 : null;
+    const total = Math.max(0, Number(entry.totalEpisodes) || 0);
+    const value = total ? Math.min(total, live.flat) : live.flat;
+    if (saved != null ? value <= saved : (!total || value >= total)) return null;
+    return { airedEpisodes: value };
+  }
+
+  function seasonLabel(seasons, number) {
+    return seasons.length > 1 ? `S${number} ` : '';
+  }
+
+  // "Behind" for a show that is still airing: aired episodes not yet watched,
+  // counted across the whole show (watched 2, 5 aired → 3 behind). airedPct
+  // places the aired point on the card's bar, which spans the active season
+  // (or the whole show for flat entries). A show with nothing left to air
+  // reports no behind count.
+  function airedProgress(entry, cache, activeSeasonFn, clock = {}) {
     const none = { behind: 0, airedPct: 0, behindLabel: '' };
-    if (!entry || !cache?.byId) return none;
+    if (!entry) return none;
     const isShow = entry.mediaType === 'tv' || entry.mediaType === 'anime';
     if (!isShow) return none;
     if (entry.status !== 'in_progress' && entry.status !== 'watchlist') return none;
     const key = keyForEntry(entry);
-    const episode = key ? cache.byId[key]?.nextEpisode : null;
-    if (!episode) return none;
+    const item = key ? cache?.byId?.[key] : null;
+    const view = effectiveAired(entry, item, clock);
+    const seasons = Array.isArray(view.seasons) ? view.seasons : [];
 
-    const seasons = Array.isArray(entry.seasons) ? entry.seasons : [];
-    const active = seasons.length && typeof activeSeasonFn === 'function' ? activeSeasonFn(entry) : null;
-
-    if (seasons.length && active) {
-      const total = Math.max(0, Number(active.total) || 0);
-      const watched = Math.min(Math.max(0, Number(active.watched) || 0), total);
-      const nextSeason = Number(episode.season) || 1;
-      const nextEp = Number(episode.episode) || 0;
-      let aired;
-      if (nextSeason > active.number) aired = total;            // active season fully aired
-      else if (nextSeason === active.number) aired = Math.max(0, Math.min(total, nextEp - 1));
-      else aired = 0;                                           // airing trails the watched season
+    if (seasons.length) {
+      const sorted = [...seasons].sort((a, b) => (a.number || 0) - (b.number || 0));
+      const stillAiring = sorted.some(season => season.aired < seasonTotal(season)) || Boolean(item?.nextEpisode);
+      if (!stillAiring) return none;
+      let behind = 0;
+      let first = null;
+      let last = null;
+      for (const season of sorted) {
+        const watched = Math.min(seasonTotal(season), Math.max(0, Number(season.watched) || 0));
+        const gap = Math.max(0, season.aired - watched);
+        if (!gap) continue;
+        behind += gap;
+        if (!first) first = { number: season.number, episode: watched + 1 };
+        last = { number: season.number, episode: season.aired };
+      }
+      const active = typeof activeSeasonFn === 'function' ? activeSeasonFn(view) : null;
+      const frame = active ? seasonTotal(active) : 0;
+      let behindLabel = '';
+      if (first && last) {
+        behindLabel = first.number === last.number
+          ? episodeRange(first.episode, last.episode, seasonLabel(seasons, first.number))
+          : `S${first.number} E${first.episode} – S${last.number} E${last.episode}`;
+      }
       return {
-        behind: Math.max(0, aired - watched),
-        airedPct: total > 0 ? Math.round((aired / total) * 100) : 0,
-        behindLabel: episodeRange(watched + 1, aired, seasons.length > 1 ? `S${active.number} ` : ''),
+        behind,
+        airedPct: active && frame > 0 ? Math.round((active.aired / frame) * 100) : 0,
+        behindLabel,
       };
     }
 
-    const ordinal = episodeOrdinalForProgress(entry, episode);
-    if (ordinal == null) return none;
-    const aired = Math.max(0, ordinal - 1);
-    const total = Math.max(0, Number(entry.totalEpisodes) || 0);
-    const watched = Math.max(0, Number(entry.watchedEpisodes) || 0);
+    const total = Math.max(0, Number(view.totalEpisodes) || 0);
+    if (!total) return none;
+    const aired = Math.min(total, Math.max(0, Number(view.airedEpisodes) || 0));
+    if (aired >= total && !item?.nextEpisode) return none;
+    const watched = Math.min(total, Math.max(0, Number(view.watchedEpisodes) || 0));
     return {
       behind: Math.max(0, aired - watched),
-      airedPct: total > 0 ? Math.round((Math.min(aired, total) / total) * 100) : 0,
-      behindLabel: episodeRange(watched + 1, total > 0 ? Math.min(aired, total) : aired),
+      airedPct: Math.round((aired / total) * 100),
+      behindLabel: episodeRange(watched + 1, aired),
     };
   }
 
@@ -182,6 +338,7 @@
     ttlMs = 0,
     now = Date.now(),
     requiredSource = '',
+    notBefore = 0,
   } = {}) {
     if (!keys.length) return true;
     if (!cache?.byId || !cache.fetchedAt) return false;
@@ -192,6 +349,9 @@
       // Entries written before per-key stamps existed fall back to the global.
       const stamp = Number(cache.fetchedAtById?.[key] ?? cache.fetchedAt ?? 0);
       if (ttlMs && Number(now || 0) - stamp >= Number(ttlMs || 0)) return false;
+      // Airing data checked before today is stale even inside the TTL, so the
+      // first open of a new day picks up that day's episodes.
+      if (notBefore && stamp < Number(notBefore)) return false;
       if (!requiredSource) return true;
       return cache.byId[key]?.source === requiredSource;
     });
@@ -207,6 +367,7 @@
     lastWarmAt = 0,
     minIntervalMs = 30000,
     requiredSource = '',
+    notBefore = 0,
   } = {}) {
     const uniqueKeys = [...new Set((keys || []).filter(Boolean))];
     if (!uniqueKeys.length) return { shouldWarm: false, reason: 'empty', keys: uniqueKeys };
@@ -214,7 +375,7 @@
     if (!force && Number(now || 0) - Number(lastWarmAt || 0) < Number(minIntervalMs || 0)) {
       return { shouldWarm: false, reason: 'throttled', keys: uniqueKeys };
     }
-    if (!force && cacheHasFreshKeys({ cache, keys: uniqueKeys, ttlMs, now, requiredSource })) {
+    if (!force && cacheHasFreshKeys({ cache, keys: uniqueKeys, ttlMs, now, requiredSource, notBefore })) {
       return { shouldWarm: false, reason: 'fresh', keys: uniqueKeys };
     }
     return { shouldWarm: true, reason: force ? 'forced' : 'stale-or-missing', keys: uniqueKeys };
@@ -493,6 +654,9 @@
     hasUnwatchedAiringEpisodeToday,
     airingTodaySignal,
     airedProgress,
+    effectiveAired,
+    airedUpdatePatch,
+    episodeHasAired,
     episodeTag,
     cacheHasFreshKeys,
     cacheWarmPlan,
