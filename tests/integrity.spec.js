@@ -434,6 +434,39 @@ test.describe('tracker data integrity', () => {
     expect(staleMerged[0].seasons).toEqual([expect.objectContaining({ number: 1, watched: 6 })]);
   });
 
+  test('an up-to-date save can lower an episode count (source corrected 12 -> 10)', () => {
+    const { mergeLibraries } = loadUserDataHelpers();
+    // Cloud copy still has the source's old, wrong count.
+    const existing = [{
+      id: 'cloud', mediaType: 'tv', tmdbId: 289423, title: 'Take Charge of My Heart',
+      status: 'watched', totalEpisodes: 12, watchedEpisodes: 12,
+      seasons: [{ number: 1, total: 12, watched: 12, aired: 10, name: 'Limited Series' }],
+    }];
+    // Metadata refresh on an up-to-date device: 10 episodes, all watched.
+    const incoming = [{
+      id: 'client', mediaType: 'tv', tmdbId: 289423, title: 'Take Charge of My Heart',
+      status: 'watched', totalEpisodes: 10, watchedEpisodes: 10,
+      seasons: [{ number: 1, total: 10, watched: 10, aired: 10, name: 'Limited Series' }],
+    }];
+
+    const merged = mergeLibraries(existing, incoming, {
+      keepMissingExisting: false,
+      protectExistingProgress: false,
+      protectIncomingDuplicates: true,
+    });
+    expect(merged[0]).toEqual(expect.objectContaining({ status: 'watched', totalEpisodes: 10, watchedEpisodes: 10 }));
+    expect(merged[0].seasons).toEqual([{ number: 1, total: 10, watched: 10, aired: 10, name: 'Limited Series' }]);
+
+    // A season the source removed is dropped too.
+    const withExtra = [{ ...existing[0], seasons: [...existing[0].seasons, { number: 2, total: 1, watched: 0 }], totalEpisodes: 13 }];
+    const dropped = mergeLibraries(withExtra, incoming, { keepMissingExisting: false, protectExistingProgress: false });
+    expect(dropped[0].seasons.map(season => season.number)).toEqual([1]);
+
+    // A stale device still can't shrink the cloud copy.
+    const stale = mergeLibraries(existing, incoming, { keepMissingExisting: true, protectExistingProgress: true });
+    expect(stale[0].totalEpisodes).toBe(12);
+  });
+
   test('incoming duplicate rows collapse by source key before saving', () => {
     const { mergeLibraries } = loadUserDataHelpers();
     const incoming = [

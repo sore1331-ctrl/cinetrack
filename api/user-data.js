@@ -257,6 +257,14 @@ function buildProgressEvents({ userId, beforeMovies = [], afterMovies = [], save
 
 function mergeSeasons(existing = [], incoming = [], { protectExistingProgress = true } = {}) {
   if (!Array.isArray(existing) && !Array.isArray(incoming)) return undefined;
+  // An up-to-date save is authoritative: the client's season list is stored
+  // as sent. Taking the larger total here meant a corrected, lower episode
+  // count (e.g. a source fixing 12 -> 10) could never be saved, and the
+  // watched-invariant below then demoted a finished show to in_progress.
+  // Stale saves still merge protectively below.
+  if (!protectExistingProgress && Array.isArray(incoming)) {
+    return incoming.map(season => ({ ...season }));
+  }
   const byNumber = new Map();
   const addSeasons = (seasons, fromIncoming) => {
     for (const season of (Array.isArray(seasons) ? seasons : [])) {
