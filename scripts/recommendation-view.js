@@ -27,10 +27,10 @@
         recs,
         html: `
           <div class="recs-heading-row">
-            <h3 class="recs-heading"><span class="j-glass-only">✨ </span>Recommended For You</h3>
-            <button class="recs-refresh-btn" id="recs-refresh-btn" title="Re-sample your seeds and re-fetch from TMDB">↻ Refresh</button>
+            <h3 class="recs-heading"><span class="j-glass-only">✨ </span>Recommended for you</h3>
+            <button class="recs-refresh-btn" id="recs-refresh-btn" title="Re-sample your seeds and re-fetch from TMDB"><span class="j-glass-only">↻ </span>Refresh</button>
           </div>
-          <p class="recs-empty">No new recommendations found — try watching more titles!</p>
+          <p class="recs-empty">Nothing new to suggest right now.</p>
         `,
       };
     }
@@ -40,8 +40,8 @@
       recs,
       html: `
         <div class="recs-heading-row">
-          <h3 class="recs-heading"><span class="j-glass-only">✨ </span>Recommended For You</h3>
-          <button class="recs-refresh-btn" id="recs-refresh-btn" title="Re-sample your seeds and re-fetch from TMDB">↻ Refresh</button>
+          <h3 class="recs-heading"><span class="j-glass-only">✨ </span>Recommended for you</h3>
+          <button class="recs-refresh-btn" id="recs-refresh-btn" title="Re-sample your seeds and re-fetch from TMDB"><span class="j-glass-only">↻ </span>Refresh</button>
         </div>
         <p class="recs-sub">Based on ${esc(scopeLabel)} you've watched · favouring ${esc(genreLabel)}</p>
         <div class="recs-grid">
@@ -114,7 +114,7 @@
               section.querySelector('.recs-grid')?.remove();
               section.querySelector('.recs-sub')?.remove();
               section.insertAdjacentHTML('beforeend',
-                '<p class="recs-empty">All caught up — dismissed everything for now. Hit ↻ Refresh for a fresh batch.</p>');
+                '<p class="recs-empty">You have dismissed everything for now. Refresh for a new batch.</p>');
             } else if (model.shouldTopUpRecommendations({
               visibleCount: section.querySelectorAll('.rec-card').length,
               visibleLimit,

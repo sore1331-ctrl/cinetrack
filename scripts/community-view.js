@@ -178,13 +178,13 @@
       <div class="stats-overview">
         <div class="stat-card"><div class="stat-card-value">${watched.length}</div><div class="stat-card-label">Watched</div></div>
         <div class="stat-card"><div class="stat-card-value">${watchlist.length}</div><div class="stat-card-label">Watchlist</div></div>
-        <div class="stat-card" title="Total runtime, prorated by progress on each series"><div class="stat-card-value">${formatTimeSpent(totalMins) || '—'}</div><div class="stat-card-label">Time Spent</div></div>
-        <div class="stat-card"><div class="stat-card-value">${avgRating ? '★ ' + avgRating : '—'}</div><div class="stat-card-label">Avg Rating</div></div>
+        <div class="stat-card" title="Total runtime, prorated by progress on each series"><div class="stat-card-value">${formatTimeSpent(totalMins) || '—'}</div><div class="stat-card-label">Time spent</div></div>
+        <div class="stat-card"><div class="stat-card-value">${avgRating ? '<span class="j-glass-only">★ </span>' + avgRating : '—'}</div><div class="stat-card-label">Average rating</div></div>
       </div>
 
       ${favourites.length ? `
         <div class="profile-section">
-          <h3>Top Favourites</h3>
+          <h3>Favourites</h3>
           <div class="fav-grid">
             ${favourites.map(m => `
               <div class="fav-card" title="${esc(m.title)}${num(m.rating) ? ' · ★ ' + num(m.rating) : ''}">
@@ -202,7 +202,7 @@
 
       ${currentlyWatching.length ? `
         <div class="profile-section">
-          <h3>Currently Watching</h3>
+          <h3>Currently watching</h3>
           <div class="curr-watching-list">
             ${currentlyWatching.map(({ m, pct }) => `
               <div class="curr-watching-row">
@@ -223,7 +223,7 @@
 
       ${byType.length ? `
         <div class="profile-section">
-          <h3>By Type</h3>
+          <h3>By type</h3>
           <div class="profile-type-grid">
             ${byType.map(type => `
               <div class="profile-type-card">
@@ -239,14 +239,14 @@
         </div>` : ''}
 
       <div class="stats-charts">
-        ${topGenresList.length ? `<div class="chart-section"><h3>Top Genres</h3><div class="chart-bars">${renderBarChart(topGenresList, maxGenre, '#e2405a')}</div></div>` : ''}
-        ${topCountries.length ? `<div class="chart-section"><h3>Top Countries</h3><div class="chart-bars">${renderBarChart(topCountries, maxCountry, '#3b9eff')}</div></div>` : ''}
-        ${ratingDist.length ? `<div class="chart-section chart-section-sm"><h3>Ratings</h3><div class="chart-bars">${renderBarChart(ratingDist.map(([s, c]) => ['★'.repeat(s), c]), maxRating, '#f5a623')}</div></div>` : ''}
+        ${topGenresList.length ? `<div class="chart-section"><h3>Top genres</h3><div class="chart-bars">${renderBarChart(topGenresList, maxGenre, '#e2405a')}</div></div>` : ''}
+        ${topCountries.length ? `<div class="chart-section"><h3>Top countries</h3><div class="chart-bars">${renderBarChart(topCountries, maxCountry, '#3b9eff')}</div></div>` : ''}
+        ${ratingDist.length ? `<div class="chart-section chart-section-sm"><h3>Ratings</h3><div class="chart-bars">${renderBarChart(ratingDist.map(([s, c]) => [`${s}/10`, c]), maxRating, '#f5a623')}</div></div>` : ''}
       </div>
 
       ${recent.length ? `
         <div class="profile-section">
-          <h3>Recently Added</h3>
+          <h3>Recently added</h3>
           <div class="profile-recent">
             ${recent.map(m => `
               <div class="profile-recent-card" title="${esc(m.title)}">

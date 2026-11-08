@@ -1465,7 +1465,7 @@ test.describe('tracker data integrity', () => {
     expect(model.formValues(entry)).toEqual(expect.objectContaining({ title: 'Show', year: '2026', status: 'watched', rating: 9 }));
     expect(model.typeUiState('anime')).toEqual(expect.objectContaining({
       isShow: true,
-      searchLabel: 'Search AniList',
+      searchLabel: 'Find on AniList',
       directorPlaceholder: 'e.g. Hayao Miyazaki',
     }));
     expect(model.cloneSeasons(entry)).toEqual(entry.seasons);
@@ -1921,8 +1921,12 @@ test.describe('tracker data integrity', () => {
   });
 
   test('bulk refresh bypasses the progress guard and names re-counted titles', () => {
-    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
-    const bulk = app.slice(app.indexOf('refreshEntry: async m => {'), app.indexOf('libraryModel,\n  save,'));
+    // Normalise line endings and look for the end marker after the start: the old
+    // slice only worked by accident when app.js had CRLF endings on disk.
+    const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8').replace(/\r\n/g, '\n');
+    const start = app.indexOf('refreshEntry: async m => {');
+    const bulk = app.slice(start, app.indexOf('libraryModel,\n  save,', start));
+    expect(bulk.length).toBeGreaterThan(0);
     expect(bulk).toContain('updateLibraryEntry(m.id, { ...m }, { allowDowngrade: true });');
     expect(bulk).not.toContain('protectProgress');
 
@@ -2323,7 +2327,7 @@ test.describe('tracker data integrity', () => {
     expect(profileController).toContain('profileModel?.backupImpactLabel(compare)');
     expect(profileView).toContain('data-restore-backup');
     expect(profileController).toContain('restoreLibraryFromBackup?.(backup.movies)');
-    expect(profileView).toContain('Local safety snapshots are created before cloud loads');
+    expect(profileView).toContain('A copy of your library is kept before anything replaces it');
     expect(app).toContain('function currentUserDisplayName()');
     expect(app).toContain('function userInitial');
     expect(profileView).toContain('<div class="profile-avatar-lg">${esc(initial)}</div>');
@@ -2350,7 +2354,7 @@ test.describe('tracker data integrity', () => {
 
     expect(model.localLibraryBackups(storageModel, 'backups')).toHaveLength(1);
     expect(model.formatBackupDate('not-a-date')).toBe('Unknown time');
-    expect(model.backupImpactLabel({ hasIssues: false })).toBe('No obvious loss detected');
+    expect(model.backupImpactLabel({ hasIssues: false })).toBe('Nothing missing');
     expect(model.backupImpactLabel({
       hasIssues: true,
       missing: [{}],

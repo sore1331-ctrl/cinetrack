@@ -2007,7 +2007,7 @@ function updateCountryDropdown() {
     countryFilter = '';
     countryFilterEl.value = '';
   }
-  countryFilterEl.innerHTML = '<option value="">All Countries</option>' +
+  countryFilterEl.innerHTML = '<option value="">All countries</option>' +
     countries.map(c => `<option value="${esc(c)}"${c === countryFilter ? ' selected' : ''}>${esc(c)}</option>`).join('');
 
   updateGenreDropdown();
@@ -2029,7 +2029,7 @@ function updateGenreDropdown() {
     genreFilter = '';
     genreFilterEl.value = '';
   }
-  genreFilterEl.innerHTML = '<option value="">All Genres</option>' +
+  genreFilterEl.innerHTML = '<option value="">All genres</option>' +
     genres.map(g => `<option value="${esc(g)}"${g === genreFilter ? ' selected' : ''}>${esc(g)}</option>`).join('');
   syncAllCustomFilterSelects();
 }
@@ -2185,7 +2185,7 @@ function renderStats() {
 
   const topRatedHTML = topRated.length ? `
     <div class="chart-section chart-section-wide">
-      <h3>Your Top Rated</h3>
+      <h3>Your top rated</h3>
       <div class="top-rated-grid">
         ${topRated.map(m => {
           const url = infoUrlForEntry(m);
@@ -2242,11 +2242,11 @@ function renderStats() {
       </div>
       <div class="stat-card stat-card-clickable" data-stat-action="in_progress">
         <div class="stat-card-value">${inProgressN}</div>
-        <div class="stat-card-label">In Progress</div>
+        <div class="stat-card-label">In progress</div>
       </div>
       <div class="stat-card stat-card-clickable" data-stat-action="watchlist">
         <div class="stat-card-value">${watchlistN}</div>
-        <div class="stat-card-label">On Watchlist</div>
+        <div class="stat-card-label">On watchlist</div>
       </div>
       ${epsTotal > 0 ? `
       <div class="stat-card" title="Episodes watched across all TV shows and anime series">
@@ -2278,19 +2278,19 @@ function renderStats() {
 
       ${decadeEntries.length ? `
       <div class="chart-section">
-        <h3>By Decade</h3>
+        <h3>By decade</h3>
         <div class="chart-bars">${renderBarChart(decadeEntries, maxOf(decadeEntries), '#f5a623')}</div>
       </div>` : ''}
 
       ${hasRatings ? `
       <div class="chart-section">
-        <h3>Rating Distribution</h3>
+        <h3>Ratings</h3>
         <div class="rating-dist">${renderRatingDist(ratingBuckets)}</div>
       </div>` : ''}
 
       ${currentlyWatching.length ? `
       <div class="chart-section chart-section-sm">
-        <h3>Currently Watching</h3>
+        <h3>Currently watching</h3>
         <div class="chart-bars">${currentlyWatching.map(({ m, pct, remaining }) => `
           <div class="watching-row" title="${esc(m.title)} — ${m.watchedEpisodes || 0}/${m.totalEpisodes} episodes">
             <div class="watching-label">${esc(m.title)}</div>
@@ -2302,7 +2302,7 @@ function renderStats() {
 
       ${typeEntries.length ? `
       <div class="chart-section chart-section-sm">
-        <h3>By Type</h3>
+        <h3>By type</h3>
         <div class="chart-bars">${renderBarChart(typeEntries, maxOf(typeEntries), '#4caf82')}</div>
       </div>` : ''}
     </div>
@@ -2438,6 +2438,14 @@ function renderHome() {
     .sort((a, b) => Number(b.addedAt || 0) - Number(a.addedAt || 0))
     .slice(0, 5);
 
+  const homeSummary = movies.length
+    ? [
+        `${statusCounts.in_progress || 0} in progress`,
+        airingToday.length ? `${airingToday.length} airing today` : '',
+        planned.length ? `${planned.length} planned for today` : '',
+      ].filter(Boolean).join(' · ')
+    : 'Nothing tracked yet. Add a film or show to get started.';
+
   panel.innerHTML = `
     <section class="home-hero">
       <div class="home-intro">
@@ -2446,7 +2454,7 @@ function renderHome() {
           <span class="brand-logo-text">CineTrack</span>
         </span>
         <h1>At a glance</h1>
-        <p>Continue from your current progress, today's plans, and titles airing now.</p>
+        <p>${homeSummary}</p>
       </div>
       <div class="home-metrics" aria-label="Library overview">
         <div><strong>${movies.length}</strong><span>Total titles</span></div>
@@ -3190,7 +3198,7 @@ async function renderCalendar({ force = false } = {}) {
       <div class="calendar-title-block">
         <span class="calendar-kicker">Schedule</span>
         <h2><span class="j-glass-only">📅 </span>Calendar</h2>
-        <p>Upcoming episodes and watchlist film releases from your connected sources.</p>
+        <p>${calendarMode === 'planned' ? 'Watches you have scheduled.' : calendarMode === 'discover' ? 'Popular and upcoming titles on TMDB.' : `Episodes over the next ${UPCOMING_HORIZON_DAYS} days, films over the next ${MOVIE_HORIZON_DAYS}.`}</p>
       </div>
       <div class="cal-mode-toggle pill-group">
         <button type="button" class="pill-btn ${calendarMode === 'tracked' ? 'active' : ''}" data-mode="tracked"><span class="j-glass-only">📅 </span>Tracked</button>
@@ -3309,7 +3317,7 @@ function planLibraryEntry(id) {
   const entry = movies.find(m => m.id === id);
   if (!entry) return;
   planningId = id;
-  if (planModalTitle) planModalTitle.textContent = entry.plannedWatchDate ? 'Reschedule Watch' : 'Plan Watch';
+  if (planModalTitle) planModalTitle.textContent = entry.plannedWatchDate ? 'Reschedule' : 'Plan a watch';
   if (planModalCopy) planModalCopy.textContent = `Choose when you want to watch "${entry.title}".`;
   if (planDateInput) planDateInput.value = entry.plannedWatchDate || todayDateString();
   if (planTimeSelect) planTimeSelect.value = entry.plannedWatchTime || '';
@@ -3386,7 +3394,7 @@ async function renderCalendarTracked(body, { force = false } = {}) {
     <div class="cal-subheader">
       <span class="cal-window">Episodes: next ${UPCOMING_HORIZON_DAYS} days</span>
       <span class="cal-window">Films: next ${MOVIE_HORIZON_DAYS} days</span>
-      <button id="calendar-refresh-btn" class="cal-refresh-btn" title="Re-fetch upcoming dates from available sources">↻ Refresh</button>
+      <button id="calendar-refresh-btn" class="cal-refresh-btn" title="Re-fetch upcoming dates from available sources"><span class="j-glass-only">↻ </span>Refresh</button>
     </div>
     <div class="calendar-list"><div class="recs-loading"><span class="recs-spinner"></span> Loading…</div></div>
   `;
@@ -3557,7 +3565,7 @@ async function renderCalendarDiscover(body, { force = false } = {}) {
           `<option value="${r}"${r === discoverRegion ? ' selected' : ''}>🌍 ${r}</option>`
         ).join('')}
       </select>` : ''}
-      <button id="cal-discover-refresh" class="cal-refresh-btn" title="Re-fetch from TMDB now (bypasses 24h cache)">↻ Refresh</button>
+      <button id="cal-discover-refresh" class="cal-refresh-btn" title="Re-fetch from TMDB now (bypasses 24h cache)"><span class="j-glass-only">↻ </span>Refresh</button>
     </div>
     <div id="cal-discover-grid" class="discover-grid"><div class="recs-loading"><span class="recs-spinner"></span> Loading…</div></div>
   `;
@@ -4512,7 +4520,7 @@ modalRefreshBtn.addEventListener('click', async () => {
   const movie = editingId ? movies.find(m => m.id === editingId) : null;
   if (!movie) return;
   modalRefreshBtn.disabled = true;
-  modalRefreshBtn.textContent = '↻ Refreshing…';
+  modalRefreshBtn.textContent = 'Refreshing…';
   try {
     const details = await fetchDetailsForEntry(movie);
     applyTMDBSelection(details);
@@ -4523,7 +4531,7 @@ modalRefreshBtn.addEventListener('click', async () => {
     tmdbErr.classList.remove('hidden');
   } finally {
     modalRefreshBtn.disabled = false;
-    modalRefreshBtn.textContent = `↻ ${metadataRefreshLabel(movie)}`;
+    modalRefreshBtn.textContent = metadataRefreshLabel(movie);
     modalRefreshBtn.title = metadataRefreshTooltip(movie);
   }
 });
@@ -4981,7 +4989,7 @@ if (movies.length > 0) { updateCountryDropdown(); render(); }
   if (!hasSupabase) {
     offlineMode = true;
     hideAuthOverlay();
-    setSyncState('error', 'Database not configured — offline mode');
+    setSyncState('error', 'Offline (no database set up)');
     if (movies.length === 0) seedData();
     updateCountryDropdown();
     render();

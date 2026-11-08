@@ -193,7 +193,7 @@ test.describe('desktop regressions', () => {
     await page.locator('#header-profile-btn').click();
 
     await expect(page.locator('#profile-panel')).toBeVisible();
-    await expect(page.locator('#profile-panel')).toContainText('Library Health');
+    await expect(page.locator('#profile-panel')).toContainText('Library health');
     await expect(page.locator('#profile-panel')).toContainText('Recovery');
     await expect(page.locator('#movie-grid')).toBeHidden();
   });

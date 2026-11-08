@@ -1,6 +1,15 @@
 (function () {
   const root = window.CineTrack || (window.CineTrack = {});
 
+  function backupReasonLabel(reason = '') {
+    const r = String(reason);
+    if (/cloud-load/.test(r)) return 'Before loading from the cloud';
+    if (/cloud-save/.test(r)) return 'Before saving to the cloud';
+    if (/sign-?out/.test(r)) return 'Before signing out';
+    if (/schema|migration|repair/.test(r)) return 'Before a library update';
+    return 'Saved copy';
+  }
+
   function renderProfileHtml(ctx = {}) {
     const {
       movies = [], watched = [], watchlist = [], totalMins = 0, avgRating = null,
@@ -41,17 +50,17 @@
       </div>
       <div class="stat-card" data-time-spent-toggle title="Total runtime, prorated by progress on each series">
         <div class="stat-card-value">${formatTimeSpent(totalMins) || '—'}</div>
-        <div class="stat-card-label">Time Spent</div>
+        <div class="stat-card-label">Time spent</div>
       </div>
       <div class="stat-card">
-        <div class="stat-card-value">${avgRating ? '★ ' + avgRating : '—'}</div>
-        <div class="stat-card-label">Avg Rating</div>
+        <div class="stat-card-value">${avgRating ? '<span class="j-glass-only">★ </span>' + avgRating : '—'}</div>
+        <div class="stat-card-label">Average rating</div>
       </div>
     </div>
 
     ${byType.length ? `
     <div class="profile-section">
-      <h3>By Type</h3>
+      <h3>By type</h3>
       <div class="profile-type-grid">
         ${byType.map(t => `
           <div class="profile-type-card">
@@ -69,26 +78,26 @@
     <div class="stats-charts profile-charts">
       ${topGenres.length ? `
       <div class="chart-section">
-        <h3>Top Genres</h3>
+        <h3>Top genres</h3>
         <div class="chart-bars">${renderBarChart(topGenres, maxGenre, '#e2405a')}</div>
       </div>` : ''}
 
       ${topCountries.length ? `
       <div class="chart-section">
-        <h3>Top Countries</h3>
+        <h3>Top countries</h3>
         <div class="chart-bars">${renderBarChart(topCountries, maxCountry, '#3b9eff')}</div>
       </div>` : ''}
 
       ${ratingDist.length ? `
       <div class="chart-section chart-section-sm">
         <h3>Ratings</h3>
-        <div class="chart-bars">${renderBarChart(ratingDist.map(([s, c]) => ['★'.repeat(s), c]), maxRating, '#f5a623')}</div>
+        <div class="chart-bars">${renderBarChart(ratingDist.map(([s, c]) => [`${s}/10`, c]), maxRating, '#f5a623')}</div>
       </div>` : ''}
     </div>
 
     ${recent.length ? `
     <div class="profile-section">
-      <h3>Recently Added</h3>
+      <h3>Recently added</h3>
       <div class="profile-recent">
         ${recent.map(m => `
           <div class="profile-recent-card" data-edit="${m.id}" title="${esc(m.title)}">
@@ -105,11 +114,11 @@
     ${movies.length === 0 ? '<p class="profile-empty">Add some titles to see your profile stats.</p>' : ''}
 
     <div class="profile-section library-health-section">
-      <h3>Library Health</h3>
+      <h3>Library health</h3>
       <div class="library-health-card${health?.ok ? ' healthy' : ''}">
         <div class="library-health-status">
           <span class="library-health-dot" aria-hidden="true"></span>
-          <span>${health?.ok ? 'No blocking issues detected' : 'Needs attention'}</span>
+          <span>${health?.ok ? 'Looks fine' : 'Needs attention'}</span>
         </div>
         <div class="library-health-meta">${health ? `${health.storage.megabytes.toFixed(2)} MB stored locally` : 'Health model unavailable'}</div>
         ${health?.issues?.length ? `
@@ -123,7 +132,7 @@
     <div class="profile-section appearance-section${localStorage.getItem('cinetrack_appearance_open') === '1' ? ' open' : ''}">
       <h3 class="appearance-toggle" role="button" tabindex="0" aria-expanded="${localStorage.getItem('cinetrack_appearance_open') === '1' ? 'true' : 'false'}">
         <span>Appearance</span>
-        <span class="appearance-chevron" aria-hidden="true">▶</span>
+        <span class="appearance-chevron" aria-hidden="true">▶</span><span class="j-text appearance-state" aria-hidden="true"></span>
       </h3>
       <div class="appearance-body">
         <div class="appearance-group appearance-group-wide">
@@ -266,9 +275,9 @@
 
     <div class="profile-section profile-csv-section">
       <h3>
-        Import / Export
+        Import and export
         <button type="button" class="info-btn" id="csv-info-btn" aria-label="What is this?"
-          title="Export saves every title as a CSV backup, including episode progress, posters and plans. Importing that file restores it exactly. Other spreadsheets can be imported too: their rows are matched against TMDB to fill in posters, runtimes, and genres. Use the template link for the expected column format.">ⓘ</button>
+          title="Export saves every title as a CSV backup, including episode progress, posters and plans. Importing that file restores it exactly. Other spreadsheets can be imported too: their rows are matched against TMDB to fill in posters, runtimes, and genres. Use the template link for the expected column format."><span class="j-glass-only">ⓘ</span><span class="j-text">About CSV</span></button>
       </h3>
       <p class="profile-csv-hint">Back up your library or move it between accounts.</p>
       <div class="profile-csv-actions">
@@ -280,7 +289,7 @@
 
     <div class="profile-section recovery-section">
       <h3>Recovery</h3>
-      <p class="profile-csv-hint">Local safety snapshots are created before cloud loads, cloud saves, sign-out clears, and schema repairs.</p>
+      <p class="profile-csv-hint">A copy of your library is kept before anything replaces it, so you can roll back here.</p>
       ${backups.length ? `
         <div class="recovery-list">
           ${backups.map((backup, index) => {
@@ -289,7 +298,7 @@
               <div class="recovery-item">
                 <div class="recovery-copy">
                   <div class="recovery-title">${esc(profileModel.formatBackupDate(backup.createdAt))}</div>
-                  <div class="recovery-meta">${esc(backup.reason || 'snapshot')} &middot; ${Number(backup.itemCount || backup.movies.length)} titles</div>
+                  <div class="recovery-meta">${esc(backupReasonLabel(backup.reason))} &middot; ${Number(backup.itemCount || backup.movies.length)} titles</div>
                   <div class="recovery-impact${compare.hasIssues ? ' has-issues' : ''}">${esc(profileModel.backupImpactLabel(compare))}</div>
                 </div>
                 <button type="button" class="recovery-restore-btn" data-restore-backup="${index}">Restore</button>
@@ -297,7 +306,7 @@
             `;
           }).join('')}
         </div>
-      ` : '<p class="recovery-empty">No local safety snapshots yet.</p>'}
+      ` : '<p class="recovery-empty">No saved copies yet.</p>'}
     </div>
   `;
 

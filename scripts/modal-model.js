@@ -26,9 +26,9 @@
       isTV,
       isAnime,
       isShow: isTV || isAnime,
-      searchLabel: ({ movie: 'Search TMDB', tv: 'Search TMDB (TV)', anime: 'Search AniList' })[mediaType] || 'Search TMDB',
+      searchLabel: ({ movie: 'Find on TMDB', tv: 'Find on TMDB', anime: 'Find on AniList' })[mediaType] || 'Find on TMDB',
       searchPlaceholder: ({ movie: 'Type a movie title...', tv: 'Type a show title...', anime: 'Type an anime title...' })[mediaType] || 'Type a title...',
-      directorLabel: isTV || isAnime ? 'Creator / Director' : 'Director',
+      directorLabel: isTV || isAnime ? 'Creator' : 'Director',
       directorPlaceholder: isAnime ? 'e.g. Hayao Miyazaki' : isTV ? 'e.g. Vince Gilligan' : 'e.g. Christopher Nolan',
     };
   }

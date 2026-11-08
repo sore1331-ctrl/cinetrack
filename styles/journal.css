@@ -618,7 +618,7 @@
   justify-content: flex-start;
   text-align: left;
   color: var(--j-muted);
-  font: 400 12.5px/1.3 var(--j-sans);
+  font: 400 12px/1.3 var(--j-sans);
 }
 :root[data-style="journal"] .card-actions .btn-sm:hover {
   color: var(--j-text);
@@ -696,7 +696,7 @@
 /* ── Phones: heading smaller, toolbar below it ──────────────────────────── */
 @media (max-width: 480px) {
   :root[data-style="journal"] .page-title {
-    font-size: 30px;
+    font-size: 34px;
   }
   :root[data-style="journal"] .stats-bar {
     gap: 18px;
@@ -864,12 +864,12 @@
   box-shadow: none;
 }
 :root[data-style="journal"] .cal-title {
-  font: 500 17px/1.25 var(--j-serif);
+  font: 500 16px/1.25 var(--j-serif);
   color: var(--j-text);
 }
 :root[data-style="journal"] .cal-ep {
   color: var(--j-muted);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 /* "TV", "Film", "Anime" and "Today" as plain small text, not pills. */
 :root[data-style="journal"] :is(.cal-kind, .cal-row-pill-planned, .cal-row [class*="pill"], .cal-group-head [class*="pill"]) {
@@ -878,9 +878,9 @@
   box-shadow: none;
   padding: 0;
   color: var(--j-muted);
-  font: 500 11px/1 var(--j-sans);
-  letter-spacing: .06em;
-  text-transform: uppercase;
+  font: 400 12px/1 var(--j-sans);
+  letter-spacing: 0;
+  text-transform: none;
 }
 :root[data-style="journal"] :is(.cal-row [class*="today"], .cal-group-head [class*="today"]) {
   color: var(--j-accent);
@@ -897,7 +897,7 @@
   border-radius: 3px;
 }
 :root[data-style="journal"] .discover-title {
-  font: 500 15px/1.25 var(--j-serif);
+  font: 500 14px/1.25 var(--j-serif);
 }
 
 /* ── Stats ───────────────────────────────────────────────────────────────── */
@@ -956,7 +956,7 @@
 }
 :root[data-style="journal"] :is(.chart-label, .chart-count) {
   color: var(--j-muted);
-  font: 400 12.5px/1.3 var(--j-sans);
+  font: 400 12px/1.3 var(--j-sans);
 }
 :root[data-style="journal"] .chart-hint {
   color: var(--j-muted);
@@ -1007,13 +1007,13 @@
   font-family: var(--j-serif);
 }
 :root[data-style="journal"] .community-username {
-  font: 500 18px/1.2 var(--j-serif);
+  font: 500 16px/1.2 var(--j-serif);
   color: var(--j-text);
 }
 :root[data-style="journal"] :is(.community-stats-mini, .community-genres, .profile-type-stats, .compat-detail) {
   color: var(--j-muted);
   font-style: normal;
-  font-size: 12.5px;
+  font-size: 12px;
 }
 :root[data-style="journal"] :is(.community-compat, .compat-badge, .profile-sharing-badge) {
   background: none;
@@ -1178,7 +1178,7 @@
 }
 :root[data-style="journal"] :is(.onboarding-card, .empty-state-card) h2,
 :root[data-style="journal"] :is(.onboarding-card, .empty-state-card) h3 {
-  font: 500 22px/1.2 var(--j-serif);
+  font: 500 20px/1.2 var(--j-serif);
   color: var(--j-text);
 }
 :root[data-style="journal"] :is(.onboarding-card, .empty-state-card) p {
@@ -1309,7 +1309,7 @@
 :root[data-style="journal"] .home-metrics span {
   display: block;
   margin-top: 6px;
-  font: 400 12.5px/1.2 var(--j-sans);
+  font: 400 12px/1.2 var(--j-sans);
   color: var(--j-muted);
 }
 
@@ -1336,7 +1336,7 @@
   color: var(--j-text);
 }
 :root[data-style="journal"] .home-section-head span {
-  font: 400 12.5px/1 var(--j-sans);
+  font: 400 12px/1 var(--j-sans);
   color: var(--j-muted);
 }
 
@@ -1377,7 +1377,7 @@
   transition: color .15s;
 }
 :root[data-style="journal"] .home-row-main span {
-  font: 400 12.5px/1.3 var(--j-sans);
+  font: 400 12px/1.3 var(--j-sans);
   color: var(--j-muted);
 }
 :root[data-style="journal"] .home-row-badge {
@@ -1414,7 +1414,7 @@
 }
 @media (max-width: 560px) {
   :root[data-style="journal"] .home-hero h1 {
-    font-size: 32px;
+    font-size: 34px;
   }
 }
 
@@ -1699,11 +1699,199 @@
     background: none;
   }
   :root[data-style="journal"] .mobile-nav-btn small {
-    font: 500 10.5px/1.2 var(--j-sans);
+    font: 500 11px/1.2 var(--j-sans);
     letter-spacing: 0;
   }
 }
 :root[data-style="journal"] .random-pick-title {
-  font: 500 22px/1.2 var(--j-serif);
+  font: 500 20px/1.2 var(--j-serif);
+  color: var(--j-text);
+}
+
+/* ── AI-look review (2026-11-08) ─────────────────────────────────────────── */
+
+/* 1. Buttons and fields don't inherit the page font, so they fell back to
+      Arial (header menu, "+ Add", S/M/L, close buttons). */
+:root[data-style="journal"] :is(button, input, select, textarea, option) {
+  font-family: var(--j-sans);
+}
+
+/* 5. No small spaced-out capitals: plain muted text instead. */
+:root[data-style="journal"] :is(.j-next, .cal-kind, .modal-section-label, .account-panel-label, .home-row-badge) {
+  text-transform: none;
+  letter-spacing: 0;
+  font: 400 12px/1.3 var(--j-sans);
+  color: var(--j-muted);
+}
+/* "TV Show" above the title repeats the Movie / TV Show / Anime tabs. */
+:root[data-style="journal"] .modal-type-chip {
+  display: none;
+}
+/* "Editable metadata" reads as a section heading, like the rest of the dialog. */
+:root[data-style="journal"] .modal-section-label {
+  font: 500 16px/1.25 var(--j-serif);
+  color: var(--j-text);
+}
+
+/* 6. The dialog's one-line description is filler. */
+:root[data-style="journal"] .modal-subtitle {
+  display: none;
+}
+
+/* 8. Build id is for debugging (it is also logged to the console). */
+:root[data-style="journal"] #build-label {
+  display: none;
+}
+
+/* 9. Text instead of symbols: "About CSV" instead of ⓘ, Show / Hide instead of ▶. */
+:root[data-style="journal"] .info-btn {
+  width: auto;
+  height: auto;
+  border: 0;
+  padding: 0;
+  margin-left: 10px;
+  border-radius: 0;
+  background: none;
+  color: var(--j-muted);
+  font: 400 12px/1 var(--j-sans);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: help;
+}
+:root[data-style="journal"] .info-btn:hover {
+  color: var(--j-text);
+}
+:root[data-style="journal"] .info-btn .j-text {
+  display: inline;
+}
+:root[data-style="journal"] .appearance-chevron,
+:root[data-style="journal"] .modal-refresh-btn::before {
+  display: none;
+  content: none;
+}
+:root[data-style="journal"] .appearance-state {
+  display: inline;
+  font: 400 12px/1 var(--j-sans);
+  color: var(--j-muted);
+}
+:root[data-style="journal"] .appearance-state::before {
+  content: 'Show';
+}
+:root[data-style="journal"] .appearance-section.open .appearance-state::before {
+  content: 'Hide';
+}
+
+/* 10. Busywork: per-day item counts, and the horizon chips now said in the heading. */
+:root[data-style="journal"] :is(.cal-count, .cal-window) {
+  display: none;
+}
+
+/* 12. No placeholder initial circle or unexplained status dot on Profile. */
+:root[data-style="journal"] :is(.profile-hero-orbit, .profile-avatar-lg, .profile-hero #sync-indicator) {
+  display: none;
+}
+
+/* 15. Toolbar buttons are words, not icons, at every width. */
+:root[data-style="journal"] .controls .ctrl-icon {
+  display: none;
+}
+:root[data-style="journal"] .controls .ctrl-label {
+  display: inline;
+}
+
+/* 2-3. One type scale for the Journal style: 11 / 12 / 13 / 14 / 16 / 20 / 26 /
+   34 / 40px, weights 400 / 500 / 600. The Glass stylesheets size text in rem
+   (.78rem, .82rem, .85rem, .9rem ...), which landed on 12.2, 12.8, 13.1, 13.6,
+   14.4px and so on; these pin each of those to the scale. */
+
+/* 12px: meta lines, counts, years, field labels. */
+:root[data-style="journal"] :is(
+  .profile-recent-year, .tr-year, .tr-rating, .rd-count, .rd-rating, .chart-count, .chart-label,
+  .card-stars, .card-stars-max, .recovery-meta, .library-health-meta, .cal-ep,
+  .home-row-main span, .home-section-head span, .profile-type-stats span,
+  .sync-details span, .sync-details strong, .more-filter-field > span,
+  .csv-template-link, .random-pick-meta, .modal-plan-head span, .modal-plan-clear
+),
+:root[data-style="journal"] :is(.modal, .auth-overlay) label {
+  font-size: 12px;
+}
+
+/* 13px: buttons, menu items, body copy. */
+:root[data-style="journal"] :is(
+  .type-tab .tab-label, .ctrl-label, .size-btn, .btn-sm, .recs-refresh-btn, .cal-refresh-btn,
+  .modal-refresh-btn, .more-filters-clear, .recovery-restore-btn, .csv-action-btn,
+  .reload-cloud-btn, .signout-btn, .filter-select-button, .filter-select-option,
+  .random-pick-actions button, .watching-label, .profile-csv-hint, .community-empty,
+  .recs-empty, .sharing-label span, .library-health-status span, .recovery-title,
+  .recovery-impact, .username-display
+) {
+  font-size: 13px;
+}
+
+/* 14px: dialog buttons, field text, the rating readout. */
+:root[data-style="journal"] :is(#add-btn, #save-btn, .modal .secondary, .modal .danger, #plan-save, .modal-rating-value, .community-profile-close),
+:root[data-style="journal"] :is(.modal, .auth-overlay, .user-dropdown) :is(input, select, textarea) {
+  font-size: 14px;
+}
+
+/* Serif titles. */
+:root[data-style="journal"] .cal-title {
+  font-size: 16px;
+}
+:root[data-style="journal"] :is(#random-pick-body h2, .random-pick-title) {
+  font-size: 20px;
+}
+:root[data-style="journal"] #modal-preview-title {
+  font-size: 26px;
+}
+:root[data-style="journal"] .modal-preview-fallback {
+  font: 500 20px/1.2 var(--j-serif);
+  letter-spacing: 0;
+}
+
+/* Weights: nothing heavier than 600; emphasis comes from the serif. */
+:root[data-style="journal"] :is(
+  .tr-rating, .card-stars, .sync-details strong, .size-btn, .recovery-impact,
+  .modal-plan-clear, .modal-plan-head span, .library-health-status span,
+  .recovery-title, .username-display
+) {
+  font-weight: 500;
+}
+:root[data-style="journal"] .size-btn.active {
+  font-weight: 600;
+}
+:root[data-style="journal"] .star {
+  font-size: 20px;
+}
+
+/* Recovery copies: plain rows between hairlines, not rounded cards. */
+:root[data-style="journal"] .recovery-item {
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--j-line);
+  border-radius: 0;
+  box-shadow: none;
+  padding: 12px 0;
+}
+:root[data-style="journal"] .recovery-impact {
+  color: var(--j-muted);
+}
+
+/* Calendar: Refresh is a quiet text link now the horizon chips are gone. */
+:root[data-style="journal"] .cal-subheader:not(:has(.cal-discover-types)) {
+  margin: 0 0 6px;
+  padding: 0;
+  justify-content: flex-end;
+}
+:root[data-style="journal"] .cal-subheader .cal-refresh-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--j-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+:root[data-style="journal"] .cal-subheader .cal-refresh-btn:hover {
+  background: none;
   color: var(--j-text);
 }

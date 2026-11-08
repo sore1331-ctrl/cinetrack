@@ -21,7 +21,7 @@
   }
 
   function backupImpactLabel(compare) {
-    if (!compare?.hasIssues) return 'No obvious loss detected';
+    if (!compare?.hasIssues) return 'Nothing missing';
     const parts = [];
     if (compare.missing?.length) parts.push(`${compare.missing.length} missing`);
     if (compare.progressRegressed?.length) parts.push(`${compare.progressRegressed.length} progress`);

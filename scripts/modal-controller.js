@@ -585,7 +585,7 @@
     function refreshTitle(entry) {
       if (!refreshButton) return;
       refreshButton.classList.toggle('hidden', !(entry?.tmdbId || entry?.externalId));
-      refreshButton.textContent = entry ? `↻ ${metadataRefreshLabel(entry)}` : '↻ Refresh metadata';
+      refreshButton.textContent = entry ? metadataRefreshLabel(entry) : 'Refresh metadata';
       refreshButton.title = metadataRefreshTooltip(entry);
     }
 
@@ -603,7 +603,7 @@
     }
 
     function beginOpen(entry = null, activeType = 'movie') {
-      if (modalTitle) modalTitle.textContent = entry ? 'Edit Title' : 'Add Title';
+      if (modalTitle) modalTitle.textContent = entry ? 'Edit title' : 'Add a title';
       if (droppedOption) droppedOption.hidden = !entry?.id;
       const mediaType = modalModel.mediaTypeForOpen(entry, activeType);
       typeController.activate(mediaType);

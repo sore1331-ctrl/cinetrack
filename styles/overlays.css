@@ -1058,3 +1058,6 @@ button.danger:hover { opacity: .85; }
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
 }
+
+/* The refresh glyph lives here (not in the button text) so the Journal style can drop it. */
+.modal-refresh-btn::before { content: "\21BB\00a0"; }
