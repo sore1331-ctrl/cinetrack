@@ -61,7 +61,7 @@ const POSTERS_OPTIONS = ['shown', 'hidden'];
 const NOTIF_OPTIONS   = ['off', 'on'];
 // Visual style. Glass is the original translucent look; Journal is the flat
 // editorial look (styles/journal.css, active only under data-style="journal").
-const STYLE_OPTIONS   = ['glass', 'journal'];
+const STYLE_OPTIONS   = ['journal', 'glass'];
 const CALENDAR_WATCHED_OPTIONS = ['hide', 'dim', 'show'];
 const CALENDAR_MODES = ['tracked', 'planned', 'discover'];
 const THEME_PRESETS = {
@@ -84,7 +84,9 @@ function applyDensity(v) { applyAttrPreset('data-density', v, 'comfortable', DEN
 function applyMotion(v)  { applyAttrPreset('data-motion',  v, 'full',        MOTION_OPTIONS); }
 function applyPosters(v) { applyAttrPreset('data-posters', v, 'shown',       POSTERS_OPTIONS); }
 function applyEpisodeNotif(v) { applyAttrPreset('data-notif', v, 'off', NOTIF_OPTIONS); }
-function applyStyle(v)   { applyAttrPreset('data-style',   v, 'glass',       STYLE_OPTIONS); }
+// Always written out (never removed for the default): every Journal rule is
+// scoped to [data-style="journal"] and Glass must not match it.
+function applyStyle(v)   { document.documentElement.setAttribute('data-style', STYLE_OPTIONS.includes(v) ? v : 'journal'); }
 function applyThemePreset(name) {
   const preset = THEME_PRESETS[name];
   if (!preset) return false;
@@ -107,7 +109,7 @@ applyDensity(localStorage.getItem('cinetrack_density') || 'comfortable');
 applyMotion(localStorage.getItem('cinetrack_motion') || 'full');
 applyPosters(localStorage.getItem('cinetrack_posters') || 'shown');
 applyEpisodeNotif(localStorage.getItem('cinetrack_notif') || 'off');
-applyStyle(localStorage.getItem('cinetrack_style') || 'glass');
+applyStyle(localStorage.getItem('cinetrack_style') || 'journal');
 
 // ── Cross-device preference sync ────────────────────────
 // Keys that should follow the user across devices. Saved to
@@ -227,7 +229,7 @@ function applyAllAppearance() {
   applyMotion(localStorage.getItem('cinetrack_motion') || 'full');
   applyPosters(localStorage.getItem('cinetrack_posters') || 'shown');
   applyEpisodeNotif(localStorage.getItem('cinetrack_notif') || 'off');
-  applyStyle(localStorage.getItem('cinetrack_style') || 'glass');
+  applyStyle(localStorage.getItem('cinetrack_style') || 'journal');
 }
 
 function calendarWatchedMode() {
@@ -1511,14 +1513,14 @@ function showRandomPick() {
   }
   const pickMeta = randomPick.meta;
   randomPickBody.innerHTML = `
-    <h2>🎲 How about…</h2>
+    <h2><span class="j-glass-only">🎲 </span>How about…</h2>
     ${pickMeta.posterUrl
       ? `<img class="random-pick-poster" src="${esc(pickMeta.posterUrl)}" alt="${esc(pickMeta.title)}" />`
       : `<div class="random-pick-poster-emoji">${pickMeta.fallbackEmoji}</div>`}
     <div class="random-pick-title">${esc(pickMeta.title)}</div>
     <div class="random-pick-meta">${esc(pickMeta.metaText)}</div>
     <div class="random-pick-actions">
-      <button type="button" data-pick-action="another">🎲 Pick another</button>
+      <button type="button" data-pick-action="another"><span class="j-glass-only">🎲 </span>Pick another</button>
       <button type="button" data-pick-action="open" data-id="${pickMeta.id}" class="primary">Open</button>
     </div>
   `;

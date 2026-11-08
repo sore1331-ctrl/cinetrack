@@ -1417,3 +1417,293 @@
     font-size: 32px;
   }
 }
+
+/* ── Dialogs, account menu, filter panel, toasts (to-do item 8) ─────────────
+   Floating surfaces are flat panels with a hairline frame: no blur, gradient,
+   glow or drop shadow. A plain dark scrim separates them from the page. */
+:root[data-style="journal"] :is(.modal, .auth-overlay) {
+  background: rgba(10, 10, 12, .72);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+:root[data-style="journal"].light :is(.modal, .auth-overlay) {
+  background: rgba(24, 25, 28, .38);
+}
+:root[data-style="journal"] :is(.modal-card, .auth-card, .user-dropdown, .tmdb-dropdown, .filter-select-menu),
+:root[data-style="journal"].light :is(.modal-card, .auth-card, .user-dropdown, .tmdb-dropdown, .filter-select-menu) {
+  background: var(--j-panel);
+  border: 1px solid var(--j-line);
+  border-radius: 8px;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  color: var(--j-text);
+}
+:root[data-style="journal"] :is(.modal-card, .auth-card, .user-dropdown)::before,
+:root[data-style="journal"] :is(.modal-card, .auth-card, .user-dropdown)::after {
+  display: none;
+}
+
+/* Headings in the serif; kickers go, as on the pages. */
+:root[data-style="journal"] :is(.modal-card h2, .auth-card h2, .auth-card h1, #modal-title, .modal-preview-title, #modal-preview-title) {
+  font-family: var(--j-serif);
+  font-weight: 500;
+  letter-spacing: -.01em;
+  color: var(--j-text);
+}
+:root[data-style="journal"] #modal-title {
+  font-size: 26px;
+}
+:root[data-style="journal"] .modal-kicker {
+  display: none;
+}
+:root[data-style="journal"] :is(.modal-subtitle, .plan-modal-copy, .modal-card p) {
+  color: var(--j-muted);
+}
+:root[data-style="journal"] :is(.modal-section-label, .account-panel-label) {
+  background: none;
+  box-shadow: none;
+  color: var(--j-muted);
+  font: 500 11px/1.2 var(--j-sans);
+  letter-spacing: .08em;
+}
+
+/* Fields: page-coloured wells with a hairline; the accent only marks focus. */
+:root[data-style="journal"] :is(.modal, .auth-overlay, .user-dropdown) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea),
+:root[data-style="journal"] .filter-select-button {
+  background: var(--j-bg);
+  border: 1px solid var(--j-line);
+  border-radius: 6px;
+  box-shadow: none;
+  color: var(--j-text);
+  font-family: var(--j-sans);
+}
+:root[data-style="journal"] :is(.modal, .auth-overlay, .user-dropdown) :is(input, select, textarea):focus,
+:root[data-style="journal"] .filter-select-button:focus-visible {
+  border-color: var(--j-accent);
+  box-shadow: none;
+  outline: none;
+}
+:root[data-style="journal"] .filter-select-option:hover,
+:root[data-style="journal"] .filter-select-option.selected,
+:root[data-style="journal"] .tmdb-dropdown :is(li, .tmdb-item, button):hover {
+  background: var(--j-panel2);
+  color: var(--j-text);
+}
+
+/* Movie / TV Show / Anime: text tabs with the accent underline. */
+:root[data-style="journal"] .type-toggle {
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--j-line);
+  border-radius: 0;
+  box-shadow: none;
+  gap: 22px;
+  justify-content: flex-start;
+}
+:root[data-style="journal"] .type-btn {
+  flex: 0 0 auto;
+  padding: 10px 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--j-muted);
+  font: 500 13px/1.2 var(--j-sans);
+}
+:root[data-style="journal"] .type-btn.active,
+:root[data-style="journal"] .type-btn:disabled.active {
+  background: none;
+  color: var(--j-text);
+  box-shadow: inset 0 -2px 0 var(--j-accent);
+}
+
+/* Poster and the summary line under the title. */
+:root[data-style="journal"] .modal-poster-frame {
+  background: var(--j-panel2);
+  border: 0;
+  border-radius: 3px;
+  box-shadow: none;
+}
+:root[data-style="journal"] :is(.modal-chip, .modal-chip-status) {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  color: var(--j-muted);
+  font: 400 13px/1.3 var(--j-sans);
+}
+:root[data-style="journal"] .modal-chip-status {
+  color: var(--j-text);
+}
+:root[data-style="journal"] .modal-chip-row {
+  gap: 4px 14px;
+}
+:root[data-style="journal"] .modal-type-chip {
+  color: var(--j-muted);
+  background: none;
+  font: 500 11px/1.2 var(--j-sans);
+  letter-spacing: .08em;
+}
+:root[data-style="journal"] .modal-plan-row {
+  background: none;
+  border: 1px solid var(--j-line);
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+/* Rating stars in the accent instead of orange. */
+:root[data-style="journal"] .star {
+  color: var(--j-line);
+  text-shadow: none;
+}
+:root[data-style="journal"] .star.lit {
+  color: var(--j-accent);
+}
+
+/* Buttons: one solid primary (text colour), the rest outlined. */
+:root[data-style="journal"] :is(#save-btn, #plan-save, .auth-submit, .random-pick-card .primary) {
+  background: var(--j-text);
+  color: var(--j-on-text);
+  border: 1px solid var(--j-text);
+  border-radius: 6px;
+  box-shadow: none;
+  font-family: var(--j-sans);
+  font-weight: 600;
+}
+:root[data-style="journal"] :is(#save-btn, #plan-save, .auth-submit, .random-pick-card .primary):hover {
+  opacity: .9;
+}
+:root[data-style="journal"] :is(
+  .modal .secondary, .modal-refresh-btn, .random-pick-card button:not(.primary):not(.community-profile-close),
+  .reload-cloud-btn, .signout-btn, .more-filters-clear, .modal-plan-clear, .setup-copy-btn
+) {
+  background: var(--j-panel);
+  color: var(--j-text);
+  border: 1px solid var(--j-line);
+  border-radius: 6px;
+  box-shadow: none;
+  font-family: var(--j-sans);
+}
+:root[data-style="journal"] :is(
+  .modal .secondary, .modal-refresh-btn, .random-pick-card button:not(.primary):not(.community-profile-close),
+  .reload-cloud-btn, .signout-btn, .more-filters-clear, .modal-plan-clear
+):hover {
+  background: var(--j-panel);
+  border-color: var(--j-muted);
+  color: var(--j-text);
+}
+:root[data-style="journal"] .modal .danger {
+  background: #b9473f;
+  color: #fff;
+  border: 1px solid #b9473f;
+  border-radius: 6px;
+  box-shadow: none;
+}
+:root[data-style="journal"] .community-profile-close {
+  background: none;
+  border: 0;
+  box-shadow: none;
+  color: var(--j-muted);
+}
+:root[data-style="journal"] .community-profile-close:hover {
+  background: none;
+  color: var(--j-text);
+}
+
+/* Sign-in card: text tabs like everywhere else. */
+:root[data-style="journal"] .auth-tabs {
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--j-line);
+  border-radius: 0;
+  box-shadow: none;
+  gap: 22px;
+}
+:root[data-style="journal"] .auth-tab {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--j-muted);
+  padding: 10px 0;
+  flex: 0 0 auto;
+}
+:root[data-style="journal"] .auth-tab.active {
+  background: none;
+  color: var(--j-text);
+  box-shadow: inset 0 -2px 0 var(--j-accent);
+}
+
+/* Account menu. */
+:root[data-style="journal"] .sync-details {
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--j-line);
+  border-radius: 0;
+  box-shadow: none;
+}
+:root[data-style="journal"] .username-edit-btn {
+  background: none;
+  border: 0;
+  box-shadow: none;
+  color: var(--j-muted);
+  font: 400 12px/1 var(--j-sans);
+  width: auto;
+  height: auto;
+  padding: 2px 0;
+}
+:root[data-style="journal"] .username-edit-btn .j-text {
+  display: inline;
+}
+:root[data-style="journal"] .username-edit-btn:hover {
+  color: var(--j-text);
+}
+
+/* Toasts: a flat panel with a thin left rule; red rule for errors. */
+:root[data-style="journal"] .import-toast,
+:root[data-style="journal"] .import-toast.error {
+  background: var(--j-panel);
+  color: var(--j-text);
+  border: 1px solid var(--j-line);
+  border-left: 2px solid var(--j-accent);
+  border-radius: 4px;
+  box-shadow: none;
+  font: 400 13px/1.4 var(--j-sans);
+}
+:root[data-style="journal"] .import-toast.error {
+  border-left-color: #d0605b;
+}
+
+/* ── Phone bottom bar (to-do item 9): a full-width flat bar, not a pill ── */
+@media (max-width: 480px) {
+  :root[data-style="journal"] .mobile-bottom-nav {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    gap: 0;
+    padding: 4px 4px calc(4px + env(safe-area-inset-bottom, 0px));
+    background: var(--j-bg);
+    border: 0;
+    border-top: 1px solid var(--j-line);
+    border-radius: 0;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  :root[data-style="journal"] .mobile-nav-btn,
+  :root[data-style="journal"] .mobile-nav-btn.active {
+    border: 0;
+    border-radius: 0;
+    background: none;
+  }
+  :root[data-style="journal"] .mobile-nav-btn small {
+    font: 500 10.5px/1.2 var(--j-sans);
+    letter-spacing: 0;
+  }
+}
+:root[data-style="journal"] .random-pick-title {
+  font: 500 22px/1.2 var(--j-serif);
+  color: var(--j-text);
+}

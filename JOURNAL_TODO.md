@@ -2,7 +2,7 @@
 
 The Journal style is a flat, editorial alternative to the Glass look, switched in
 Profile → Appearance → Style. **Glass stays the default until everything below
-is done**, then the default flips to Journal.
+is done**, then the default flips to Journal. **Done 2026-11-08: Journal is now the default.**
 
 How it is built (keep to this):
 - All Journal CSS lives in `styles/journal.css`, every rule scoped to
@@ -45,9 +45,9 @@ How it is built (keep to this):
        with emoji, Appearance section with pill buttons and gradient swatches.
        Journal: serif name heading, flat sections with hairlines, text stats.
 7. [x] **Home dashboard** ("At a glance"): boxed panels → flat editorial.
-8. [ ] **Add/Edit dialog, account dropdown, confirm/plan modals, filter panel,
+8. [x] **Add/Edit dialog, account dropdown, confirm/plan modals, filter panel,
        toasts**: flat panels, Journal buttons.
-9. [ ] **Phone bottom bar**: still a floating glass pill; make it a flat bar.
-10. [ ] When all above are done: switch the default style to Journal
+9. [x] **Phone bottom bar**: still a floating glass pill; make it a flat bar.
+10. [x] When all above are done: switch the default style to Journal
         (`applyStyle(... || 'journal')` in app.js and the early script in
         index.html), keep Glass selectable.

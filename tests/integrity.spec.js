@@ -2208,18 +2208,33 @@ test.describe('tracker data integrity', () => {
   });
 
   test.describe('Journal style', () => {
-    test('is a synced setting applied before first paint, Glass by default', () => {
+    test('is a synced setting applied before first paint, Journal by default', () => {
       const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
       const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
       const view = fs.readFileSync(path.join(root, 'scripts', 'profile-view.js'), 'utf8');
       const controller = fs.readFileSync(path.join(root, 'scripts', 'profile-controller.js'), 'utf8');
-      expect(app).toContain("const STYLE_OPTIONS   = ['glass', 'journal'];");
-      expect(app).toContain("applyStyle(localStorage.getItem('cinetrack_style') || 'glass');");
+      expect(app).toContain("const STYLE_OPTIONS   = ['journal', 'glass'];");
+      expect(app).toContain("applyStyle(localStorage.getItem('cinetrack_style') || 'journal');");
       expect(app).toMatch(/const SYNC_PREF_KEYS = \[\s*'cinetrack_style',/);
-      expect(index).toContain("if (localStorage.getItem('cinetrack_style') === 'journal')");
+      // Journal is on <html> from the first byte; the early script only switches to Glass.
+      expect(index).toContain('<html lang="en" data-style="journal">');
+      expect(index).toContain("if (localStorage.getItem('cinetrack_style') === 'glass')");
+      expect(view).toContain("localStorage.getItem('cinetrack_style') || 'journal'");
       expect(index.indexOf('styles/journal.css')).toBeGreaterThan(index.indexOf('styles/skin.css'));
       expect(view).toContain('data-pref="style"');
       expect(controller).toContain("style: { fn: applyStyle, key: 'cinetrack_style' }");
+    });
+
+    test('the style attribute is always written, so Glass never matches Journal rules', () => {
+      const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+      const sandbox = { attrs: {}, STYLE_OPTIONS: ['journal', 'glass'] };
+      sandbox.document = { documentElement: {
+        setAttribute: (k, v) => { sandbox.attrs[k] = v; },
+        removeAttribute: k => { delete sandbox.attrs[k]; },
+      } };
+      const fn = app.match(/function applyStyle\(v\)[^\n]*\n/)[0];
+      vm.runInNewContext(`${fn}; applyStyle('glass'); var g = attrs['data-style']; applyStyle('journal'); var j = attrs['data-style']; applyStyle('nonsense'); var x = attrs['data-style'];`, sandbox);
+      expect([sandbox.g, sandbox.j, sandbox.x]).toEqual(['glass', 'journal', 'journal']);
     });
 
     test('stylesheet only applies under data-style="journal" (Glass is untouched)', () => {
