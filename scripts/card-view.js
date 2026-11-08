@@ -10,6 +10,7 @@
       airedPct = 0,
       airingEpisode = '',
       airingEpisodeName = '',
+      journal = null,
       mutationDisabled = '',
       cardView = {},
       esc = value => String(value ?? ''),
@@ -46,9 +47,25 @@
          </div>`
       : '';
 
+    // Journal style: ticks (one per episode of the current season), a short
+    // count, and the next airing. Hidden in the Glass style.
+    const journalTicks = journal
+      ? (journal.ticks
+        ? `<div class="j-ticks" aria-hidden="true">${Array.from({ length: journal.total }, (_, i) =>
+            `<i class="${i < journal.watched ? 'w' : (i < journal.aired ? 'a' : '')}"></i>`).join('')}</div>`
+        : `<div class="j-bar" aria-hidden="true"><u style="left:${Math.round(journal.watched / journal.total * 100)}%;width:${Math.round((journal.aired - journal.watched) / journal.total * 100)}%"></u><i style="width:${Math.round(journal.watched / journal.total * 100)}%"></i></div>`)
+      : '';
+    const journalHTML = journal
+      ? `<div class="j-progress">${journalTicks}
+           <div class="j-count">${esc(journal.count)}${journal.behind ? ` · <b>${journal.behind} behind</b>` : (journal.upToDate ? ' · up to date' : '')}</div>
+           ${journal.next ? `<div class="j-next">${esc(journal.next)}</div>` : ''}
+         </div>`
+      : '';
+
     const epIncBtn = cardView.primaryAction?.type === 'episode'
       ? `<button class="btn-sm btn-ep-inc" data-ep-inc="${entry.id}" title="${cardView.primaryAction.title}"${mutationDisabled}>
            <span class="lbl-md lbl-lg">${cardView.primaryAction.labelMd}</span><span class="lbl-sm">${cardView.primaryAction.labelSm}</span>
+           <span class="j-text">${esc(journal?.incLabel || '+1 ep')}</span>
          </button>`
       : '';
 
@@ -58,12 +75,14 @@
           <span class="lbl-lg">${cardView.primaryAction.labelLg}</span>
           <span class="lbl-md">${cardView.primaryAction.labelMd}</span>
           <span class="lbl-sm">${cardView.primaryAction.labelSm}</span>
+          <span class="j-text">${toggleActionLabel === 'Mark watched' ? 'Mark watched' : 'Start'}</span>
         </button>` : '')
       || ((cardView.primaryAction?.type === 'uptodate') ? `
         <span class="btn-sm card-uptodate" role="status" title="${cardView.primaryAction.title}">
           <span class="lbl-lg">${cardView.primaryAction.labelLg}</span>
           <span class="lbl-md">${cardView.primaryAction.labelMd}</span>
           <span class="lbl-sm">${cardView.primaryAction.labelSm}</span>
+          <span class="j-text">Up to date</span>
         </span>` : '');
     const actionRowClass = primaryActionHTML ? 'card-actions' : 'card-actions card-actions-compact';
     const planLabel = entry.plannedWatchDate ? 'Reschedule' : 'Plan';
@@ -112,10 +131,11 @@
       </div>
       ${entry.rating ? starsHTML(entry.rating) : ''}
       ${epHTML}
+      ${journalHTML}
       ${entry.notes ? `<div class="card-notes">${esc(entry.notes)}</div>` : ''}
       <div class="${actionRowClass}">
         <button class="btn-sm btn-icon" data-edit="${entry.id}" title="Edit ${titleLabel}" aria-label="Edit ${titleLabel}"${mutationDisabled}>
-          ✎
+          <span class="j-glass-only">✎</span><span class="j-text">Edit</span>
         </button>
         ${primaryActionHTML}
         <div class="card-more-wrap">

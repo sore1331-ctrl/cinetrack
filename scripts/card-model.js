@@ -83,6 +83,52 @@
     return false;
   }
 
+  // Journal style: one tick per episode of the season being watched, a short
+  // count, the next airing, and the label for the +1 action. Reads the same
+  // aired view as the rest of the card. null for films and unknown counts.
+  const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  function journalDay(airDate, todayStr) {
+    if (!airDate) return '';
+    if (airDate === todayStr) return 'Today';
+    const date = new Date(`${airDate}T12:00:00`);
+    const today = todayStr ? new Date(`${todayStr}T12:00:00`) : null;
+    const days = today ? Math.round((date - today) / 86400000) : 99;
+    return days > 0 && days < 7 ? WEEKDAYS[date.getDay()] : `${date.getDate()} ${MONTHS[date.getMonth()]}`;
+  }
+
+  function journalInfo(entry = {}, { behind = 0, nextEpisode = null, nextTag = '', todayStr = '' } = {}) {
+    if (!isShow(entry)) return null;
+    const seasons = Array.isArray(entry.seasons)
+      ? [...entry.seasons].sort((a, b) => (a.number || 0) - (b.number || 0))
+      : [];
+    const frame = seasons.length
+      ? (seasons.find(season => (season.watched || 0) < (season.total || 0)) || seasons[seasons.length - 1])
+      : null;
+    const total = Math.max(0, Number(frame ? frame.total : entry.totalEpisodes) || 0);
+    if (!total) return null;
+    const watched = Math.min(total, Math.max(0, Number(frame ? frame.watched : entry.watchedEpisodes) || 0));
+    const airedRaw = frame ? frame.aired : entry.airedEpisodes;
+    const aired = Math.min(total, Math.max(watched, airedRaw == null ? total : (Number(airedRaw) || 0)));
+    const seasonPrefix = frame && seasons.length > 1 ? `S${frame.number} ` : '';
+    let next = '';
+    if (nextEpisode?.airDate && (!todayStr || nextEpisode.airDate >= todayStr)) {
+      next = `Next ${nextTag ? `${nextTag} · ` : ''}${journalDay(nextEpisode.airDate, todayStr)}`;
+    }
+    return {
+      total,
+      watched,
+      aired,
+      ticks: total <= 40,
+      count: `${watched} of ${total}`,
+      behind: Math.max(0, Number(behind) || 0),
+      upToDate: watched >= aired && watched < total,
+      next,
+      incLabel: `+1 · ${seasonPrefix}E${watched + 1}`,
+    };
+  }
+
   function statusLabel(entry = {}) {
     if (entry.status === 'watched') {
       return `✓ Watched${(entry.watchCount || 0) > 1 ? ` ×${entry.watchCount}` : ''}`;
@@ -143,6 +189,7 @@
     isShow,
     fallbackPosterLabel,
     episodeState,
+    journalInfo,
     statusLabel,
     primaryAction,
     view,

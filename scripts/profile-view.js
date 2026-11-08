@@ -11,6 +11,7 @@
       profileModel, compareLibraryBackup, THEME_PRESETS, BG_PRESETS, GLASS_PRESETS,
       GLASS_LABELS, ACCENT_PRESETS, DENSITY_OPTIONS, POSTERS_OPTIONS, ORBS_OPTIONS,
       MOTION_OPTIONS, NOTIF_OPTIONS, CALENDAR_WATCHED_OPTIONS,
+      STYLE_OPTIONS = ['glass', 'journal'],
     } = ctx;
 
   return `
@@ -125,6 +126,21 @@
         <span class="appearance-chevron" aria-hidden="true">▶</span>
       </h3>
       <div class="appearance-body">
+        <div class="appearance-group appearance-group-wide">
+          <div class="appearance-group-title">Style</div>
+          <div class="appearance-row">
+            <div class="appearance-label">Look</div>
+            <div class="pill-group" data-pref="style">
+              ${STYLE_OPTIONS.map(name => {
+                const current = localStorage.getItem('cinetrack_style') || 'glass';
+                const label = name === 'journal' ? 'Journal' : 'Glass';
+                return `<button type="button" class="pill-btn ${name === current ? 'active' : ''}" data-value="${name}">${label}</button>`;
+              }).join('')}
+            </div>
+          </div>
+          <p class="appearance-hint">Glass is translucent with glows. Journal is flat and editorial; the glass options below don't apply to it.</p>
+        </div>
+
         <div class="appearance-group appearance-group-wide">
           <div class="appearance-group-title">Theme presets</div>
           <div class="theme-preset-grid">

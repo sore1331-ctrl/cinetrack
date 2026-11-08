@@ -2207,6 +2207,60 @@ test.describe('tracker data integrity', () => {
     expect(fresh(Date.parse('2026-11-06T23:30:00Z'))).toBe(false);
   });
 
+  test.describe('Journal style', () => {
+    test('is a synced setting applied before first paint, Glass by default', () => {
+      const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+      const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+      const view = fs.readFileSync(path.join(root, 'scripts', 'profile-view.js'), 'utf8');
+      const controller = fs.readFileSync(path.join(root, 'scripts', 'profile-controller.js'), 'utf8');
+      expect(app).toContain("const STYLE_OPTIONS   = ['glass', 'journal'];");
+      expect(app).toContain("applyStyle(localStorage.getItem('cinetrack_style') || 'glass');");
+      expect(app).toMatch(/const SYNC_PREF_KEYS = \[\s*'cinetrack_style',/);
+      expect(index).toContain("if (localStorage.getItem('cinetrack_style') === 'journal')");
+      expect(index.indexOf('styles/journal.css')).toBeGreaterThan(index.indexOf('styles/skin.css'));
+      expect(view).toContain('data-pref="style"');
+      expect(controller).toContain("style: { fn: applyStyle, key: 'cinetrack_style' }");
+    });
+
+    test('stylesheet only applies under data-style="journal" (Glass is untouched)', () => {
+      const css = fs.readFileSync(path.join(root, 'styles', 'journal.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+      const selectors = [];
+      const walk = text => {
+        const re = /([^{}@]+)\{([^{}]*)\}/g;
+        let m;
+        while ((m = re.exec(text))) selectors.push(...m[1].split(',').map(s => s.trim()).filter(Boolean));
+      };
+      walk(css.replace(/@font-face\s*\{[^}]*\}/g, '').replace(/@media[^{]*\{([\s\S]*?\})\s*\}/g, '$1'));
+      const unscoped = selectors.filter(s => !s.startsWith(':root[data-style="journal"]'));
+      // Only the base rule that hides Journal-only pieces in Glass may be unscoped.
+      expect(unscoped.sort()).toEqual(['.j-only', '.j-progress', '.j-text']);
+    });
+
+    test('cards show one tick per episode of the current season, a count, next airing and +1 label', () => {
+      const sandbox = { window: { CineTrack: {} } };
+      vm.runInNewContext(fs.readFileSync(path.join(root, 'scripts', 'card-model.js'), 'utf8'), sandbox);
+      const cards = sandbox.window.CineTrack.cards;
+      const plain = value => JSON.parse(JSON.stringify(value));
+
+      const between = cards.journalInfo({ mediaType: 'tv', seasons: [{ number: 1, total: 12, watched: 6, aired: 10 }] },
+        { behind: 4, nextEpisode: { season: 1, episode: 11, airDate: '2026-11-09' }, nextTag: 'E11', todayStr: '2026-11-08' });
+      expect(plain(between)).toEqual({ total: 12, watched: 6, aired: 10, ticks: true, count: '6 of 12', behind: 4, upToDate: false, next: 'Next E11 · Mon', incLabel: '+1 · E7' });
+
+      const mobland = cards.journalInfo({ mediaType: 'tv', seasons: [{ number: 1, total: 10, watched: 10, aired: 10 }, { number: 2, total: 10, watched: 0, aired: 8 }] },
+        { behind: 8, todayStr: '2026-11-08' });
+      expect(mobland.count).toBe('0 of 10');
+      expect(mobland.incLabel).toBe('+1 · S2 E1');
+
+      const caughtUp = cards.journalInfo({ mediaType: 'tv', seasons: [{ number: 1, total: 12, watched: 6, aired: 6 }] },
+        { nextEpisode: { season: 1, episode: 7, airDate: '2026-11-08' }, nextTag: 'E7', todayStr: '2026-11-08' });
+      expect(caughtUp.upToDate).toBe(true);
+      expect(caughtUp.next).toBe('Next E7 · Today');
+
+      expect(cards.journalInfo({ mediaType: 'tv', seasons: [{ number: 1, total: 366, watched: 10 }] }).ticks).toBe(false);
+      expect(cards.journalInfo({ mediaType: 'movie' })).toBeNull();
+    });
+  });
+
   test('community setup SQL is loaded from the canonical setup file', () => {
     const controller = fs.readFileSync(path.join(root, 'scripts', 'community-controller.js'), 'utf8');
 

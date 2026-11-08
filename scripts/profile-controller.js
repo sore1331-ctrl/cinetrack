@@ -23,6 +23,7 @@
       applyBgPreset,
       applyAccent,
       applyThemePreset,
+      applyStyle,
       applyGlass,
       applyOrbs,
       applyDensity,
@@ -118,6 +119,7 @@
     });
 
     const pillApplyMap = {
+      style: { fn: applyStyle, key: 'cinetrack_style' },
       glass: { fn: applyGlass, key: 'cinetrack_glass' },
       orbs: { fn: applyOrbs, key: 'cinetrack_orbs' },
       density: { fn: applyDensity, key: 'cinetrack_density' },

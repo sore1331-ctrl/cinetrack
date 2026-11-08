@@ -9,6 +9,8 @@ function applyTheme(theme) {
   themeToggle.dataset.theme = theme;
   themeToggle.setAttribute('aria-label', theme === 'light' ? 'Switch to night mode' : 'Switch to day mode');
   themeToggle.title = theme === 'light' ? 'Switch to night mode' : 'Switch to day mode';
+  const themeLabel = document.getElementById('theme-toggle-label');
+  if (themeLabel) themeLabel.textContent = theme === 'light' ? 'Night' : 'Day';
   document.querySelectorAll('.theme-aware-img').forEach(img => {
     const nextSrc = theme === 'light' ? img.dataset.lightSrc : img.dataset.darkSrc;
     if (nextSrc && img.getAttribute('src') !== nextSrc) img.setAttribute('src', nextSrc);
@@ -57,6 +59,9 @@ const DENSITY_OPTIONS = ['comfortable', 'compact'];
 const MOTION_OPTIONS  = ['full', 'reduced'];
 const POSTERS_OPTIONS = ['shown', 'hidden'];
 const NOTIF_OPTIONS   = ['off', 'on'];
+// Visual style. Glass is the original translucent look; Journal is the flat
+// editorial look (styles/journal.css, active only under data-style="journal").
+const STYLE_OPTIONS   = ['glass', 'journal'];
 const CALENDAR_WATCHED_OPTIONS = ['hide', 'dim', 'show'];
 const CALENDAR_MODES = ['tracked', 'planned', 'discover'];
 const THEME_PRESETS = {
@@ -79,6 +84,7 @@ function applyDensity(v) { applyAttrPreset('data-density', v, 'comfortable', DEN
 function applyMotion(v)  { applyAttrPreset('data-motion',  v, 'full',        MOTION_OPTIONS); }
 function applyPosters(v) { applyAttrPreset('data-posters', v, 'shown',       POSTERS_OPTIONS); }
 function applyEpisodeNotif(v) { applyAttrPreset('data-notif', v, 'off', NOTIF_OPTIONS); }
+function applyStyle(v)   { applyAttrPreset('data-style',   v, 'glass',       STYLE_OPTIONS); }
 function applyThemePreset(name) {
   const preset = THEME_PRESETS[name];
   if (!preset) return false;
@@ -101,12 +107,14 @@ applyDensity(localStorage.getItem('cinetrack_density') || 'comfortable');
 applyMotion(localStorage.getItem('cinetrack_motion') || 'full');
 applyPosters(localStorage.getItem('cinetrack_posters') || 'shown');
 applyEpisodeNotif(localStorage.getItem('cinetrack_notif') || 'off');
+applyStyle(localStorage.getItem('cinetrack_style') || 'glass');
 
 // ── Cross-device preference sync ────────────────────────
 // Keys that should follow the user across devices. Saved to
 // profiles.preferences (jsonb) on change; read on sign-in and
 // applied to localStorage + the live UI.
 const SYNC_PREF_KEYS = [
+  'cinetrack_style',
   'cinetrack_theme',
   'cinetrack_theme_preset',
   'cinetrack_bg',
@@ -219,6 +227,7 @@ function applyAllAppearance() {
   applyMotion(localStorage.getItem('cinetrack_motion') || 'full');
   applyPosters(localStorage.getItem('cinetrack_posters') || 'shown');
   applyEpisodeNotif(localStorage.getItem('cinetrack_notif') || 'off');
+  applyStyle(localStorage.getItem('cinetrack_style') || 'glass');
 }
 
 function calendarWatchedMode() {
@@ -1132,6 +1141,7 @@ function switchView(view, type) {
   updateMobileNav();
 
   document.querySelector('.controls').classList.toggle('hidden', !isContent);
+  document.getElementById('page-head')?.classList.toggle('hidden', !isContent);
   syncMoreFiltersVisibility(isContent);
   if (!isContent) document.getElementById('more-filters-btn')?.classList.remove('active');
   statsBar.classList.toggle('hidden', !isContent);
@@ -2076,6 +2086,30 @@ function toggleTimeSpentFormat() {
   refreshCurrentView();
 }
 
+// ── Page heading (Journal style) ─────────────────────────
+// "TV Shows" + one line of context. Hidden in the Glass style.
+const PAGE_TITLES = { movie: 'Films', tv: 'TV Shows', anime: 'Anime', dropped: 'Dropped' };
+
+function renderPageHead(stats) {
+  const titleEl = document.getElementById('page-title');
+  const summaryEl = document.getElementById('page-summary');
+  if (!titleEl || !summaryEl) return;
+  titleEl.textContent = PAGE_TITLES[activeType] || 'Library';
+  if (stats.isDroppedView) {
+    summaryEl.textContent = `${stats.allOfType.length} dropped`;
+    return;
+  }
+  if (activeType === 'movie') {
+    summaryEl.innerHTML = `${stats.watchedCnt} watched · ${stats.watchlistCnt} on your watchlist`;
+    return;
+  }
+  const cache = readUpcomingCache();
+  const behind = movies
+    .filter(m => m.mediaType === activeType && m.status === 'in_progress')
+    .reduce((sum, m) => sum + calendarModel.airedProgress(m, cache, activeSeason, { todayStr: todayDateString() }).behind, 0);
+  summaryEl.innerHTML = `${stats.inProgressCnt} in progress${behind ? ` · <b>${behind} episode${behind === 1 ? '' : 's'} behind</b> across your list` : ' · all caught up'}`;
+}
+
 // ── Stats bar ───────────────────────────────────────────
 function updateStats() {
   const stats = statsModel.statusSummary(movies, activeType, countryFilter);
@@ -2096,14 +2130,20 @@ function updateStats() {
         `</span>`;
   }
 
+  // Glyphs and labels are in spans so the Journal style can show these as
+  // text tabs ("Watching 8"); the Glass style renders them as before.
+  const tab = (status, cls, glyph, count, label, journalLabel) =>
+    `<button class="stat-item ${cls}${a(status)}" data-filter-status="${status}"><span class="sb-glyph">${glyph}</span> <strong>${count}</strong> <span class="sb-label" data-j="${journalLabel}">${label}</span></button>`;
   statsBar.innerHTML = isDroppedView
-    ? `<button class="stat-item stat-active" data-filter-status="all">📛 <strong>${allOfType.length}</strong> dropped</button>` + countryHTML
-    : `<button class="stat-item stat-watched${a('watched')}" data-filter-status="watched">✓ <strong>${watchedCnt}</strong> watched</button>` +
+    ? `<button class="stat-item stat-active" data-filter-status="all"><span class="sb-glyph">📛</span> <strong>${allOfType.length}</strong> <span class="sb-label" data-j="Dropped">dropped</span></button>` + countryHTML
+    : `<button class="stat-item stat-all j-only${a('all')}" data-filter-status="all"><strong>${allOfType.length}</strong> <span class="sb-label" data-j="All">all</span></button>` +
+      tab('watched', 'stat-watched', '✓', watchedCnt, 'watched', 'Finished') +
       `<span class="stat-sep">·</span>` +
-      `<button class="stat-item stat-in-progress${a('in_progress')}" data-filter-status="in_progress">▶ <strong>${inProgressCnt}</strong> in progress</button>` +
+      tab('in_progress', 'stat-in-progress', '▶', inProgressCnt, 'in progress', 'Watching') +
       `<span class="stat-sep">·</span>` +
-      `<button class="stat-item stat-watchlist${a('watchlist')}" data-filter-status="watchlist">⏳ <strong>${watchlistCnt}</strong> on watchlist</button>` +
+      tab('watchlist', 'stat-watchlist', '⏳', watchlistCnt, 'on watchlist', 'Watchlist') +
       countryHTML;
+  renderPageHead(stats);
 }
 
 // ── Stats panel ─────────────────────────────────────────
@@ -4121,6 +4161,7 @@ function renderProfile() {
     formatTimeSpent, renderBarChart, profileModel, compareLibraryBackup, THEME_PRESETS,
     BG_PRESETS, GLASS_PRESETS, GLASS_LABELS, ACCENT_PRESETS, DENSITY_OPTIONS,
     POSTERS_OPTIONS, ORBS_OPTIONS, MOTION_OPTIONS, NOTIF_OPTIONS, CALENDAR_WATCHED_OPTIONS,
+    STYLE_OPTIONS,
   });
 
   applyTheme(document.documentElement.classList.contains('light') ? 'light' : 'dark');
@@ -4144,6 +4185,7 @@ function renderProfile() {
     applyBgPreset,
     applyAccent,
     applyThemePreset,
+    applyStyle,
     applyGlass,
     applyOrbs,
     applyDensity,
@@ -4253,6 +4295,12 @@ function render() {
       airingEpisodeName: airingSignal?.type === 'episode' ? (airingSignal.episode?.name || '') : '',
       mutationDisabled,
       cardView: cardModel.view(airedView, { activeSeason, posterEmoji, formatRuntime, infoUrlForEntry }),
+      journal: cardModel.journalInfo(airedView, {
+        behind: aired.behind,
+        nextEpisode: upcomingCache?.byId?.[calendarKeyForEntry(m)]?.nextEpisode || null,
+        nextTag: calendarModel.episodeTag(m, upcomingCache?.byId?.[calendarKeyForEntry(m)]?.nextEpisode),
+        todayStr,
+      }),
       esc,
       starsHTML,
     });

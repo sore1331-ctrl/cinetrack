@@ -1,0 +1,671 @@
+/* ── Journal style ─────────────────────────────────────────────────────────
+   A flat, editorial alternative to the glass look, chosen in Profile →
+   Appearance → Style. Everything below the first block applies only when
+   <html data-style="journal">; the Glass style is unaffected.
+
+   Graphite surfaces, one muted purple accent, serif (Fraunces) headings and
+   show titles, Inter for UI text, no blur, glows or ambient gradients.
+   Progress is one tick per episode of the season being watched.
+*/
+
+/* Journal-only pieces stay hidden in the Glass style. */
+.j-only,
+.j-text,
+.j-progress {
+  display: none;
+}
+
+@font-face {
+  font-family: 'CT Fraunces';
+  src: url('../assets/fonts/fraunces-latin-500-normal.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'CT Fraunces';
+  src: url('../assets/fonts/fraunces-latin-600-normal.woff2') format('woff2');
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'CT Inter';
+  src: url('../assets/fonts/inter-latin-400-normal.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'CT Inter';
+  src: url('../assets/fonts/inter-latin-500-normal.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'CT Inter';
+  src: url('../assets/fonts/inter-latin-600-normal.woff2') format('woff2');
+  font-weight: 600;
+  font-display: swap;
+}
+
+/* ── Tokens ─────────────────────────────────────────────────────────────── */
+:root[data-style="journal"] {
+  --j-bg: #141517;
+  --j-panel: #1c1d20;
+  --j-panel2: #232428;
+  --j-line: #2c2d31;
+  --j-text: #e9e9ec;
+  --j-muted: #8d8e95;
+  --j-accent: #8b7cf6;
+  --j-on-text: #141517;
+  --j-serif: 'CT Fraunces', 'Iowan Old Style', Georgia, serif;
+  --j-sans: 'CT Inter', 'Segoe UI', system-ui, sans-serif;
+
+  /* Shared tokens, so components not restyled below still turn flat. */
+  --bg: var(--j-bg);
+  --surface: var(--j-panel);
+  --surface2: var(--j-panel2);
+  --border: var(--j-line);
+  --text: var(--j-text);
+  --muted: var(--j-muted);
+  --accent: var(--j-accent);
+  --shadow: none;
+  --glass-bg: var(--j-panel);
+  --glass-bg-strong: var(--j-panel);
+  --glass-panel-soft: var(--j-panel);
+  --glass-border: var(--j-line);
+  --glass-highlight: transparent;
+  --glass-shadow: none;
+  --glass-blur: 0px;
+  --glass-saturate: 100%;
+  --cinema-panel: var(--j-panel);
+  --cinema-panel-soft: var(--j-panel);
+  --cinema-ring: var(--j-line);
+  --cinema-ring-strong: var(--j-muted);
+  color-scheme: dark;
+}
+
+:root[data-style="journal"].light {
+  --j-bg: #f3f3f5;
+  --j-panel: #fbfbfc;
+  --j-panel2: #e6e6eb;
+  --j-line: #dcdce1;
+  --j-text: #18191c;
+  --j-muted: #6f7078;
+  --j-accent: #7563ec;
+  --j-on-text: #f3f3f5;
+  color-scheme: light;
+}
+
+/* ── Page ───────────────────────────────────────────────────────────────── */
+:root[data-style="journal"] body {
+  background: var(--j-bg);
+  color: var(--j-text);
+  font-family: var(--j-sans);
+}
+:root[data-style="journal"] body::before,
+:root[data-style="journal"] body::after {
+  display: none;
+}
+:root[data-style="journal"] *,
+:root[data-style="journal"] *::before,
+:root[data-style="journal"] *::after {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+:root[data-style="journal"] header {
+  background: var(--j-bg);
+  border-bottom: 1px solid var(--j-line);
+  box-shadow: none;
+}
+:root[data-style="journal"] header::before,
+:root[data-style="journal"] header::after {
+  display: none;
+}
+:root[data-style="journal"] .brand-logo-text {
+  font-family: var(--j-serif);
+  font-weight: 600;
+  letter-spacing: -.01em;
+}
+:root[data-style="journal"] #ct-logo-gradient stop {
+  stop-color: var(--j-accent);
+}
+:root[data-style="journal"] .header-brand.active::after {
+  background: var(--j-accent);
+}
+
+/* Section menu: text only, underline marks the current one. */
+:root[data-style="journal"] .type-tab {
+  background: none;
+  border: 0;
+  box-shadow: none;
+  color: var(--j-muted);
+  font-weight: 500;
+}
+:root[data-style="journal"] .type-tab::before {
+  display: none;
+}
+:root[data-style="journal"] .type-tab .tab-icon {
+  display: none;
+}
+:root[data-style="journal"] .type-tab .tab-label {
+  color: inherit;
+}
+:root[data-style="journal"] .type-tab:hover {
+  color: var(--j-text);
+}
+:root[data-style="journal"] .type-tab.active {
+  color: var(--j-text);
+  background: none;
+  box-shadow: inset 0 -2px 0 var(--j-accent);
+  border-radius: 0;
+}
+:root[data-style="journal"] .type-tab.has-airing::after {
+  background: var(--j-accent);
+  box-shadow: none;
+}
+
+/* Account, Profile, Day/Night: the Profile and day/night buttons are images
+   in Glass; here they become text links, the account button a flat initial. */
+:root[data-style="journal"] .header-actions {
+  gap: 18px;
+  align-items: center;
+}
+:root[data-style="journal"] .header-control-img {
+  display: none;
+}
+:root[data-style="journal"] .header-profile-btn,
+:root[data-style="journal"] .theme-toggle,
+:root[data-style="journal"] .header-profile-btn:hover,
+:root[data-style="journal"] .theme-toggle:hover,
+:root[data-style="journal"] .header-profile-btn.active {
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  transform: none;
+  color: var(--j-muted);
+  font-size: 13px;
+}
+:root[data-style="journal"] .header-profile-btn:hover,
+:root[data-style="journal"] .theme-toggle:hover,
+:root[data-style="journal"] .header-profile-btn.active {
+  color: var(--j-text);
+}
+:root[data-style="journal"] .header-profile-btn .j-text,
+:root[data-style="journal"] .theme-toggle .j-text {
+  display: inline;
+  font-family: var(--j-sans);
+  font-size: 13px;
+}
+:root[data-style="journal"] .user-avatar-btn,
+:root[data-style="journal"] .user-avatar-btn:hover,
+:root[data-style="journal"].light .user-avatar-btn,
+:root[data-style="journal"].light .user-avatar-btn:hover {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--j-line);
+  background: var(--j-panel);
+  box-shadow: none;
+  transform: none;
+}
+:root[data-style="journal"] .user-avatar-btn span,
+:root[data-style="journal"].light .user-avatar-btn span {
+  color: var(--j-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ── Page heading + toolbar ─────────────────────────────────────────────── */
+/* Heading on the left, search and buttons on the right, as one row. */
+:root[data-style="journal"] main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 32px;
+  align-items: end;
+}
+:root[data-style="journal"] main > * {
+  grid-column: 1 / -1;
+}
+:root[data-style="journal"] main > .page-head {
+  grid-column: 1;
+  display: block;
+  min-width: 0;
+}
+:root[data-style="journal"] main > .page-head.hidden {
+  display: none;
+}
+:root[data-style="journal"] main > .controls {
+  grid-column: 2;
+  flex-wrap: nowrap;
+}
+:root[data-style="journal"] .page-title {
+  margin: 0;
+  font: 500 40px/1 var(--j-serif);
+  letter-spacing: -.02em;
+  color: var(--j-text);
+}
+:root[data-style="journal"] .page-summary {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--j-muted);
+}
+:root[data-style="journal"] .page-summary b {
+  color: var(--j-accent);
+  font-weight: 500;
+}
+
+:root[data-style="journal"] .controls {
+  background: none;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+  border-radius: 0;
+}
+:root[data-style="journal"] .controls::before,
+:root[data-style="journal"] .controls::after {
+  display: none;
+}
+:root[data-style="journal"] .search-wrap {
+  flex: 0 1 300px;
+}
+:root[data-style="journal"] #search-input,
+:root[data-style="journal"] .size-toggle,
+:root[data-style="journal"] .random-pick-btn,
+:root[data-style="journal"] .more-filters-btn,
+:root[data-style="journal"] .select-mode-btn,
+:root[data-style="journal"] .clear-filters-btn {
+  background: var(--j-panel);
+  border: 1px solid var(--j-line);
+  border-radius: 6px;
+  box-shadow: none;
+  color: var(--j-text);
+  font-family: var(--j-sans);
+  white-space: nowrap;
+}
+:root[data-style="journal"] #search-input::placeholder {
+  color: var(--j-muted);
+}
+:root[data-style="journal"] .random-pick-btn:hover,
+:root[data-style="journal"] .more-filters-btn:hover,
+:root[data-style="journal"] .select-mode-btn:hover {
+  border-color: var(--j-muted);
+  background: var(--j-panel);
+}
+:root[data-style="journal"] .more-filters-btn.active,
+:root[data-style="journal"] .select-mode-btn.active {
+  border-color: var(--j-accent);
+  background: var(--j-panel);
+  color: var(--j-text);
+}
+:root[data-style="journal"] .more-filters-count {
+  background: var(--j-accent);
+  color: #fff;
+}
+:root[data-style="journal"] .size-btn {
+  color: var(--j-muted);
+  background: none;
+  box-shadow: none;
+}
+:root[data-style="journal"] .size-btn.active {
+  background: var(--j-panel2);
+  color: var(--j-text);
+}
+:root[data-style="journal"] #add-btn {
+  background: var(--j-text);
+  color: var(--j-on-text);
+  border: 1px solid var(--j-text);
+  border-radius: 6px;
+  box-shadow: none;
+  font-weight: 600;
+}
+:root[data-style="journal"] #add-btn:hover {
+  opacity: .9;
+}
+
+/* Below ~1180px the heading and toolbar stack. */
+@media (max-width: 1180px) {
+  :root[data-style="journal"] main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  :root[data-style="journal"] main > .controls {
+    grid-column: 1;
+    margin-top: 18px;
+    flex-wrap: wrap;
+  }
+  :root[data-style="journal"] .search-wrap {
+    flex: 1 1 220px;
+  }
+}
+
+/* ── Status tabs (the stats bar, shown as "All 456  Watching 8 …") ──────── */
+:root[data-style="journal"] .stats-bar {
+  display: flex;
+  gap: 24px;
+  margin: 22px 0 26px;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--j-line);
+  border-radius: 0;
+  box-shadow: none;
+}
+:root[data-style="journal"] .stats-bar .stat-sep,
+:root[data-style="journal"] .stats-bar .sb-glyph {
+  display: none;
+}
+:root[data-style="journal"] .stats-bar .j-only {
+  display: inline-flex;
+}
+:root[data-style="journal"] .stat-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 0 0 10px;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--j-muted);
+  font: 400 13px/1.2 var(--j-sans);
+}
+:root[data-style="journal"] .stat-item .sb-label {
+  order: -1;
+  font-size: 0;
+}
+:root[data-style="journal"] .stat-item .sb-label::before {
+  content: attr(data-j);
+  font-size: 13px;
+}
+:root[data-style="journal"] .stat-item strong,
+:root[data-style="journal"] .stat-item.stat-active strong {
+  color: var(--j-muted);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+:root[data-style="journal"] .stat-item:hover {
+  color: var(--j-text);
+  background: none;
+}
+:root[data-style="journal"] .stat-item.stat-active {
+  color: var(--j-text);
+  background: none;
+  box-shadow: inset 0 -2px 0 var(--j-accent);
+}
+:root[data-style="journal"] .stat-all { order: 0; }
+:root[data-style="journal"] .stat-in-progress { order: 1; }
+:root[data-style="journal"] .stat-watchlist { order: 2; }
+:root[data-style="journal"] .stat-watched { order: 3; }
+:root[data-style="journal"] .country-stats {
+  order: 4;
+  margin-left: auto;
+  color: var(--j-muted);
+  background: none;
+  border: 0;
+}
+
+/* ── Cards: poster, serif title, one fact line, ticks, text actions ─────── */
+:root[data-style="journal"] .movie-grid {
+  gap: 30px 22px;
+}
+:root[data-style="journal"] .movie-card,
+:root[data-style="journal"] .movie-card:hover {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  transform: none;
+  overflow: visible;
+}
+:root[data-style="journal"] .movie-card::before,
+:root[data-style="journal"] .movie-card::after {
+  display: none;
+}
+:root[data-style="journal"] .movie-card.selected .card-poster {
+  outline: 2px solid var(--j-accent);
+  outline-offset: 2px;
+}
+:root[data-style="journal"] .card-poster {
+  margin: 0;
+  border-radius: 3px;
+  background: var(--j-panel);
+  box-shadow: none;
+  overflow: hidden;
+}
+:root[data-style="journal"] .card-status-badge,
+:root[data-style="journal"] .card-hover-info,
+:root[data-style="journal"] .card-notes,
+:root[data-style="journal"] .ep-progress,
+:root[data-style="journal"] .meta-genre,
+:root[data-style="journal"] .meta-director {
+  display: none;
+}
+:root[data-style="journal"] .card-title,
+:root[data-style="journal"] .card-title-link {
+  margin: 12px 0 4px;
+  padding: 0;
+  color: var(--j-text);
+  font: 500 16px/1.22 var(--j-serif);
+  letter-spacing: 0;
+}
+:root[data-style="journal"] .card-meta {
+  padding: 0;
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--j-muted);
+}
+:root[data-style="journal"] .card-meta > span {
+  color: var(--j-muted);
+}
+:root[data-style="journal"] .card-stars {
+  margin: -6px 0 12px;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--j-accent);
+}
+:root[data-style="journal"] .card-airing-pill {
+  position: static;
+  align-self: flex-start;
+  order: 0;
+  margin: 10px 0 -6px;
+  padding: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  color: var(--j-accent);
+  font: 600 11px/1 var(--j-sans);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+/* One tick per episode of the season being watched:
+   watched = text colour, aired but unwatched = accent, not aired = dim. */
+:root[data-style="journal"] .j-progress {
+  display: block;
+  margin: -2px 0 12px;
+}
+:root[data-style="journal"] .j-ticks {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 7px;
+}
+:root[data-style="journal"] .j-ticks i {
+  flex: 1;
+  height: 6px;
+  background: var(--j-panel2);
+}
+:root[data-style="journal"] .j-ticks i.w {
+  background: var(--j-text);
+}
+:root[data-style="journal"] .j-ticks i.a {
+  background: var(--j-accent);
+  opacity: .6;
+}
+:root[data-style="journal"] .j-bar {
+  position: relative;
+  height: 6px;
+  margin-bottom: 7px;
+  background: var(--j-panel2);
+}
+:root[data-style="journal"] .j-bar i,
+:root[data-style="journal"] .j-bar u {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+:root[data-style="journal"] .j-bar i {
+  left: 0;
+  background: var(--j-text);
+}
+:root[data-style="journal"] .j-bar u {
+  background: var(--j-accent);
+  opacity: .6;
+}
+:root[data-style="journal"] .j-count {
+  font-size: 12px;
+  color: var(--j-muted);
+  font-variant-numeric: tabular-nums;
+}
+:root[data-style="journal"] .j-count b {
+  color: var(--j-accent);
+  font-weight: 600;
+}
+:root[data-style="journal"] .j-next {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--j-muted);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+/* Actions: one line of text at the bottom of every card, so rows line up. */
+:root[data-style="journal"] .card-actions,
+:root[data-style="journal"] .card-actions-compact {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: auto;
+  min-height: 0;
+  height: auto;
+  padding: 9px 0 0;
+  border-top: 1px solid var(--j-line);
+  background: none;
+}
+/* +1 / Start / Up to date first, then Edit, then the menu on the right. */
+:root[data-style="journal"] .card-actions > .btn-ep-inc,
+:root[data-style="journal"] .card-actions > .btn-primary-action,
+:root[data-style="journal"] .card-actions > .card-uptodate {
+  order: -1;
+}
+:root[data-style="journal"] .card-more-wrap,
+:root[data-style="journal"] .card-more-wrap > .btn-sm {
+  height: auto;
+}
+:root[data-style="journal"] .card-actions .btn-sm,
+:root[data-style="journal"] .card-actions .btn-sm:hover {
+  width: auto;
+  min-width: 0;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  transform: none;
+  flex: 0 0 auto;
+  justify-content: flex-start;
+  text-align: left;
+  color: var(--j-muted);
+  font: 400 12.5px/1.3 var(--j-sans);
+}
+:root[data-style="journal"] .card-actions .btn-sm:hover {
+  color: var(--j-text);
+}
+:root[data-style="journal"] .card-actions .lbl-sm,
+:root[data-style="journal"] .card-actions .lbl-md,
+:root[data-style="journal"] .card-actions .lbl-lg,
+:root[data-style="journal"] .card-actions .j-glass-only {
+  display: none;
+}
+:root[data-style="journal"] .card-actions .j-text {
+  display: inline;
+}
+:root[data-style="journal"] .card-actions .btn-ep-inc,
+:root[data-style="journal"] .card-actions .btn-primary-action {
+  color: var(--j-text);
+  font-weight: 600;
+}
+:root[data-style="journal"] .card-actions .card-uptodate {
+  display: inline;
+  color: var(--j-muted);
+}
+:root[data-style="journal"] .card-more-wrap {
+  margin-left: auto;
+}
+:root[data-style="journal"] .card-action-menu {
+  background: var(--j-panel);
+  border: 1px solid var(--j-line);
+  border-radius: 6px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .35);
+}
+:root[data-style="journal"] .card-menu-item:hover {
+  background: var(--j-panel2);
+}
+
+/* ── More filters, pagination, empty state ──────────────────────────────── */
+:root[data-style="journal"] .more-filters,
+:root[data-style="journal"] .pagination button,
+:root[data-style="journal"] .page-size-select,
+:root[data-style="journal"] .empty-msg {
+  background: var(--j-panel);
+  border: 1px solid var(--j-line);
+  border-radius: 6px;
+  box-shadow: none;
+}
+:root[data-style="journal"] .pagination button.active {
+  background: var(--j-text);
+  color: var(--j-on-text);
+  border-color: var(--j-text);
+}
+
+/* ── Phone bottom bar ───────────────────────────────────────────────────── */
+:root[data-style="journal"] .mobile-bottom-nav {
+  background: var(--j-bg);
+  border-top: 1px solid var(--j-line);
+  box-shadow: none;
+}
+:root[data-style="journal"] .mobile-nav-btn {
+  background: none;
+  color: var(--j-muted);
+  box-shadow: none;
+}
+:root[data-style="journal"] .mobile-bottom-nav::before,
+:root[data-style="journal"] .mobile-bottom-nav::after,
+:root[data-style="journal"] .mobile-nav-btn::before,
+:root[data-style="journal"] .mobile-nav-btn::after {
+  display: none;
+}
+:root[data-style="journal"] .mobile-nav-btn.active {
+  color: var(--j-text);
+  background: none;
+  box-shadow: inset 0 2px 0 var(--j-accent);
+}
+
+/* ── Phones: heading smaller, toolbar below it ──────────────────────────── */
+@media (max-width: 480px) {
+  :root[data-style="journal"] .page-title {
+    font-size: 30px;
+  }
+  :root[data-style="journal"] .stats-bar {
+    gap: 18px;
+    overflow-x: auto;
+  }
+}
