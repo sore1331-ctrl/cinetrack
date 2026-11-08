@@ -1242,3 +1242,178 @@
 :root[data-style="journal"] :is(.card-poster-emoji, .tr-poster-emoji) {
   font-size: 0;
 }
+
+/* ── Home ("At a glance") ───────────────────────────────────────────────────
+   Same shape as Stats: serif heading over one hairline, a row of serif
+   figures, then open sections, each opened by a single rule. */
+:root[data-style="journal"] .home-panel {
+  /* The panel sits in a grid with auto margins, so without a width it shrinks
+     to its content once the hero is no longer a wide two-column grid. */
+  width: 100%;
+  padding-top: 8px;
+}
+:root[data-style="journal"] .home-hero {
+  display: block;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+/* The header already carries the logo. */
+:root[data-style="journal"] .home-logo {
+  display: none;
+}
+:root[data-style="journal"] .home-intro {
+  gap: 0;
+  padding: 0 0 22px;
+  border-bottom: 1px solid var(--j-line);
+}
+:root[data-style="journal"] .home-hero h1 {
+  font: 500 40px/1.05 var(--j-serif);
+  letter-spacing: -.02em;
+  color: var(--j-text);
+}
+:root[data-style="journal"] .home-hero p {
+  margin-top: 10px;
+  font: 400 13px/1.4 var(--j-sans);
+  color: var(--j-muted);
+}
+
+/* Figures: four columns split by vertical hairlines, no tiles. */
+:root[data-style="journal"] .home-metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  padding: 22px 0 26px;
+}
+:root[data-style="journal"] .home-metrics div {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 2px 20px;
+}
+:root[data-style="journal"] .home-metrics div:first-child {
+  padding-left: 0;
+}
+:root[data-style="journal"] .home-metrics div + div {
+  border-left: 1px solid var(--j-line);
+}
+:root[data-style="journal"] .home-metrics strong {
+  font: 500 34px/1.05 var(--j-serif);
+  color: var(--j-text);
+  letter-spacing: -.01em;
+}
+:root[data-style="journal"] .home-metrics span {
+  display: block;
+  margin-top: 6px;
+  font: 400 12.5px/1.2 var(--j-sans);
+  color: var(--j-muted);
+}
+
+/* Sections: open, a single rule on top, serif heading. */
+:root[data-style="journal"] .home-grid {
+  gap: 0 48px;
+  margin-top: 0;
+}
+:root[data-style="journal"] .home-section {
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--j-line);
+  border-radius: 0;
+  box-shadow: none;
+  padding: 22px 0 26px;
+}
+:root[data-style="journal"] .home-section-head {
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+:root[data-style="journal"] .home-section h2 {
+  font: 500 20px/1.2 var(--j-serif);
+  letter-spacing: -.01em;
+  color: var(--j-text);
+}
+:root[data-style="journal"] .home-section-head span {
+  font: 400 12.5px/1 var(--j-sans);
+  color: var(--j-muted);
+}
+
+/* Rows: no boxes, a hairline between rows only (never next to a section rule). */
+:root[data-style="journal"] .home-list {
+  gap: 0;
+}
+:root[data-style="journal"] .home-row {
+  min-height: 0;
+  padding: 10px 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+:root[data-style="journal"] .home-row + .home-row {
+  border-top: 1px solid var(--j-line);
+}
+:root[data-style="journal"] .home-row:hover {
+  background: none;
+  border-color: var(--j-line);
+}
+:root[data-style="journal"] .home-row:hover .home-row-main strong {
+  color: var(--j-accent);
+}
+:root[data-style="journal"] .home-poster {
+  border-radius: 2px;
+  background: var(--j-panel2);
+}
+:root[data-style="journal"] .home-poster-fallback {
+  border: 0;
+  color: var(--j-muted);
+  font: 500 13px/1 var(--j-sans);
+}
+:root[data-style="journal"] .home-row-main strong {
+  font: 500 16px/1.25 var(--j-serif);
+  color: var(--j-text);
+  transition: color .15s;
+}
+:root[data-style="journal"] .home-row-main span {
+  font: 400 12.5px/1.3 var(--j-sans);
+  color: var(--j-muted);
+}
+:root[data-style="journal"] .home-row-badge {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  color: var(--j-muted);
+  font: 500 11px/1 var(--j-sans);
+  letter-spacing: .06em;
+}
+
+/* Empty sections: a quiet line of text, no dashed box. */
+:root[data-style="journal"] .home-empty {
+  min-height: 0;
+  display: block;
+  padding: 10px 0 0;
+  border: 0;
+  border-radius: 0;
+  text-align: left;
+  font: 400 13px/1.4 var(--j-sans);
+  color: var(--j-muted);
+}
+
+@media (max-width: 860px) {
+  :root[data-style="journal"] .home-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 18px;
+  }
+  :root[data-style="journal"] .home-metrics div:nth-child(3) {
+    padding-left: 0;
+    border-left: 0;
+  }
+}
+@media (max-width: 560px) {
+  :root[data-style="journal"] .home-hero h1 {
+    font-size: 32px;
+  }
+}

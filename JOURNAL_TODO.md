@@ -44,7 +44,7 @@ How it is built (keep to this):
 6. [x] **Profile**: big glass hero ("Y" avatar circle), stat tiles, "By Type"
        with emoji, Appearance section with pill buttons and gradient swatches.
        Journal: serif name heading, flat sections with hairlines, text stats.
-7. [ ] **Home dashboard** ("At a glance"): boxed panels → flat editorial.
+7. [x] **Home dashboard** ("At a glance"): boxed panels → flat editorial.
 8. [ ] **Add/Edit dialog, account dropdown, confirm/plan modals, filter panel,
        toasts**: flat panels, Journal buttons.
 9. [ ] **Phone bottom bar**: still a floating glass pill; make it a flat bar.
