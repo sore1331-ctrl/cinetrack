@@ -832,15 +832,24 @@ main {
   clip-path: circle(44.6% at 50% 50%);
 }
 
-.user-avatar-btn {
+/* The account button is CSS, the Profile and day/night buttons are images
+   (profile-control*.png, theme-control*.png). Its fill, rim and letter colour
+   are sampled from those images so the three read as one set: dark orb with a
+   thin lavender rim and lavender glyph; in day mode a pale orb with a lavender
+   ring. No outer shadow, like the images. Hover keeps the fill (the shared
+   hover rule above clears backgrounds for the image buttons). */
+.user-avatar-btn,
+.user-avatar-btn:hover {
   display: grid;
   place-items: center;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--cinema-ring) 88%, transparent);
-  background:
-    radial-gradient(circle at 50% 36%, rgba(255,255,255,.05), transparent 46%),
-    #05070c;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.035), 0 12px 26px rgba(0,0,0,.26);
+  border: 1px solid #05070c;
+  background: #07090f;
+  box-shadow: inset 0 0 0 1px #3f3b5b;
+}
+
+.user-avatar-btn:hover {
+  box-shadow: inset 0 0 0 1px #5a5385;
 }
 
 .user-avatar-btn span {
@@ -851,19 +860,26 @@ main {
   overflow: visible;
   clip: auto;
   white-space: normal;
-  color: #fff;
+  color: #9a77f7;
+  font-size: .95rem;
+  font-weight: 500;
+  line-height: 1;
+  text-shadow: none;
 }
 
-:root.light .user-avatar-btn {
-  background:
-    radial-gradient(circle at 50% 36%, rgba(255,255,255,.92), transparent 46%),
-    #f7f8fb;
-  border-color: rgba(32,35,48,.14);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.72), 0 10px 24px rgba(29,33,48,.14);
+:root.light .user-avatar-btn,
+:root.light .user-avatar-btn:hover {
+  border: 1px solid #c4b2fd;
+  background: linear-gradient(180deg, #fcfdfe 0%, #eef0f7 100%);
+  box-shadow: none;
+}
+
+:root.light .user-avatar-btn:hover {
+  border-color: #a98cfc;
 }
 
 :root.light .user-avatar-btn span {
-  color: #171923;
+  color: #9169fa;
 }
 
 .profile-hero-orbit {
@@ -1253,4 +1269,27 @@ main {
     inset: 0;
     border-radius: inherit;
   }
+}
+
+/* Day mode: soft grey-white instead of pure white. White panels on a
+   near-white page were glaring; panels are now a light grey-white and the
+   page sits one step darker, keeping the same separation between them. */
+:root.light {
+  --bg: #e8e9ef;
+  --surface: #f5f5f8;
+  --surface2: #ebecf1;
+  --border: #cdcfd9;
+  --glass-bg: rgba(245, 245, 249, .74);
+  --glass-bg-strong: rgba(246, 246, 250, .88);
+  --glass-border: rgba(255, 255, 255, .55);
+  --cinema-panel: rgba(245, 245, 249, .80);
+  --cinema-panel-soft: rgba(243, 244, 248, .66);
+}
+
+:root.light .status-tabs,
+:root.light .stats-type-tabs,
+:root.light .status-btn.active,
+:root.light .stats-type-tab.active,
+:root.light .type-tab.active::before {
+  background-color: rgba(248, 248, 251, .86);
 }

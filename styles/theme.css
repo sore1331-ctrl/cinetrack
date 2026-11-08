@@ -152,8 +152,8 @@ body::before {
 }
 
 :root.light[data-glass="ultra"] {
-  --glass-bg:        rgba(255, 255, 255, .32);
-  --glass-bg-strong: rgba(255, 255, 255, .54);
+  --glass-bg:        rgba(245, 245, 249, .32);
+  --glass-bg-strong: rgba(245, 245, 249, .54);
   --glass-border:    rgba(255, 255, 255, .78);
   --glass-highlight: rgba(255, 255, 255, .9);
   --glass-shadow:    0 18px 58px rgba(0, 0, 0, .17);
@@ -165,8 +165,8 @@ body::before {
   --glass-saturate:  160%;
 }
 :root.light[data-glass="medium"] {
-  --glass-bg:        rgba(255, 255, 255, .65);
-  --glass-bg-strong: rgba(255, 255, 255, .82);
+  --glass-bg:        rgba(245, 245, 249, .65);
+  --glass-bg-strong: rgba(245, 245, 249, .82);
 }
 :root[data-glass="subtle"] {
   --glass-bg:        rgba(26, 26, 36, .85);
@@ -175,8 +175,8 @@ body::before {
   --glass-saturate:  120%;
 }
 :root.light[data-glass="subtle"] {
-  --glass-bg:        rgba(255, 255, 255, .85);
-  --glass-bg-strong: rgba(255, 255, 255, .95);
+  --glass-bg:        rgba(245, 245, 249, .85);
+  --glass-bg-strong: rgba(245, 245, 249, .95);
 }
 
 /* ── Accent presets (data-accent="…") ── */
