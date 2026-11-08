@@ -621,7 +621,9 @@ main {
 .size-btn:hover { color: var(--text); }
 .size-btn.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.3); }
 
-.search-wrap { position: relative; flex: 1 1 480px; min-width: 240px; display: flex; }
+/* Basis kept small so the search box shrinks before the toolbar wraps; with
+   a 480px basis "+ Add" dropped to its own row below ~1050px windows. */
+.search-wrap { position: relative; flex: 1 1 220px; min-width: 200px; display: flex; }
 #search-input {
   flex: 1;
   background: var(--surface);
