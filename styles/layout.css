@@ -624,6 +624,26 @@ main {
 /* Basis kept small so the search box shrinks before the toolbar wraps; with
    a 480px basis "+ Add" dropped to its own row below ~1050px windows. */
 .search-wrap { position: relative; flex: 1 1 220px; min-width: 200px; display: flex; }
+
+/* Narrower windows (above the phone layout): keep the toolbar on one row.
+   Pick for me / Filters / Select become icons (their titles stay as
+   tooltips and accessible names; the filter count badge stays), and below
+   760px the S/M/L card-size switch is hidden. */
+@media (min-width: 481px) and (max-width: 860px) {
+  .controls .ctrl-label { display: none; }
+  #random-pick-btn,
+  #more-filters-btn,
+  #select-mode-btn { padding-inline: 11px; gap: 6px; }
+}
+
+@media (min-width: 481px) and (max-width: 760px) {
+  .controls .size-toggle { display: none; }
+}
+
+@media (min-width: 481px) and (max-width: 600px) {
+  .search-wrap { flex-basis: 120px; min-width: 120px; }
+  #search-input { min-width: 0; }
+}
 #search-input {
   flex: 1;
   background: var(--surface);
