@@ -249,6 +249,49 @@ test.describe('desktop regressions', () => {
     expect(await page.evaluate(() => localStorage.getItem('cinetrack_library_backups_v1'))).toBeNull();
   });
 
+  test('a cloud update only rebuilds the page when the library changed, and posters never blank', async ({ page }) => {
+    const pixel = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    await page.addInitScript(pixel => {
+      if (sessionStorage.getItem('seeded-cloud')) return;
+      sessionStorage.setItem('seeded-cloud', '1');
+      localStorage.setItem('cinetrack_movies', JSON.stringify(['Arrival', 'Heat', 'Ran'].map((title, i) => ({
+        id: `c${i}`, title, mediaType: 'movie', status: 'watched', posterUrl: `${pixel}#${i}`, addedAt: 1700000000000 + i,
+      }))));
+      localStorage.setItem('cinetrack_library_schema_version', '1');
+    }, pixel);
+    await openApp(page);
+    await expect(page.locator('#movie-grid .card-poster-img')).toHaveCount(3);
+
+    // Pretend to be signed in, with the cloud read stubbed out.
+    const serveCloud = (mutate, updatedAt) => page.evaluate(([mutate, updatedAt]) => {
+      sb = sb || {};
+      currentUser = currentUser || { id: 'test-user' };
+      offlineMode = false;
+      lastCloudUpdatedAt = lastCloudUpdatedAt || '2026-01-01T00:00:00.000Z';
+      const next = JSON.parse(JSON.stringify(movies));
+      if (mutate) next.find(m => m.id === 'c0').title = 'Arrival (Director’s Cut)';
+      loadUserDataWithFallback = async () => ({ exists: true, movies: next, updated_at: updatedAt, version: 2, item_count: next.length });
+      document.getElementById('import-toast').classList.add('hidden');
+      document.querySelector('#movie-grid .movie-card').dataset.sameNode = 'yes';
+      document.querySelectorAll('#movie-grid .card-poster-img').forEach(img => { img.sameImg = true; }); // a property, not an attribute: only the same element keeps it
+    }, [mutate, updatedAt]);
+
+    // Newer timestamp, same library: nothing is rebuilt and no toast.
+    await serveCloud(false, '2026-11-08T12:00:00.000Z');
+    await page.evaluate(() => refreshFromCloudIfNewer());
+    await expect(page.locator('#movie-grid .movie-card').first()).toHaveAttribute('data-same-node', 'yes');
+    await expect(page.locator('#import-toast')).toBeHidden();
+
+    // A real change: the page updates and says so, and the posters are the same,
+    // already-loaded <img> elements (so they can't paint blank).
+    await serveCloud(true, '2026-11-08T13:00:00.000Z');
+    await page.evaluate(() => refreshFromCloudIfNewer());
+    await expect(page.locator('#import-toast')).toContainText('Updated from cloud');
+    await expect(page.locator('#movie-grid')).toContainText('Director’s Cut');
+    await expect(page.locator('#movie-grid .movie-card').first()).not.toHaveAttribute('data-same-node', 'yes');
+    expect(await page.evaluate(() => [...document.querySelectorAll('#movie-grid .card-poster-img')].filter(img => img.sameImg).length)).toBe(3);
+  });
+
   test('logo opens home dashboard without adding a nav tab', async ({ page }) => {
     await openApp(page);
 

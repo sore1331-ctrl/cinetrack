@@ -685,6 +685,7 @@ async function loadUserData(options = {}) {
   // state the user explicitly chose to discard (force: true).
   const initialChangeVersion = localChangeVersion;
   const initialTimerSet      = Boolean(cloudSyncTimer);
+  let contentChanged = false;
   try {
     const hasLocalChanges = hasUnsyncedLocalChanges();
     const preLoadDecision = syncModel.cloudLoadDecision({ force, hasLocalChanges });
@@ -717,7 +718,9 @@ async function loadUserData(options = {}) {
       if (applyPlan.error) throw new Error(applyPlan.error);
       if (!applyPlan.shouldApply) return { ok: true, changed: false };
       applyingRemoteData = true;
+      const libraryBefore = JSON.stringify(movies);
       replaceLibrary(row.movies);
+      contentChanged = JSON.stringify(movies) !== libraryBefore;
       persistLocalLibrary();
       applyingRemoteData = false;
       lastCloudUpdatedAt = applyPlan.next.lastCloudUpdatedAt || lastCloudUpdatedAt;
@@ -728,11 +731,15 @@ async function loadUserData(options = {}) {
       clearPendingSyncMarker();
     }
     if (!silent) setSyncState('saved');
-    updateCountryDropdown();
-    refreshCurrentView();
+    // Only rebuild the page when the library actually changed: a newer cloud
+    // timestamp alone (e.g. your other device saved the same data) is not news.
+    if (contentChanged) {
+      updateCountryDropdown();
+      refreshCurrentView();
+    }
     checkEpisodeNotifications();
     warmUpcomingCacheForBadge();
-    return { ok: true, changed: Boolean(row?.exists) };
+    return { ok: true, changed: contentChanged };
   } catch (e) {
     applyingRemoteData = false;
     logAppError('sync.load', e);
@@ -1115,13 +1122,44 @@ document.addEventListener('change', e => {
 }, true);
 
 // ── View switching ──────────────────────────────────────
+// Rebuilding a view recreates its <img> elements, and a fresh image paints blank
+// until it has loaded and decoded. A cloud update usually lands just after you
+// return to the tab, when the browser has dropped decoded images, so every poster
+// blanked at once and the page flashed. Keep the already-loaded elements and put
+// them back where the new markup asks for the same picture.
+function collectLoadedImages() {
+  const bySrc = new Map();
+  document.querySelectorAll('main img[src]').forEach(img => {
+    if (!img.complete || !img.naturalWidth) return;
+    if (!bySrc.has(img.src)) bySrc.set(img.src, []);
+    bySrc.get(img.src).push(img);
+  });
+  return bySrc;
+}
+
+function reuseLoadedImages(bySrc) {
+  if (!bySrc.size) return;
+  document.querySelectorAll('main img[src]').forEach(fresh => {
+    const pool = bySrc.get(fresh.src);
+    const old = pool?.find(img => !img.isConnected);
+    if (!old) return;
+    pool.splice(pool.indexOf(old), 1);
+    // Take the new element's attributes (class, alt, title...) without touching src.
+    [...old.attributes].forEach(a => { if (!fresh.hasAttribute(a.name)) old.removeAttribute(a.name); });
+    [...fresh.attributes].forEach(a => { if (old.getAttribute(a.name) !== a.value) old.setAttribute(a.name, a.value); });
+    fresh.replaceWith(old);
+  });
+}
+
 function refreshCurrentView() {
+  const loadedImages = collectLoadedImages();
   if (activeView === 'stats') renderStats();
   else if (activeView === 'profile') renderProfile();
   else if (activeView === 'community') { /* don't auto-reload community */ }
   else if (activeView === 'calendar') renderCalendar();
   else if (activeView === 'home') renderHome();
   else render();
+  reuseLoadedImages(loadedImages);
 }
 
 function updateMobileNav() {
@@ -3426,6 +3464,7 @@ async function renderCalendarTracked(body, { force = false } = {}) {
   // "nothing on the horizon" message before the network responds.
   function paint(upcoming, { isFinal = false } = {}) {
     const list = body.querySelector('.calendar-list');
+    const loadedImages = collectLoadedImages(); // keep posters from blanking on repaint
     if (!list) return 0;
     const stableUpcoming = calendarModel.mergeUpcomingForTracked({
       live: upcoming,
@@ -3473,6 +3512,7 @@ async function renderCalendarTracked(body, { force = false } = {}) {
       </div>
     `;
     }).join('');
+    reuseLoadedImages(loadedImages);
     return dated.length;
   }
 
