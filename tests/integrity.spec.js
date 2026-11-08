@@ -2228,7 +2228,19 @@ test.describe('tracker data integrity', () => {
       const walk = text => {
         const re = /([^{}@]+)\{([^{}]*)\}/g;
         let m;
-        while ((m = re.exec(text))) selectors.push(...m[1].split(',').map(s => s.trim()).filter(Boolean));
+        // Split a selector list on top-level commas only, so :is(a, b) stays whole.
+        const splitList = list => {
+          const out = [];
+          let depth = 0, cur = '';
+          for (const ch of list) {
+            if (ch === '(') depth++;
+            if (ch === ')') depth--;
+            if (ch === ',' && depth === 0) { out.push(cur); cur = ''; } else cur += ch;
+          }
+          out.push(cur);
+          return out;
+        };
+        while ((m = re.exec(text))) selectors.push(...splitList(m[1]).map(s => s.trim()).filter(Boolean));
       };
       walk(css.replace(/@font-face\s*\{[^}]*\}/g, '').replace(/@media[^{]*\{([\s\S]*?\})\s*\}/g, '$1'));
       const unscoped = selectors.filter(s => !s.startsWith(':root[data-style="journal"]'));

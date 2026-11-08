@@ -211,11 +211,35 @@
   box-shadow: none;
   transform: none;
 }
-:root[data-style="journal"] .user-avatar-btn span,
+:root[data-style="journal"]  .user-avatar-btn span,
 :root[data-style="journal"].light .user-avatar-btn span {
   color: var(--j-text);
   font-size: 12px;
   font-weight: 600;
+}
+/* The account button reads as the display name, like the other text links. */
+:root[data-style="journal"] .user-avatar-btn,
+:root[data-style="journal"] .user-avatar-btn:hover,
+:root[data-style="journal"].light .user-avatar-btn,
+:root[data-style="journal"].light .user-avatar-btn:hover {
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+:root[data-style="journal"] #user-avatar {
+  display: none;
+}
+:root[data-style="journal"] .user-avatar-btn .j-text,
+:root[data-style="journal"].light .user-avatar-btn .j-text {
+  display: inline;
+  color: var(--j-muted);
+  font: 400 13px/1 var(--j-sans);
+}
+:root[data-style="journal"] .user-avatar-btn:hover .j-text {
+  color: var(--j-text);
 }
 
 /* ── Page heading + toolbar ─────────────────────────────────────────────── */
@@ -393,7 +417,14 @@
 :root[data-style="journal"] .stat-item.stat-active {
   color: var(--j-text);
   background: none;
-  box-shadow: inset 0 -2px 0 var(--j-accent);
+  box-shadow: none;
+  /* the underline replaces the hairline under the active tab */
+  margin-bottom: -1px;
+  border-bottom: 2px solid var(--j-accent);
+  padding-bottom: 9px;
+}
+:root[data-style="journal"] .stat-item.stat-active strong {
+  color: var(--j-text);
 }
 :root[data-style="journal"] .stat-all { order: 0; }
 :root[data-style="journal"] .stat-in-progress { order: 1; }
@@ -668,4 +699,438 @@
     gap: 18px;
     overflow-x: auto;
   }
+}
+
+/* ── Shared: Calendar, Stats, Community, Profile ────────────────────────── */
+:root[data-style="journal"] .j-glass-only {
+  display: none;
+}
+
+/* Boxes become open sections: no fills, frames, glows or rounding. */
+:root[data-style="journal"] :is(
+  .calendar-header, .cal-subheader, .cal-group, .cal-group-head, .cal-row,
+  .discover-card, .stats-page-head, .stats-overview, .stats-hero-summary,
+  .stat-card, .chart-section, .top-rated-card, .rating-dist,
+  .community-card, .community-profile-card, .fav-card, .curr-watching-row,
+  .profile-hero, .profile-hero-orbit, .profile-section, .profile-type-card,
+  .profile-recent-card, .library-health-card, .appearance-section,
+  .appearance-group, .theme-preset-btn
+) {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+:root[data-style="journal"] :is(
+  .calendar-header, .cal-group, .cal-row, .stats-page-head, .stat-card,
+  .chart-section, .community-card, .profile-hero, .profile-section,
+  .appearance-group, .top-rated-card
+)::before,
+:root[data-style="journal"] :is(
+  .calendar-header, .cal-group, .cal-row, .stats-page-head, .stat-card,
+  .chart-section, .community-card, .profile-hero, .profile-section,
+  .appearance-group, .top-rated-card
+)::after {
+  display: none;
+}
+
+/* Page headings in the serif, as on the library screens. */
+:root[data-style="journal"] :is(.calendar-title-block h2, .stats-page-head h2, .community-top h2),
+:root[data-style="journal"] .profile-display-name {
+  margin: 0;
+  font: 500 40px/1.05 var(--j-serif);
+  letter-spacing: -.02em;
+  color: var(--j-text);
+}
+:root[data-style="journal"] :is(.calendar-title-block p, .stats-page-head p) {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--j-muted);
+}
+:root[data-style="journal"] :is(.calendar-kicker, .profile-kicker) {
+  display: none;
+}
+:root[data-style="journal"] :is(.calendar-header, .stats-page-head, .community-top) {
+  padding: 0 0 22px;
+  margin-bottom: 26px;
+  border-bottom: 1px solid var(--j-line);
+}
+
+/* Section headings: small serif titles over a hairline. */
+:root[data-style="journal"] :is(.chart-section h3, .profile-section h3, .stats-panel h3, .community-panel h3) {
+  font: 500 20px/1.2 var(--j-serif);
+  color: var(--j-text);
+  letter-spacing: -.01em;
+}
+:root[data-style="journal"] :is(.chart-section, .profile-section) {
+  padding: 22px 0 0;
+  margin-top: 26px;
+  border-top: 1px solid var(--j-line);
+}
+
+/* Pill groups (Calendar modes, Stats types, Discover types, settings):
+   text tabs with the same underline as the status tabs. */
+:root[data-style="journal"] :is(.pill-group, .stats-type-tabs, .cal-discover-types) {
+  display: inline-flex;
+  gap: 22px;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+:root[data-style="journal"] :is(.pill-btn, .stats-type-tab),
+:root[data-style="journal"] :is(.pill-btn, .stats-type-tab):hover {
+  padding: 0 0 8px;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--j-muted);
+  font: 400 13px/1.2 var(--j-sans);
+}
+:root[data-style="journal"] :is(.pill-btn, .stats-type-tab):hover {
+  color: var(--j-text);
+}
+:root[data-style="journal"] :is(.pill-btn, .stats-type-tab).active {
+  padding-bottom: 6px;
+  background: none;
+  box-shadow: none;
+  color: var(--j-text);
+  border-bottom: 2px solid var(--j-accent);
+}
+
+/* Small buttons and inputs: outlined like the toolbar. */
+:root[data-style="journal"] :is(.cal-refresh-btn, .discover-add-btn, .cal-region-select, .community-sort, .community-search, .setup-copy-btn) {
+  background: var(--j-panel);
+  border: 1px solid var(--j-line);
+  border-radius: 6px;
+  box-shadow: none;
+  color: var(--j-text);
+  font-family: var(--j-sans);
+}
+:root[data-style="journal"] .cal-window {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--j-muted);
+  font-size: 12px;
+}
+:root[data-style="journal"] .cal-subheader {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 0;
+  margin-bottom: 18px;
+}
+
+/* ── Calendar ────────────────────────────────────────────────────────────── */
+:root[data-style="journal"] .cal-group {
+  margin-top: 28px;
+  padding: 0;
+}
+:root[data-style="journal"] .cal-group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0 0 10px;
+  border-bottom: 1px solid var(--j-line);
+}
+:root[data-style="journal"] .cal-group-date {
+  margin: 0;
+  font: 500 20px/1.2 var(--j-serif);
+  color: var(--j-text);
+  letter-spacing: 0;
+  text-transform: none;
+}
+:root[data-style="journal"] .cal-count {
+  color: var(--j-muted);
+  font-size: 12px;
+}
+:root[data-style="journal"] .cal-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+  margin: 0;
+  border-bottom: 1px solid var(--j-line);
+}
+:root[data-style="journal"] .cal-poster {
+  border-radius: 3px;
+  box-shadow: none;
+}
+:root[data-style="journal"] .cal-title {
+  font: 500 17px/1.25 var(--j-serif);
+  color: var(--j-text);
+}
+:root[data-style="journal"] .cal-ep {
+  color: var(--j-muted);
+  font-size: 12.5px;
+}
+/* "TV", "Film", "Anime" and "Today" as plain small text, not pills. */
+:root[data-style="journal"] :is(.cal-kind, .cal-row-pill-planned, .cal-row [class*="pill"], .cal-group-head [class*="pill"]) {
+  background: none;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  color: var(--j-muted);
+  font: 500 11px/1 var(--j-sans);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+:root[data-style="journal"] :is(.cal-row [class*="today"], .cal-group-head [class*="today"]) {
+  color: var(--j-accent);
+}
+:root[data-style="journal"] :is(.cal-row-planned-today, .cal-group-planned-today, .cal-row[class*="today"]) {
+  background: none;
+  box-shadow: none;
+  border-left: 0;
+}
+:root[data-style="journal"] .discover-grid {
+  gap: 26px 20px;
+}
+:root[data-style="journal"] .discover-poster {
+  border-radius: 3px;
+}
+:root[data-style="journal"] .discover-title {
+  font: 500 15px/1.25 var(--j-serif);
+}
+
+/* ── Stats ───────────────────────────────────────────────────────────────── */
+:root[data-style="journal"] .stats-page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+:root[data-style="journal"] :is(.stats-overview, .stats-hero-summary) {
+  gap: 0;
+  border-top: 1px solid var(--j-line);
+  border-bottom: 1px solid var(--j-line);
+}
+:root[data-style="journal"] .stat-card {
+  padding: 18px 20px 16px 0;
+}
+:root[data-style="journal"] .stat-card + .stat-card {
+  padding-left: 20px;
+  border-left: 1px solid var(--j-line);
+}
+:root[data-style="journal"] .stat-card-value {
+  font: 500 34px/1.05 var(--j-serif);
+  color: var(--j-text);
+  letter-spacing: -.01em;
+}
+:root[data-style="journal"] .stat-card-label {
+  margin-top: 6px;
+  color: var(--j-muted);
+  font: 400 12px/1.3 var(--j-sans);
+  letter-spacing: 0;
+  text-transform: none;
+}
+:root[data-style="journal"] .stat-card-sub {
+  color: var(--j-muted);
+}
+/* Bars: flat, text colour; the accent on hover. */
+:root[data-style="journal"] .chart-track {
+  height: 6px;
+  background: var(--j-panel2);
+  border-radius: 0;
+  box-shadow: none;
+}
+:root[data-style="journal"] .chart-fill {
+  background: var(--j-text) !important;
+  border-radius: 0;
+  box-shadow: none;
+}
+:root[data-style="journal"] .chart-row-clickable:hover .chart-fill {
+  background: var(--j-accent) !important;
+}
+:root[data-style="journal"] :is(.chart-label, .chart-count) {
+  color: var(--j-muted);
+  font: 400 12.5px/1.3 var(--j-sans);
+}
+:root[data-style="journal"] .chart-hint {
+  color: var(--j-muted);
+  font: 400 12px/1 var(--j-sans);
+}
+:root[data-style="journal"] .rd-bar {
+  background: var(--j-text) !important;
+  border-radius: 0;
+  box-shadow: none;
+}
+:root[data-style="journal"] :is(.top-rated-card, .profile-recent-card, .fav-card) {
+  padding: 0;
+}
+:root[data-style="journal"] :is(.tr-poster, .profile-recent-poster, .fav-poster) {
+  border-radius: 3px;
+  box-shadow: none;
+}
+:root[data-style="journal"] :is(.tr-title, .profile-recent-title, .fav-title) {
+  font: 500 14px/1.25 var(--j-serif);
+  color: var(--j-text);
+}
+:root[data-style="journal"] :is(.tr-rating, .fav-rating) {
+  background: none;
+  border: 0;
+  box-shadow: none;
+  color: var(--j-accent);
+}
+
+/* ── Community ───────────────────────────────────────────────────────────── */
+:root[data-style="journal"] .community-top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+:root[data-style="journal"] .community-grid {
+  gap: 0 32px;
+}
+:root[data-style="journal"] .community-card {
+  padding: 18px 0;
+  border-bottom: 1px solid var(--j-line);
+  cursor: pointer;
+}
+:root[data-style="journal"] :is(.community-avatar, .profile-avatar-lg) {
+  background: var(--j-panel);
+  border: 1px solid var(--j-line);
+  box-shadow: none;
+  color: var(--j-text);
+  font-family: var(--j-serif);
+}
+:root[data-style="journal"] .community-username {
+  font: 500 18px/1.2 var(--j-serif);
+  color: var(--j-text);
+}
+:root[data-style="journal"] :is(.community-stats-mini, .community-genres, .profile-type-stats, .compat-detail) {
+  color: var(--j-muted);
+  font-style: normal;
+  font-size: 12.5px;
+}
+:root[data-style="journal"] :is(.community-compat, .compat-badge, .profile-sharing-badge) {
+  background: none;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  color: var(--j-accent);
+  font: 500 12px/1 var(--j-sans);
+}
+:root[data-style="journal"] .community-poster {
+  border-radius: 2px;
+}
+:root[data-style="journal"] .toggle-track {
+  background: var(--j-panel2);
+  border: 1px solid var(--j-line);
+  box-shadow: none;
+}
+:root[data-style="journal"] .toggle-switch input:checked + .toggle-track {
+  background: var(--j-accent);
+  border-color: var(--j-accent);
+}
+:root[data-style="journal"] .toggle-thumb {
+  background: var(--j-text);
+  box-shadow: none;
+}
+:root[data-style="journal"] .curr-watching-bar {
+  background: var(--j-panel2);
+  border-radius: 0;
+}
+:root[data-style="journal"] .curr-watching-bar-fill {
+  background: var(--j-text);
+  border-radius: 0;
+}
+
+/* ── Profile ─────────────────────────────────────────────────────────────── */
+:root[data-style="journal"] .profile-hero {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 0 0 24px;
+  border-bottom: 1px solid var(--j-line);
+}
+:root[data-style="journal"] :is(.profile-hero-orbit, .profile-avatar-lg) {
+  width: 64px;
+  height: 64px;
+  min-width: 64px;
+  font-size: 28px;
+}
+:root[data-style="journal"] .profile-email-sm {
+  color: var(--j-muted);
+  font-size: 13px;
+  margin-top: 6px;
+}
+:root[data-style="journal"] .profile-type-grid {
+  gap: 0;
+}
+:root[data-style="journal"] .profile-type-card {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--j-line);
+}
+:root[data-style="journal"] .profile-type-label {
+  font: 500 16px/1.2 var(--j-serif);
+  color: var(--j-text);
+}
+:root[data-style="journal"] :is(.appearance-group-title, .appearance-toggle > span:first-child) {
+  font: 500 16px/1.2 var(--j-serif);
+  color: var(--j-text);
+  letter-spacing: 0;
+  text-transform: none;
+}
+:root[data-style="journal"] .appearance-group {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--j-line);
+}
+:root[data-style="journal"] :is(.bg-swatch, .theme-preset-preview) {
+  border-radius: 3px;
+  box-shadow: none;
+}
+:root[data-style="journal"] :is(.theme-preset-btn.active, .bg-swatch.active) {
+  outline: 2px solid var(--j-accent);
+  outline-offset: 2px;
+}
+:root[data-style="journal"] .library-health-card {
+  padding: 0;
+}
+
+/* Stats summary row (time watched, top genre, top country, average rating). */
+:root[data-style="journal"] .stats-hero-summary > div {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 16px 20px 14px 0;
+}
+:root[data-style="journal"] .stats-hero-summary > div + div {
+  padding-left: 20px;
+  border-left: 1px solid var(--j-line);
+}
+:root[data-style="journal"] .stats-hero-summary > div::before,
+:root[data-style="journal"] .stats-hero-summary > div::after {
+  display: none;
+}
+:root[data-style="journal"] .stats-hero-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--j-muted);
+  font: 400 12px/1.3 var(--j-sans);
+  letter-spacing: 0;
+  text-transform: none;
+}
+:root[data-style="journal"] .stats-hero-summary strong,
+:root[data-style="journal"] .stats-hero-summary > div > :last-child {
+  font: 500 20px/1.2 var(--j-serif);
+  color: var(--j-text);
+}
+/* Currently watching bars on Stats: flat, text colour. */
+:root[data-style="journal"] .watching-row .ep-progress {
+  display: block;
+}
+:root[data-style="journal"] .watching-row .ep-progress-bar {
+  background: var(--j-panel2);
+  border-radius: 0;
+  box-shadow: none;
+}
+:root[data-style="journal"] .watching-row .ep-progress-fill {
+  background: var(--j-text);
+  border-radius: 0;
+  box-shadow: none;
 }

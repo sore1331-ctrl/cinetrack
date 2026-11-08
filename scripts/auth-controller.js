@@ -42,6 +42,8 @@
     const signedOutView = documentRef.getElementById('user-dropdown-signed-out');
     const signInButton  = documentRef.getElementById('menu-signin-btn');
     const userAvatar   = documentRef.getElementById('user-avatar');
+    // Journal style shows the display name instead of the initial.
+    const userAvatarName = documentRef.getElementById('user-avatar-name');
     const userEmailEl  = documentRef.getElementById('user-email');
     const userDropdown = documentRef.getElementById('user-dropdown');
     const avatarButton = documentRef.getElementById('user-avatar-btn');
@@ -110,6 +112,7 @@
       userMenu?.classList.remove('hidden');
       if (offline) {
         if (userAvatar) userAvatar.textContent = '?';
+        if (userAvatarName) userAvatarName.textContent = 'Sign in';
         avatarButton?.setAttribute('title', 'Not signed in');
         avatarButton?.setAttribute('aria-label', 'Not signed in — sign in');
         return;
@@ -118,6 +121,7 @@
       avatarButton?.setAttribute('aria-label', 'Account');
       const displayName = currentUserDisplayName();
       if (userAvatar) userAvatar.textContent = userInitial(displayName);
+      if (userAvatarName) userAvatarName.textContent = displayName;
       if (userEmailEl) userEmailEl.textContent = currentUser.email;
       const usernameDisplay = documentRef.getElementById('username-display');
       if (usernameDisplay) {

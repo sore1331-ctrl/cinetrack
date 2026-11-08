@@ -27,7 +27,7 @@
         recs,
         html: `
           <div class="recs-heading-row">
-            <h3 class="recs-heading">✨ Recommended For You</h3>
+            <h3 class="recs-heading"><span class="j-glass-only">✨ </span>Recommended For You</h3>
             <button class="recs-refresh-btn" id="recs-refresh-btn" title="Re-sample your seeds and re-fetch from TMDB">↻ Refresh</button>
           </div>
           <p class="recs-empty">No new recommendations found — try watching more titles!</p>
@@ -40,7 +40,7 @@
       recs,
       html: `
         <div class="recs-heading-row">
-          <h3 class="recs-heading">✨ Recommended For You</h3>
+          <h3 class="recs-heading"><span class="j-glass-only">✨ </span>Recommended For You</h3>
           <button class="recs-refresh-btn" id="recs-refresh-btn" title="Re-sample your seeds and re-fetch from TMDB">↻ Refresh</button>
         </div>
         <p class="recs-sub">Based on ${esc(scopeLabel)} you've watched · favouring ${esc(genreLabel)}</p>

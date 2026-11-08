@@ -92,7 +92,7 @@
         .map(({ m, poster }) => `<img class="community-poster" src="${esc(poster)}" alt="${esc(m.title)}" title="${esc(m.title)}" loading="lazy" />`)
         .join('');
       const compatBadge = card.compat != null
-        ? `<span class="community-compat" title="Compatibility based on shared titles + rating similarity">🎯 ${card.compat}%</span>`
+        ? `<span class="community-compat" title="Compatibility based on shared titles + rating similarity"><span class="j-glass-only">🎯 </span>${card.compat}%</span>`
         : '';
       return `
         <div class="community-card" data-user-id="${esc(card.userId)}">
@@ -101,9 +101,9 @@
             <div class="community-card-info">
               <div class="community-username">${esc(card.username)} ${compatBadge}</div>
               <div class="community-stats-mini">
-                <span>✓ ${card.watched.length} watched</span>
-                ${card.inProgress.length ? `<span>▶ ${card.inProgress.length} in progress</span>` : ''}
-                <span>⏳ ${card.watchlist.length} on list</span>
+                <span><span class="j-glass-only">✓ </span>${card.watched.length} watched</span>
+                ${card.inProgress.length ? `<span><span class="j-glass-only">▶ </span>${card.inProgress.length} in progress</span>` : ''}
+                <span><span class="j-glass-only">⏳ </span>${card.watchlist.length} on list</span>
               </div>
               ${genres ? `<div class="community-genres">${esc(genres)}</div>` : ''}
             </div>
@@ -141,7 +141,7 @@
       .sort((a, b) => b.pct - a.pct)
       .slice(0, 6);
     const byType = ['movie', 'tv', 'anime'].map(type => ({
-      label: type === 'movie' ? '🎬 Films' : type === 'tv' ? '📺 TV Shows' : '🎌 Anime',
+      label: type === 'movie' ? '<span class="j-glass-only">🎬 </span>Films' : type === 'tv' ? '<span class="j-glass-only">📺 </span>TV Shows' : '<span class="j-glass-only">🎌 </span>Anime',
       watched: userMovies.filter(m => m.mediaType === type && m.status === 'watched').length,
       inProgress: userMovies.filter(m => m.mediaType === type && m.status === 'in_progress').length,
       watchlist: userMovies.filter(m => m.mediaType === type && m.status === 'watchlist').length,
@@ -169,7 +169,7 @@
           <div class="profile-display-name">${esc(username)}</div>
           ${compat.combined != null ? `
             <div class="compat-row">
-              <span class="compat-badge">🎯 ${compat.combined}% match</span>
+              <span class="compat-badge"><span class="j-glass-only">🎯 </span>${compat.combined}% match</span>
               <span class="compat-detail">${compat.sharedCount} shared title${compat.sharedCount === 1 ? '' : 's'}${compat.ratingMatch != null ? ` · ${compat.ratingMatch}% rating similarity` : ''}</span>
             </div>` : '<div class="compat-row"><span class="compat-detail">No shared titles yet</span></div>'}
         </div>
@@ -229,9 +229,9 @@
               <div class="profile-type-card">
                 <div class="profile-type-label">${type.label}</div>
                 <div class="profile-type-stats">
-                  <span>✓ ${type.watched} watched</span>
-                  ${type.inProgress ? `<span>▶ ${type.inProgress} in progress</span>` : ''}
-                  <span>⏳ ${type.watchlist} on list</span>
+                  <span><span class="j-glass-only">✓ </span>${type.watched} watched</span>
+                  ${type.inProgress ? `<span><span class="j-glass-only">▶ </span>${type.inProgress} in progress</span>` : ''}
+                  <span><span class="j-glass-only">⏳ </span>${type.watchlist} on list</span>
                 </div>
               </div>
             `).join('')}

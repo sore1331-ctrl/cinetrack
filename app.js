@@ -2177,7 +2177,7 @@ function renderStats() {
   const maxOf = arr => arr.length ? Math.max(...arr.map(e => e[1])) : 1;
 
   const filterTabs = ['all', 'movie', 'tv', 'anime'].map(t => {
-    const labels = { all: 'All', movie: '🎬 Films', tv: '📺 TV', anime: '🎌 Anime' };
+    const labels = { all: 'All', movie: '<span class="j-glass-only">🎬 </span>Films', tv: '<span class="j-glass-only">📺 </span>TV', anime: '<span class="j-glass-only">🎌 </span>Anime' };
     return `<button class="stats-type-tab${statsTypeFilter === t ? ' active' : ''}" data-stats-type="${t}">${labels[t]}</button>`;
   }).join('');
 
@@ -3187,13 +3187,13 @@ async function renderCalendar({ force = false } = {}) {
     <div class="calendar-header">
       <div class="calendar-title-block">
         <span class="calendar-kicker">Schedule</span>
-        <h2>📅 Calendar</h2>
+        <h2><span class="j-glass-only">📅 </span>Calendar</h2>
         <p>Upcoming episodes and watchlist film releases from your connected sources.</p>
       </div>
       <div class="cal-mode-toggle pill-group">
-        <button type="button" class="pill-btn ${calendarMode === 'tracked' ? 'active' : ''}" data-mode="tracked">📅 Tracked</button>
-        <button type="button" class="pill-btn ${calendarMode === 'planned' ? 'active' : ''}" data-mode="planned">🗓 Planned</button>
-        <button type="button" class="pill-btn ${calendarMode === 'discover' ? 'active' : ''}" data-mode="discover">✨ Discover</button>
+        <button type="button" class="pill-btn ${calendarMode === 'tracked' ? 'active' : ''}" data-mode="tracked"><span class="j-glass-only">📅 </span>Tracked</button>
+        <button type="button" class="pill-btn ${calendarMode === 'planned' ? 'active' : ''}" data-mode="planned"><span class="j-glass-only">🗓 </span>Planned</button>
+        <button type="button" class="pill-btn ${calendarMode === 'discover' ? 'active' : ''}" data-mode="discover"><span class="j-glass-only">✨ </span>Discover</button>
       </div>
     </div>
     <div class="calendar-body"></div>
@@ -3537,7 +3537,7 @@ async function fetchDiscoverUpcoming({ type, region, page = 1, force = false }) 
 }
 
 async function renderCalendarDiscover(body, { force = false } = {}) {
-  const typeLabels = { movie: '🎬 Films', tv: '📺 TV', anime: '🎌 Anime' };
+  const typeLabels = { movie: '<span class="j-glass-only">🎬 </span>Films', tv: '<span class="j-glass-only">📺 </span>TV', anime: '<span class="j-glass-only">🎌 </span>Anime' };
   const typeFallbackEmoji = { movie: '🎬', tv: '📺', anime: '🎌' };
   const isMovie = discoverType === 'movie';
 
@@ -3588,7 +3588,7 @@ async function renderCalendarDiscover(body, { force = false } = {}) {
     });
   } catch (e) {
     body.querySelector('#cal-discover-grid').innerHTML =
-      `<p class="recs-empty">Couldn't load upcoming ${esc(typeLabels[discoverType] || discoverType)}: ${esc(e.message)}</p>`;
+      `<p class="recs-empty">Couldn't load upcoming ${esc(({ movie: 'films', tv: 'TV', anime: 'anime' })[discoverType] || discoverType)}: ${esc(e.message)}</p>`;
     return;
   }
 

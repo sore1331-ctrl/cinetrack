@@ -57,9 +57,9 @@
           <div class="profile-type-card">
             <div class="profile-type-label">${t.label}</div>
             <div class="profile-type-stats">
-              <span>✓ ${t.watched} watched</span>
-              ${t.inProgress ? `<span>▶ ${t.inProgress} in progress</span>` : ''}
-              <span>⏳ ${t.watchlist} on list</span>
+              <span><span class="j-glass-only">✓ </span>${t.watched} watched</span>
+              ${t.inProgress ? `<span><span class="j-glass-only">▶ </span>${t.inProgress} in progress</span>` : ''}
+              <span><span class="j-glass-only">⏳ </span>${t.watchlist} on list</span>
             </div>
           </div>
         `).join('')}

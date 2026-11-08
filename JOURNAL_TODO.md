@@ -23,29 +23,25 @@ How it is built (keep to this):
       cards (ticks counter, "Next E11 · Mon", text action line). Commit 17b152a.
 
 ## To do (from user feedback, 2026-11-08)
-1. [ ] **Selected tab looks awful.** Both the top section menu (active item has a
-       heavy underline on a wide padded box; items spread far apart at wide
-       widths) and the status tabs ("All 512 / Watching / …"). Make the active
-       state a thin underline under the text only, tighter spacing, consistent
-       for both. Also check: an "Edit" label appears over the top-left of
-       posters on some cards (grid S/L sizes?) — card actions must stay in the
-       bottom line.
-2. [ ] **Account button shows "E"; should show the display name** (e.g.
+1. [x] **Selected status tab looks awful** (screenshot: "All 512 · Watching 0 · Watchlist 11 ·
+       Finished 501"). Active tab: label and count both in text colour, a 2px accent
+       underline that replaces the hairline under it (not drawn above it).
+2. [x] **Account button shows "E"; should show the display name** (e.g.
        "Equinox") as plain text, like the mockup ("Equinox · Profile · Day").
        Fall back to the email name. Keep the dropdown working.
-3. [ ] **Calendar** still looks like Glass: "SCHEDULE" label + emoji icon, pill
+3. [x] **Calendar** still looks like Glass: "SCHEDULE" label + emoji icon, pill
        buttons (Tracked/Planned/Discover), boxed day groups, "TV" pills, green
        "TODAY" pills. Journal version: serif "Calendar" heading + summary, text
        tabs, day groups as serif date headings with hairline rules, rows without
        boxes, plain "TV" label, "Today" in accent text.
-4. [ ] **Stats**: boxed stat tiles, pill type filter with emoji, glassy chart
+4. [x] **Stats**: boxed stat tiles, pill type filter with emoji, glassy chart
        panels, gradient bars. Journal: serif heading, text tabs (All / Films /
        TV / Anime), numbers as large serif figures with small labels and
        hairline separators, flat bars in text colour/accent, top-rated posters
        without frames.
-5. [ ] **Community**: boxed user cards, emoji stats (✓ ⏳ 🎯), coloured toggle.
+5. [x] **Community**: boxed user cards, emoji stats (✓ ⏳ 🎯), coloured toggle.
        Journal: serif heading, user rows/cards flat with hairlines, text stats.
-6. [ ] **Profile**: big glass hero ("Y" avatar circle), stat tiles, "By Type"
+6. [x] **Profile**: big glass hero ("Y" avatar circle), stat tiles, "By Type"
        with emoji, Appearance section with pill buttons and gradient swatches.
        Journal: serif name heading, flat sections with hairlines, text stats.
 7. [ ] **Home dashboard** ("At a glance"): boxed panels → flat editorial.
