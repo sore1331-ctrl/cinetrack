@@ -227,7 +227,7 @@
           <div class="profile-type-grid">
             ${byType.map(type => `
               <div class="profile-type-card">
-                <div class="profile-type-label">${type.label}</div>
+                <div class="profile-type-label">${String(type.label).replace(/^(\p{Extended_Pictographic}\uFE0F?)\s+(?=\S)/u, '<span class="j-glass-only">$1 </span>')}</div>
                 <div class="profile-type-stats">
                   <span><span class="j-glass-only">✓ </span>${type.watched} watched</span>
                   ${type.inProgress ? `<span><span class="j-glass-only">▶ </span>${type.inProgress} in progress</span>` : ''}

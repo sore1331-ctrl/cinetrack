@@ -815,6 +815,7 @@
 :root[data-style="journal"] .cal-window {
   background: none;
   border: 0;
+  box-shadow: none;
   padding: 0;
   color: var(--j-muted);
   font-size: 12px;
@@ -906,10 +907,15 @@
   justify-content: space-between;
   gap: 24px;
 }
+/* One line between blocks: the page heading and the next section already draw
+   their own rules, so the figure rows only add the line between the two rows. */
 :root[data-style="journal"] :is(.stats-overview, .stats-hero-summary) {
   gap: 0;
+  border-top: 0;
+  border-bottom: 0;
+}
+:root[data-style="journal"] .stats-hero-summary + .stats-overview {
   border-top: 1px solid var(--j-line);
-  border-bottom: 1px solid var(--j-line);
 }
 :root[data-style="journal"] .stat-card {
   padding: 18px 20px 16px 0;
@@ -1064,9 +1070,12 @@
 :root[data-style="journal"] .profile-type-grid {
   gap: 0;
 }
+:root[data-style="journal"] .profile-type-grid {
+  column-gap: 32px;
+}
 :root[data-style="journal"] .profile-type-card {
   padding: 12px 0;
-  border-bottom: 1px solid var(--j-line);
+  border-bottom: 0;
 }
 :root[data-style="journal"] .profile-type-label {
   font: 500 16px/1.2 var(--j-serif);
@@ -1136,4 +1145,100 @@
   background: var(--j-text);
   border-radius: 0;
   box-shadow: none;
+}
+
+/* ── Leftovers found by the page audit (2026-11-08) ─────────────────────── */
+
+/* Header tabs: Glass puts a soft accent glow behind the tab text. */
+:root[data-style="journal"] :is(.type-tab, .type-tab .tab-label) {
+  text-shadow: none;
+}
+
+/* Day mode: Glass's ":root.light .profile-panel > .profile-section" (and the
+   rest of that list) is more specific than the shared flattening rule above,
+   so the drop shadow came back in day mode only. */
+:root[data-style="journal"].light :is(
+  .profile-hero, .stat-card, .stats-hero-summary > div, .chart-section,
+  .profile-panel > .profile-section, .profile-type-card, .onboarding-card
+) {
+  box-shadow: none;
+}
+
+/* Empty states ("No planned watches yet" etc.): open text, no glass card or icon. */
+:root[data-style="journal"] :is(.onboarding-card, .empty-state-card) {
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--j-line);
+  border-radius: 0;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  padding: 28px 0;
+  text-align: left;
+}
+:root[data-style="journal"] :is(.onboarding-card, .empty-state-card) h2,
+:root[data-style="journal"] :is(.onboarding-card, .empty-state-card) h3 {
+  font: 500 22px/1.2 var(--j-serif);
+  color: var(--j-text);
+}
+:root[data-style="journal"] :is(.onboarding-card, .empty-state-card) p {
+  color: var(--j-muted);
+}
+:root[data-style="journal"] .onboarding-icon {
+  display: none;
+}
+
+/* Small buttons still in Glass shape: Refresh, CSV, Restore, info. */
+:root[data-style="journal"] :is(.recs-refresh-btn, .csv-action-btn, .recovery-restore-btn) {
+  background: var(--j-panel);
+  border: 1px solid var(--j-line);
+  border-radius: 6px;
+  box-shadow: none;
+  color: var(--j-text);
+  font-family: var(--j-sans);
+  font-weight: 500;
+}
+:root[data-style="journal"] :is(.recs-refresh-btn, .csv-action-btn, .recovery-restore-btn, .cal-refresh-btn):hover {
+  background: var(--j-panel);
+  border-color: var(--j-muted);
+  color: var(--j-text);
+}
+:root[data-style="journal"] .info-btn {
+  background: none;
+  border: 1px solid var(--j-line);
+  box-shadow: none;
+  color: var(--j-muted);
+}
+:root[data-style="journal"] .info-btn:hover {
+  border-color: var(--j-muted);
+  color: var(--j-text);
+}
+
+/* Tiles and posters stay put on hover instead of floating up. */
+:root[data-style="journal"] :is(.stat-card, .top-rated-card, .profile-recent-card, .fav-card, .community-card):hover {
+  transform: none;
+  box-shadow: none;
+}
+
+/* Stats: flat rating-bar tracks, no scrim on top-rated posters. */
+:root[data-style="journal"] .rd-bar-wrap {
+  background: var(--j-panel2);
+  border-radius: 0;
+  box-shadow: none;
+}
+:root[data-style="journal"] .tr-poster {
+  background: var(--j-panel2);
+}
+
+/* Profile: no glow on the avatar letter or the health dot. */
+:root[data-style="journal"] .profile-avatar-lg {
+  text-shadow: none;
+}
+:root[data-style="journal"] .library-health-dot {
+  box-shadow: none;
+}
+
+/* Missing-poster placeholders: a plain panel instead of a big emoji. */
+:root[data-style="journal"] :is(.card-poster-emoji, .tr-poster-emoji) {
+  font-size: 0;
 }

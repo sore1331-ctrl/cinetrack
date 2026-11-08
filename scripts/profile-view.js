@@ -55,7 +55,7 @@
       <div class="profile-type-grid">
         ${byType.map(t => `
           <div class="profile-type-card">
-            <div class="profile-type-label">${t.label}</div>
+            <div class="profile-type-label">${String(t.label).replace(/^(\p{Extended_Pictographic}\uFE0F?)\s+(?=\S)/u, '<span class="j-glass-only">$1 </span>')}</div>
             <div class="profile-type-stats">
               <span><span class="j-glass-only">✓ </span>${t.watched} watched</span>
               ${t.inProgress ? `<span><span class="j-glass-only">▶ </span>${t.inProgress} in progress</span>` : ''}
@@ -272,8 +272,8 @@
       </h3>
       <p class="profile-csv-hint">Back up your library or move it between accounts.</p>
       <div class="profile-csv-actions">
-        <button id="profile-import-btn" class="csv-action-btn" title="Import from CSV">⬆ Import CSV</button>
-        <button id="profile-export-btn" class="csv-action-btn" title="Export every title as a CSV backup">⬇ Export CSV</button>
+        <button id="profile-import-btn" class="csv-action-btn" title="Import from CSV"><span class="j-glass-only">⬆ </span>Import CSV</button>
+        <button id="profile-export-btn" class="csv-action-btn" title="Export every title as a CSV backup"><span class="j-glass-only">⬇ </span>Export CSV</button>
         <a id="profile-csv-template" class="csv-template-link" href="#" download="cinetrack-template.csv">Download template</a>
       </div>
     </div>

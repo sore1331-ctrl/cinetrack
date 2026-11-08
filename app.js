@@ -4067,7 +4067,7 @@ function renderBarChart(entries, maxVal, color, action = null) {
       : `class="chart-row"`;
     return `
     <div ${attrs}>
-      <div class="chart-label" title="${esc(labelStr)}">${esc(labelStr)}</div>
+      <div class="chart-label" title="${esc(labelStr)}">${esc(labelStr).replace(/^(\p{Extended_Pictographic}\uFE0F?)\s+(?=\S)/u, '<span class="j-glass-only">$1 </span>')}</div>
       <div class="chart-track">
         <div class="chart-fill" style="width:${Math.max(3, Math.round((count / maxVal) * 100))}%;background:${color}"></div>
       </div>
