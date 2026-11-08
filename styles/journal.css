@@ -416,11 +416,14 @@
 }
 :root[data-style="journal"] .stat-item.stat-active {
   color: var(--j-text);
-  background: none;
+  /* controls.css sets the Glass active-tab background and border colour with
+     !important, so these have to be !important too or the grey box wins. */
+  background: none !important;
   box-shadow: none;
+  border: 0 !important;
   /* the underline replaces the hairline under the active tab */
   margin-bottom: -1px;
-  border-bottom: 2px solid var(--j-accent);
+  border-bottom: 2px solid var(--j-accent) !important;
   padding-bottom: 9px;
 }
 :root[data-style="journal"] .stat-item.stat-active strong {
