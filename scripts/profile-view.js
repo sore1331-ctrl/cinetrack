@@ -148,7 +148,7 @@
               }).join('')}
             </div>
           </div>
-          <div class="appearance-row">
+          <div class="appearance-row" data-applies="journal">
             <div class="appearance-label">Journal colour</div>
             <div class="pill-group" data-pref="jaccent">
               ${JACCENT_OPTIONS.map(name => {
@@ -158,10 +158,11 @@
               }).join('')}
             </div>
           </div>
-          <p class="appearance-hint">Journal is flat and editorial; Ink keeps it black and white, the others add one colour. Glass is the older translucent look with glows; the glass options below only apply to it.</p>
+          <p class="appearance-hint" data-applies="journal">Flat and editorial. Ink keeps it black and white; the other colours add one accent.</p>
+          <p class="appearance-hint" data-applies="glass">Translucent panels with glows. The presets, background, glass and accent options below are for this look.</p>
         </div>
 
-        <div class="appearance-group appearance-group-wide">
+        <div class="appearance-group appearance-group-wide" data-applies="glass">
           <div class="appearance-group-title">Theme presets</div>
           <div class="theme-preset-grid">
             ${Object.entries(THEME_PRESETS).map(([key, preset]) => {
@@ -174,7 +175,7 @@
           </div>
         </div>
 
-        <div class="appearance-group appearance-group-wide">
+        <div class="appearance-group appearance-group-wide" data-applies="glass">
           <div class="appearance-group-title">Theme canvas</div>
           <div class="appearance-row">
             <div class="appearance-label">Background</div>
@@ -189,7 +190,7 @@
         </div>
 
         <div class="appearance-grid">
-          <div class="appearance-group">
+          <div class="appearance-group" data-applies="glass">
             <div class="appearance-group-title">Surface</div>
             <div class="appearance-row">
               <div class="appearance-label">Glass intensity</div>
@@ -236,7 +237,7 @@
 
           <div class="appearance-group">
             <div class="appearance-group-title">Motion & alerts</div>
-            <div class="appearance-row">
+            <div class="appearance-row" data-applies="glass">
               <div class="appearance-label-row">
                 <div class="appearance-label">Animated orbs</div>
                 <button type="button" class="info-btn appearance-info-btn" aria-label="Animated orbs help" title="Adds moving colour glows behind the glass panels. Reduce motion / no blur turns this off.">?</button>
@@ -250,7 +251,7 @@
               </div>
             </div>
             <div class="appearance-row">
-              <div class="appearance-label">Reduce motion / no blur</div>
+              <div class="appearance-label"><span data-applies="glass">Reduce motion / no blur</span><span data-applies="journal">Reduce motion</span></div>
               <div class="pill-group" data-pref="motion">
                 ${MOTION_OPTIONS.map(name => {
                   const current = localStorage.getItem('cinetrack_motion') || 'full';

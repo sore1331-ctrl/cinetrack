@@ -1939,3 +1939,23 @@
 :root[data-style="journal"].light .jaccent-swatch[data-c="plum"] { background: #8a4677; }
 :root[data-style="journal"].light .jaccent-swatch[data-c="amber"] { background: #93650f; }
 :root[data-style="journal"].light .jaccent-swatch[data-c="oxblood"] { background: #a03b31; }
+
+/* Glass background presets (data-bg) must not tint Journal. Their day-mode
+   rules (":root.light[data-bg=...] body") outrank the page background above,
+   so restate it at a higher specificity. */
+:root[data-style="journal"][data-bg] body,
+:root[data-style="journal"][data-bg].light body {
+  background: var(--j-bg);
+}
+:root[data-style="journal"][data-bg] body::before,
+:root[data-style="journal"][data-bg] body::after,
+:root[data-style="journal"][data-bg].light body::before,
+:root[data-style="journal"][data-bg].light body::after {
+  display: none;
+}
+
+/* Appearance lists only what applies to Journal: Glass-only settings
+   (presets, background, glass intensity, accent, orbs) have no effect here. */
+:root[data-style="journal"] [data-applies="glass"] {
+  display: none;
+}

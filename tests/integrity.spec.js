@@ -2229,6 +2229,21 @@ test.describe('tracker data integrity', () => {
       expect(controller).toContain("style: { fn: applyStyle, key: 'cinetrack_style' }");
     });
 
+    test('Appearance only lists the settings that apply to the selected style', () => {
+      const view = fs.readFileSync(path.join(root, 'scripts', 'profile-view.js'), 'utf8').replace(/\r\n/g, '\n');
+      const journalCss = fs.readFileSync(path.join(root, 'styles', 'journal.css'), 'utf8');
+      const settingsCss = fs.readFileSync(path.join(root, 'styles', 'settings.css'), 'utf8');
+      // Glass-only (no effect on Journal): presets, background, glass intensity, accent, orbs.
+      expect(view).toMatch(/data-applies="glass">\s*<div class="appearance-group-title">Theme presets</);
+      expect(view).toMatch(/data-applies="glass">\s*<div class="appearance-group-title">Theme canvas</);
+      expect(view).toMatch(/data-applies="glass">\s*<div class="appearance-group-title">Surface</);
+      expect(view).toMatch(/data-applies="glass">\s*<div class="appearance-label-row">\s*<div class="appearance-label">Animated orbs</);
+      // Journal-only: Journal colour.
+      expect(view).toMatch(/data-applies="journal">\s*<div class="appearance-label">Journal colour</);
+      expect(journalCss).toContain(':root[data-style="journal"] [data-applies="glass"]');
+      expect(settingsCss).toContain(':root:not([data-style="journal"]) [data-applies="journal"] { display: none; }');
+    });
+
     test('recovery copies merge newest first, without duplicates, capped', () => {
       const sandbox = { window: { CineTrack: {} }, console };
       vm.runInNewContext(fs.readFileSync(path.join(root, 'scripts', 'backup-store.js'), 'utf8'), sandbox);

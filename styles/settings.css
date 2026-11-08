@@ -309,3 +309,7 @@
   line-height: 1.4;
   color: var(--muted);
 }
+
+/* Appearance lists only what applies to the selected style: Journal-only
+   settings are hidden here in Glass (journal.css hides the Glass-only ones). */
+:root:not([data-style="journal"]) [data-applies="journal"] { display: none; }
