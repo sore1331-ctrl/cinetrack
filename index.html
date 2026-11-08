@@ -25,6 +25,11 @@
       if (localStorage.getItem('cinetrack_style') === 'glass') {
         document.documentElement.setAttribute('data-style', 'glass');
       }
+      // Journal colour: Ink (no attribute) unless another colour was picked.
+      var jAccent = localStorage.getItem('cinetrack_journal_accent');
+      if (['violet', 'dusk', 'plum', 'amber', 'oxblood'].indexOf(jAccent) !== -1) {
+        document.documentElement.setAttribute('data-jaccent', jAccent);
+      }
     } catch {}
   </script>
   <link rel="preload" href="assets/fonts/inter-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin />

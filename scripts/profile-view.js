@@ -21,6 +21,7 @@
       GLASS_LABELS, ACCENT_PRESETS, DENSITY_OPTIONS, POSTERS_OPTIONS, ORBS_OPTIONS,
       MOTION_OPTIONS, NOTIF_OPTIONS, CALENDAR_WATCHED_OPTIONS,
       STYLE_OPTIONS = ['journal', 'glass'],
+      JACCENT_OPTIONS = ['ink', 'violet', 'dusk', 'plum', 'amber', 'oxblood'],
     } = ctx;
 
   return `
@@ -147,7 +148,17 @@
               }).join('')}
             </div>
           </div>
-          <p class="appearance-hint">Journal is flat and editorial. Glass is the older translucent look with glows; the glass options below only apply to it.</p>
+          <div class="appearance-row">
+            <div class="appearance-label">Journal colour</div>
+            <div class="pill-group" data-pref="jaccent">
+              ${JACCENT_OPTIONS.map(name => {
+                const current = localStorage.getItem('cinetrack_journal_accent') || 'ink';
+                const label = name === 'ink' ? 'Ink' : name.charAt(0).toUpperCase() + name.slice(1);
+                return `<button type="button" class="pill-btn ${name === current ? 'active' : ''}" data-value="${name}"><span class="jaccent-swatch" data-c="${name}" aria-hidden="true"></span>${label}</button>`;
+              }).join('')}
+            </div>
+          </div>
+          <p class="appearance-hint">Journal is flat and editorial; Ink keeps it black and white, the others add one colour. Glass is the older translucent look with glows; the glass options below only apply to it.</p>
         </div>
 
         <div class="appearance-group appearance-group-wide">

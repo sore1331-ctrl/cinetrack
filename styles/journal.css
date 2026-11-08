@@ -54,7 +54,10 @@
   --j-line: #2c2d31;
   --j-text: #e9e9ec;
   --j-muted: #8d8e95;
-  --j-accent: #8b7cf6;
+  /* Accent = the "Journal colour" setting. Ink (default) is the text colour;
+     data-jaccent picks one of the coloured options further down. */
+  --j-accent: var(--j-text);
+  --j-aired: var(--j-muted);
   --j-on-text: #141517;
   --j-serif: 'CT Fraunces', 'Iowan Old Style', Georgia, serif;
   --j-sans: 'CT Inter', 'Segoe UI', system-ui, sans-serif;
@@ -90,7 +93,6 @@
   --j-line: #dcdce1;
   --j-text: #18191c;
   --j-muted: #6f7078;
-  --j-accent: #7563ec;
   --j-on-text: #f3f3f5;
   color-scheme: light;
 }
@@ -327,7 +329,7 @@
 }
 :root[data-style="journal"] .more-filters-count {
   background: var(--j-accent);
-  color: #fff;
+  color: var(--j-on-text);
 }
 :root[data-style="journal"] .size-btn {
   color: var(--j-muted);
@@ -539,8 +541,7 @@
   background: var(--j-text);
 }
 :root[data-style="journal"] .j-ticks i.a {
-  background: var(--j-accent);
-  opacity: .6;
+  background: var(--j-aired);
 }
 :root[data-style="journal"] .j-bar {
   position: relative;
@@ -559,8 +560,7 @@
   background: var(--j-text);
 }
 :root[data-style="journal"] .j-bar u {
-  background: var(--j-accent);
-  opacity: .6;
+  background: var(--j-aired);
 }
 :root[data-style="journal"] .j-count {
   font-size: 12px;
@@ -1895,3 +1895,47 @@
   background: none;
   color: var(--j-text);
 }
+
+/* ── Journal colour (Profile → Appearance → Journal colour) ─────────────────
+   Ink is the default (no attribute): black and white, emphasis by weight.
+   The others set a coloured accent; aired-but-unwatched ticks use it at 60%. */
+:root[data-style="journal"]:not([data-jaccent]) :is(.j-count b, .page-summary b) {
+  font-weight: 600;
+}
+:root[data-style="journal"] .toggle-switch input:checked + .toggle-track .toggle-thumb {
+  background: var(--j-on-text);
+}
+:root[data-style="journal"][data-jaccent] {
+  --j-aired: color-mix(in srgb, var(--j-accent) 60%, transparent);
+}
+:root[data-style="journal"][data-jaccent="violet"] { --j-accent: #8b7cf6; }
+:root[data-style="journal"][data-jaccent="violet"].light { --j-accent: #7563ec; }
+:root[data-style="journal"][data-jaccent="dusk"] { --j-accent: #a597c9; }
+:root[data-style="journal"][data-jaccent="dusk"].light { --j-accent: #6a5a99; }
+:root[data-style="journal"][data-jaccent="plum"] { --j-accent: #bf7fae; }
+:root[data-style="journal"][data-jaccent="plum"].light { --j-accent: #8a4677; }
+:root[data-style="journal"][data-jaccent="amber"] { --j-accent: #d6a44a; }
+:root[data-style="journal"][data-jaccent="amber"].light { --j-accent: #93650f; }
+:root[data-style="journal"][data-jaccent="oxblood"] { --j-accent: #d26e62; }
+:root[data-style="journal"][data-jaccent="oxblood"].light { --j-accent: #a03b31; }
+
+/* Swatches in the setting itself. */
+:root[data-style="journal"] .jaccent-swatch {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 7px;
+  border-radius: 50%;
+  vertical-align: 0;
+  background: var(--j-text);
+}
+:root[data-style="journal"] .jaccent-swatch[data-c="violet"] { background: #8b7cf6; }
+:root[data-style="journal"] .jaccent-swatch[data-c="dusk"] { background: #a597c9; }
+:root[data-style="journal"] .jaccent-swatch[data-c="plum"] { background: #bf7fae; }
+:root[data-style="journal"] .jaccent-swatch[data-c="amber"] { background: #d6a44a; }
+:root[data-style="journal"] .jaccent-swatch[data-c="oxblood"] { background: #d26e62; }
+:root[data-style="journal"].light .jaccent-swatch[data-c="violet"] { background: #7563ec; }
+:root[data-style="journal"].light .jaccent-swatch[data-c="dusk"] { background: #6a5a99; }
+:root[data-style="journal"].light .jaccent-swatch[data-c="plum"] { background: #8a4677; }
+:root[data-style="journal"].light .jaccent-swatch[data-c="amber"] { background: #93650f; }
+:root[data-style="journal"].light .jaccent-swatch[data-c="oxblood"] { background: #a03b31; }

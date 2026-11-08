@@ -62,6 +62,8 @@ const NOTIF_OPTIONS   = ['off', 'on'];
 // Visual style. Glass is the original translucent look; Journal is the flat
 // editorial look (styles/journal.css, active only under data-style="journal").
 const STYLE_OPTIONS   = ['journal', 'glass'];
+// Journal colour: Ink (black and white) is the default; the rest are accents.
+const JACCENT_OPTIONS = ['ink', 'violet', 'dusk', 'plum', 'amber', 'oxblood'];
 const CALENDAR_WATCHED_OPTIONS = ['hide', 'dim', 'show'];
 const CALENDAR_MODES = ['tracked', 'planned', 'discover'];
 const THEME_PRESETS = {
@@ -87,6 +89,7 @@ function applyEpisodeNotif(v) { applyAttrPreset('data-notif', v, 'off', NOTIF_OP
 // Always written out (never removed for the default): every Journal rule is
 // scoped to [data-style="journal"] and Glass must not match it.
 function applyStyle(v)   { document.documentElement.setAttribute('data-style', STYLE_OPTIONS.includes(v) ? v : 'journal'); }
+function applyJournalAccent(v) { applyAttrPreset('data-jaccent', v, 'ink', JACCENT_OPTIONS); }
 function applyThemePreset(name) {
   const preset = THEME_PRESETS[name];
   if (!preset) return false;
@@ -110,6 +113,7 @@ applyMotion(localStorage.getItem('cinetrack_motion') || 'full');
 applyPosters(localStorage.getItem('cinetrack_posters') || 'shown');
 applyEpisodeNotif(localStorage.getItem('cinetrack_notif') || 'off');
 applyStyle(localStorage.getItem('cinetrack_style') || 'journal');
+applyJournalAccent(localStorage.getItem('cinetrack_journal_accent') || 'ink');
 
 // ── Cross-device preference sync ────────────────────────
 // Keys that should follow the user across devices. Saved to
@@ -117,6 +121,7 @@ applyStyle(localStorage.getItem('cinetrack_style') || 'journal');
 // applied to localStorage + the live UI.
 const SYNC_PREF_KEYS = [
   'cinetrack_style',
+  'cinetrack_journal_accent',
   'cinetrack_theme',
   'cinetrack_theme_preset',
   'cinetrack_bg',
@@ -230,6 +235,7 @@ function applyAllAppearance() {
   applyPosters(localStorage.getItem('cinetrack_posters') || 'shown');
   applyEpisodeNotif(localStorage.getItem('cinetrack_notif') || 'off');
   applyStyle(localStorage.getItem('cinetrack_style') || 'journal');
+  applyJournalAccent(localStorage.getItem('cinetrack_journal_accent') || 'ink');
 }
 
 function calendarWatchedMode() {
@@ -4171,7 +4177,7 @@ function renderProfile() {
     formatTimeSpent, renderBarChart, profileModel, compareLibraryBackup, THEME_PRESETS,
     BG_PRESETS, GLASS_PRESETS, GLASS_LABELS, ACCENT_PRESETS, DENSITY_OPTIONS,
     POSTERS_OPTIONS, ORBS_OPTIONS, MOTION_OPTIONS, NOTIF_OPTIONS, CALENDAR_WATCHED_OPTIONS,
-    STYLE_OPTIONS,
+    STYLE_OPTIONS, JACCENT_OPTIONS,
   });
 
   applyTheme(document.documentElement.classList.contains('light') ? 'light' : 'dark');
@@ -4196,6 +4202,7 @@ function renderProfile() {
     applyAccent,
     applyThemePreset,
     applyStyle,
+    applyJournalAccent,
     applyGlass,
     applyOrbs,
     applyDensity,

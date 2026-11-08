@@ -2229,6 +2229,26 @@ test.describe('tracker data integrity', () => {
       expect(controller).toContain("style: { fn: applyStyle, key: 'cinetrack_style' }");
     });
 
+    test('Journal colour is a synced setting: Ink by default, five accents to pick from', () => {
+      const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+      const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+      const view = fs.readFileSync(path.join(root, 'scripts', 'profile-view.js'), 'utf8');
+      const controller = fs.readFileSync(path.join(root, 'scripts', 'profile-controller.js'), 'utf8');
+      const css = fs.readFileSync(path.join(root, 'styles', 'journal.css'), 'utf8');
+      expect(app).toContain("const JACCENT_OPTIONS = ['ink', 'violet', 'dusk', 'plum', 'amber', 'oxblood'];");
+      expect(app).toContain("applyJournalAccent(localStorage.getItem('cinetrack_journal_accent') || 'ink');");
+      expect(app).toMatch(/const SYNC_PREF_KEYS = \[[^\]]*'cinetrack_journal_accent'/);
+      expect(index).toContain("document.documentElement.setAttribute('data-jaccent', jAccent);");
+      expect(view).toContain('data-pref="jaccent"');
+      expect(controller).toContain("jaccent: { fn: applyJournalAccent, key: 'cinetrack_journal_accent' }");
+      // Ink: the accent is the text colour; every other option defines a dark and a day value.
+      expect(css).toContain('--j-accent: var(--j-text);');
+      for (const name of ['violet', 'dusk', 'plum', 'amber', 'oxblood']) {
+        expect(css).toMatch(new RegExp(`\\[data-jaccent="${name}"\\] \\{ --j-accent: #[0-9a-f]{6}; \\}`));
+        expect(css).toMatch(new RegExp(`\\[data-jaccent="${name}"\\]\\.light \\{ --j-accent: #[0-9a-f]{6}; \\}`));
+      }
+    });
+
     test('the style attribute is always written, so Glass never matches Journal rules', () => {
       const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
       const sandbox = { attrs: {}, STYLE_OPTIONS: ['journal', 'glass'] };

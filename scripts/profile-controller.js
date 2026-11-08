@@ -24,6 +24,7 @@
       applyAccent,
       applyThemePreset,
       applyStyle,
+      applyJournalAccent,
       applyGlass,
       applyOrbs,
       applyDensity,
@@ -120,6 +121,7 @@
 
     const pillApplyMap = {
       style: { fn: applyStyle, key: 'cinetrack_style' },
+      jaccent: { fn: applyJournalAccent, key: 'cinetrack_journal_accent' },
       glass: { fn: applyGlass, key: 'cinetrack_glass' },
       orbs: { fn: applyOrbs, key: 'cinetrack_orbs' },
       density: { fn: applyDensity, key: 'cinetrack_density' },
