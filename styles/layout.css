@@ -33,12 +33,55 @@ header {
   white-space: nowrap;
 }
 
-.brand-logo-img {
+/* Logo wordmark: Inter SemiBold, the face the supplied artwork used,
+   self-hosted (OFL, licence in assets/fonts). */
+@font-face {
+  font-family: 'CineTrack Logo';
+  src: url('../assets/fonts/inter-latin-600-normal.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: block;
+}
+
+/* Vector logo: SVG mark (#ct-logo-mark in index.html) plus live text, so it
+   is sharp at any size and follows the theme. Proportions come from the
+   supplied 255x74 artwork; --logo-height is the height that artwork was
+   shown at, and every measurement scales from it. */
+.brand-logo {
+  --logo-height: 58px;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--logo-height) * .176);
+  height: var(--logo-height);
+  padding-left: calc(var(--logo-height) * .068);
+  padding-right: calc(var(--logo-height) * .095);
+  font-family: 'CineTrack Logo', 'Segoe UI', system-ui, sans-serif;
+  font-size: calc(var(--logo-height) * .516);
+  font-weight: 600;
+  letter-spacing: -.026em;
+  line-height: 1;
+  color: #fff;
+  white-space: nowrap;
+  -webkit-font-smoothing: antialiased;
+}
+
+.brand-logo-mark {
   display: block;
-  width: auto;
-  height: 58px;
   flex: 0 0 auto;
-  object-fit: contain;
+  height: calc(var(--logo-height) * .865);
+  width: auto;
+  aspect-ratio: 54 / 64;
+}
+
+:root.light .brand-logo {
+  color: #141620;
+}
+
+.svg-sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
 }
 
 .sr-only {
@@ -86,8 +129,8 @@ header {
   justify-content: center;
 }
 
-.brand-wordmark-auth .brand-logo-img {
-  height: 62px;
+.brand-wordmark-auth .brand-logo {
+  --logo-height: 62px;
 }
 
 .theme-toggle {
@@ -306,11 +349,7 @@ main {
 }
 
 .home-logo {
-  display: block;
-  width: 132px;
-  height: auto;
-  flex: 0 0 auto;
-  object-fit: contain;
+  --logo-height: 38px;
 }
 
 .home-hero h1 {
@@ -490,7 +529,7 @@ main {
   }
 
   .home-logo {
-    width: 116px;
+    --logo-height: 34px;
   }
 
   .home-row {

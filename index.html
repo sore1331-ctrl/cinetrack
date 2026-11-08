@@ -22,6 +22,7 @@
       }
     } catch {}
   </script>
+  <link rel="preload" href="assets/fonts/inter-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="styles/theme.css?v=split-20260523-2" />
   <link rel="stylesheet" href="styles/layout.css?v=split-20260523-2" />
   <link rel="stylesheet" href="styles/cards.css?v=split-20260523-2" />
@@ -38,13 +39,34 @@
   <link rel="stylesheet" href="styles/skin.css?v=split-20260523-2" />
 </head>
 <body>
+  <!-- CineTrack logo mark, drawn once and reused by every logo (<use>).
+       Redrawn as a vector from the supplied 255x74 PNG so it stays sharp at
+       any size; the wordmark beside it is live text in Inter SemiBold. Kept
+       out of view without display:none, which would break the gradient. -->
+  <svg class="svg-sprite" width="0" height="0" aria-hidden="true" focusable="false">
+    <defs>
+      <linearGradient id="ct-logo-gradient" x1="6" y1="58" x2="48" y2="18" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#a64ffe" />
+        <stop offset=".45" stop-color="#8460fd" />
+        <stop offset=".75" stop-color="#7069fd" />
+        <stop offset="1" stop-color="#6669fd" />
+      </linearGradient>
+      <symbol id="ct-logo-mark" viewBox="0 0 54 64">
+        <path d="M7 7 46 32 7 57" fill="none" stroke="url(#ct-logo-gradient)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
+        <path d="M2 21 13 27.6V37.4L2 44Z" fill="url(#ct-logo-gradient)" stroke="url(#ct-logo-gradient)" stroke-width="1.2" stroke-linejoin="round" />
+      </symbol>
+    </defs>
+  </svg>
 
   <!-- Auth overlay -->
   <div id="auth-overlay" class="auth-overlay">
     <div class="auth-card">
       <div class="auth-logo">
         <div class="brand-wordmark brand-wordmark-auth" aria-label="CineTrack">
-          <img class="brand-logo-img theme-aware-img" src="assets/cinetrack-logo.png?v=actual-20260516" data-dark-src="assets/cinetrack-logo.png?v=actual-20260516" data-light-src="assets/cinetrack-logo-light.png?v=theme-aware-20260516" alt="CineTrack" />
+          <span class="brand-logo" role="img" aria-label="CineTrack">
+            <svg class="brand-logo-mark" viewBox="0 0 54 64" aria-hidden="true" focusable="false"><use href="#ct-logo-mark"></use></svg>
+            <span class="brand-logo-text" aria-hidden="true">CineTrack</span>
+          </span>
         </div>
         <p>Your personal film &amp; TV tracker</p>
       </div>
@@ -88,7 +110,10 @@
   <!-- Header -->
   <header>
     <button id="logo" class="brand-wordmark header-brand" type="button" title="Go home" aria-label="Go home">
-      <img class="brand-logo-img theme-aware-img" src="assets/cinetrack-logo.png?v=actual-20260516" data-dark-src="assets/cinetrack-logo.png?v=actual-20260516" data-light-src="assets/cinetrack-logo-light.png?v=theme-aware-20260516" alt="CineTrack" />
+      <span class="brand-logo" role="img" aria-label="CineTrack">
+        <svg class="brand-logo-mark" viewBox="0 0 54 64" aria-hidden="true" focusable="false"><use href="#ct-logo-mark"></use></svg>
+        <span class="brand-logo-text" aria-hidden="true">CineTrack</span>
+      </span>
     </button>
     <!-- Type tab bar (renders inline on desktop, wraps to its own row on mobile) -->
     <nav class="type-tabs-bar">

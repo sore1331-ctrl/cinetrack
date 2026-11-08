@@ -2399,14 +2399,10 @@ function renderHome() {
   panel.innerHTML = `
     <section class="home-hero">
       <div class="home-intro">
-        <img
-          class="home-logo theme-aware-img"
-          src="assets/cinetrack-logo.png?v=actual-20260516"
-          data-dark-src="assets/cinetrack-logo.png?v=actual-20260516"
-          data-light-src="assets/cinetrack-logo-light.png?v=theme-aware-20260516"
-          alt=""
-          aria-hidden="true"
-        />
+        <span class="brand-logo home-logo" aria-hidden="true">
+          <svg class="brand-logo-mark" viewBox="0 0 54 64" focusable="false"><use href="#ct-logo-mark"></use></svg>
+          <span class="brand-logo-text">CineTrack</span>
+        </span>
         <h1>At a glance</h1>
         <p>Continue from your current progress, today's plans, and titles airing now.</p>
       </div>

@@ -54,7 +54,10 @@ test.describe('desktop regressions', () => {
     await page.reload();
 
     await expect(page.locator('#auth-overlay')).toBeHidden();
-    await expect(page.locator('header .brand-logo-img')).toHaveAttribute('src', /cinetrack-logo-light\.png/);
+    // The logo is a vector (SVG mark + live text) that follows the theme.
+    await expect(page.locator('header .brand-logo')).toHaveAttribute('aria-label', 'CineTrack');
+    await expect(page.locator('header .brand-logo-mark use')).toHaveAttribute('href', '#ct-logo-mark');
+    await expect(page.locator('header .brand-logo-text')).toHaveCSS('color', 'rgb(20, 22, 32)');
     await expect(page.locator('#header-profile-btn img')).toHaveAttribute('src', /profile-control-light\.png/);
     await expect(page.locator('#theme-toggle img')).toHaveAttribute('src', /theme-control-light\.png/);
     await expect(page.locator('#header-profile-btn')).toHaveAttribute('aria-label', 'Profile');
@@ -66,7 +69,7 @@ test.describe('desktop regressions', () => {
     expect(pseudoDisplays).toEqual({ before: 'none', after: 'none' });
 
     await page.locator('#theme-toggle').click();
-    await expect(page.locator('header .brand-logo-img')).toHaveAttribute('src', /cinetrack-logo\.png/);
+    await expect(page.locator('header .brand-logo-text')).toHaveCSS('color', 'rgb(255, 255, 255)');
     await expect(page.locator('#header-profile-btn img')).toHaveAttribute('src', /profile-control\.png/);
     await expect(page.locator('#theme-toggle img')).toHaveAttribute('src', /theme-control\.png/);
   });

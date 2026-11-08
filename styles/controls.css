@@ -482,7 +482,7 @@
 @media (max-width: 480px) {
   /* Header — top row stays compact, tab bar wraps below it */
   header { padding: 0 14px; min-height: 48px; }
-  .header-brand .brand-logo-img { height: 44px; }
+  .header-brand .brand-logo { --logo-height: 44px; }
   .theme-toggle { width: 32px; height: 32px; font-size: .85rem; }
   .header-profile-btn { width: 32px; height: 32px; font-size: .85rem; }
   .user-avatar-btn { width: 32px; height: 32px; }
