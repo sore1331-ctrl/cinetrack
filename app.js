@@ -334,13 +334,15 @@ function writeLocalLibraryBackup(reason, sourceMovies = movies) {
     cloudUpdatedAt: lastCloudUpdatedAt || null,
     cloudVersion: lastCloudVersion || 0,
     maxBackups: MAX_LOCAL_BACKUPS,
+    storage: backupStorage,
   });
 }
 
 function trimLocalStoragePressure() {
   return storageModel.trimStorage?.({
     volatileKeys: VOLATILE_STORAGE_KEYS,
-    backupKey: LOCAL_BACKUPS_KEY,
+    // Copies in IndexedDB don't count against localStorage; only compact them here in the fallback.
+    backupKey: backupStore?.usesIndexedDb ? '' : LOCAL_BACKUPS_KEY,
     maxBackups: MAX_LOCAL_BACKUPS,
     pressureBytes: LOCAL_STORAGE_PRESSURE_BYTES,
     targetBytes: LOCAL_STORAGE_TARGET_BYTES,
@@ -350,6 +352,14 @@ function trimLocalStoragePressure() {
 
 const libraryMigration = migrateStoredLibrary();
 let movies          = libraryMigration.movies;
+// Recovery copies live in IndexedDB, not localStorage (see scripts/backup-store.js).
+// Created after the schema migration so a copy it just wrote is moved over too.
+const backupStore = window.CineTrack?.backupStore?.create({ key: LOCAL_BACKUPS_KEY, maxBackups: MAX_LOCAL_BACKUPS }) || null;
+const backupStorage = backupStore || localStorage;
+backupStore?.ready.then(() => {
+  // The Recovery list reads from memory; show it once the copies have loaded.
+  if (document.getElementById('profile-panel') && !document.getElementById('profile-panel').classList.contains('hidden')) renderProfile();
+});
 trimLocalStoragePressure();
 let activeType      = 'movie';   // 'movie' | 'tv' | 'anime'
 let activeView      = 'content'; // 'content' | 'stats' | 'community'
@@ -934,7 +944,7 @@ function persistLocalLibrary() {
 }
 
 function localLibraryBackups() {
-  return profileModel.localLibraryBackups(storageModel, LOCAL_BACKUPS_KEY);
+  return profileModel.localLibraryBackups({ readArray: key => storageModel.readArray(key, backupStorage) }, LOCAL_BACKUPS_KEY);
 }
 
 function save() {

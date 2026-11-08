@@ -198,6 +198,57 @@ test.describe('desktop regressions', () => {
     await expect(page.locator('#movie-grid')).toBeHidden();
   });
 
+  test('recovery copies move out of localStorage into IndexedDB', async ({ page }) => {
+    // A big library with two full copies in localStorage, as before the fix.
+    await page.addInitScript(() => {
+      if (sessionStorage.getItem('seeded-backups')) return;
+      sessionStorage.setItem('seeded-backups', '1');
+      const notes = 'x'.repeat(1400);
+      const movies = Array.from({ length: 600 }, (_, i) => ({
+        id: `m${i}`, title: `Title ${i}`, mediaType: 'movie', status: 'watched', notes, addedAt: 1700000000000 + i,
+      }));
+      localStorage.setItem('cinetrack_movies', JSON.stringify(movies));
+      localStorage.setItem('cinetrack_library_schema_version', '1');
+      localStorage.setItem('cinetrack_library_backups_v1', JSON.stringify([
+        { reason: 'before-cloud-save', createdAt: '2026-11-02T10:00:00.000Z', itemCount: 600, movies },
+        { reason: 'before-cloud-load', createdAt: '2026-11-01T10:00:00.000Z', itemCount: 600, movies },
+      ]));
+    });
+    const readIdb = () => page.evaluate(() => new Promise(resolve => {
+      const open = indexedDB.open('cinetrack', 1);
+      open.onsuccess = () => {
+        const request = open.result.transaction('kv', 'readonly').objectStore('kv').get('cinetrack_library_backups_v1');
+        request.onsuccess = () => { open.result.close(); resolve(JSON.parse(request.result || '[]').map(b => b.reason)); };
+        request.onerror = () => resolve(null);
+      };
+      open.onerror = () => resolve(null);
+    }));
+
+    await openApp(page);
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('cinetrack_library_backups_v1'))).toBeNull();
+    // Loading may add its own "before a library update" copy (schema tidy-up of the
+    // seeded entries); either way the newest two survive and the cloud-save one is kept.
+    await expect.poll(async () => (await readIdb())?.length).toBe(2);
+    expect(await readIdb()).toContain('before-cloud-save');
+
+    // localStorage now only holds the library itself, so the quota warning is gone.
+    await page.locator('#header-profile-btn').click();
+    const health = page.locator('.library-health-section');
+    await expect(health).toContainText('Looks fine');
+    await expect(health).not.toContainText('near quota');
+    await expect(page.locator('.recovery-item')).toHaveCount(2);
+    await expect(page.locator('.recovery-section')).toContainText('Before saving to the cloud');
+
+    // New copies go to IndexedDB too, newest first, still capped at two, and survive a reload.
+    await page.evaluate(() => writeLocalLibraryBackup('before-sign-out-clear'));
+    await page.evaluate(() => backupStore.flush());
+    await page.reload();
+    await expect(page.locator('#auth-overlay')).toBeHidden();
+    await expect.poll(async () => (await readIdb())?.[0]).toBe('before-sign-out-clear');
+    expect((await readIdb()).length).toBe(2);
+    expect(await page.evaluate(() => localStorage.getItem('cinetrack_library_backups_v1'))).toBeNull();
+  });
+
   test('logo opens home dashboard without adding a nav tab', async ({ page }) => {
     await openApp(page);
 

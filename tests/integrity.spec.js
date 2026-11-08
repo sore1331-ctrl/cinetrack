@@ -2229,6 +2229,19 @@ test.describe('tracker data integrity', () => {
       expect(controller).toContain("style: { fn: applyStyle, key: 'cinetrack_style' }");
     });
 
+    test('recovery copies merge newest first, without duplicates, capped', () => {
+      const sandbox = { window: { CineTrack: {} }, console };
+      vm.runInNewContext(fs.readFileSync(path.join(root, 'scripts', 'backup-store.js'), 'utf8'), sandbox);
+      const { mergeBackups } = sandbox.window.CineTrack.backupStore;
+      const copy = (reason, createdAt) => ({ reason, createdAt, movies: [{ id: 'a' }] });
+      const merged = mergeBackups([
+        [copy('before-cloud-save', '2026-11-08T10:00:00Z')],
+        [copy('before-cloud-load', '2026-11-07T10:00:00Z'), copy('before-cloud-save', '2026-11-08T10:00:00Z')],
+        [copy('before-sign-out-clear', '2026-11-09T10:00:00Z'), { reason: 'broken', movies: null }],
+      ], 2);
+      expect(merged.map(b => b.reason)).toEqual(['before-sign-out-clear', 'before-cloud-save']);
+    });
+
     test('Journal colour is a synced setting: Ink by default, five accents to pick from', () => {
       const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
       const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
