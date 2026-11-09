@@ -37,6 +37,8 @@
       ? `<span class="ep-behind" title="${behindCount} aired episode${behindCount === 1 ? '' : 's'} you haven't watched yet${behindLabel ? `: ${esc(behindLabel)}` : ''}"> · ${behindCount} behind${behindLabel ? ` (${esc(behindLabel)})` : ''}</span>`
       : '';
     const airingPillText = airingEpisode ? `● ${esc(airingEpisode)} today` : '● Today';
+    // Journal: an index tab on the poster ("E11 today") instead of the dot label.
+    const airingTabText = entry.mediaType === 'movie' ? 'Out today' : (airingEpisode ? `${esc(airingEpisode)} today` : 'Today');
     const airingPillTitle = entry.mediaType === 'movie'
       ? 'Theatrical release today'
       : `${airingEpisode ? `${airingEpisode}${airingEpisodeName ? ` · ${airingEpisodeName}` : ''}` : 'New episode'} airs today`;
@@ -111,6 +113,7 @@
     return `
       <div class="card-poster">
         ${posterHTML}
+        ${airingToday ? `<span class="j-only j-airing-tab" title="${esc(airingPillTitle)}">${airingTabText}</span>` : ''}
         ${hoverInfoHTML}
         <label class="card-checkbox" title="Select">
           <input type="checkbox" data-check="${entry.id}" ${checked ? 'checked' : ''}${mutationDisabled} />
