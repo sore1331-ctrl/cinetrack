@@ -1963,10 +1963,15 @@
 /* ── Airing today: an index tab on the poster ───────────────────────────────
    Replaces the "● E11 today" line above the title. Colours are tokens so the
    tab's look can change in one place. */
+/* Paper label: a cream sticker, the same in both modes (a hairline edge by day). */
 :root[data-style="journal"] {
-  --j-tab-bg: var(--j-text);
-  --j-tab-fg: var(--j-on-text);
+  --j-tab-bg: #ebe2cc;
+  --j-tab-fg: #2b261f;
   --j-tab-border: transparent;
+}
+:root[data-style="journal"].light {
+  --j-tab-bg: #efe5cd;
+  --j-tab-border: #d8ccb0;
 }
 :root[data-style="journal"] .card-airing-pill {
   display: none;
