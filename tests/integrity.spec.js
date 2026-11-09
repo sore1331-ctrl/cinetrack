@@ -2279,7 +2279,7 @@ test.describe('tracker data integrity', () => {
 
     test('the style attribute is always written, so Glass never matches Journal rules', () => {
       const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
-      const sandbox = { attrs: {}, STYLE_OPTIONS: ['journal', 'glass'] };
+      const sandbox = { attrs: {}, STYLE_OPTIONS: ['journal', 'glass'], syncThemeColor: () => {} };
       sandbox.document = { documentElement: {
         setAttribute: (k, v) => { sandbox.attrs[k] = v; },
         removeAttribute: k => { delete sandbox.attrs[k]; },

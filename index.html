@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="color-scheme" content="dark light" />
-  <meta name="theme-color" content="#120b25" />
+  <meta name="theme-color" content="#141517" />
   <title>CineTrack</title>
   <!-- Pre-CSS dark paint so the page doesn't flash white before
        the split stylesheets load. The light-theme override below kicks in
@@ -167,7 +167,7 @@
             <div><span>Cloud items</span><strong id="sync-item-count">-</strong></div>
             <div><span>Last cloud update</span><strong id="sync-updated-at">-</strong></div>
           </div>
-          <span id="build-label" class="build-label">Build selection-filter-state-20260510-1</span>
+          <span id="build-label" class="build-label">Build journal-review-20261109</span>
           <hr class="dropdown-divider" />
           <button id="sync-now-btn" class="reload-cloud-btn" title="Push any pending local changes to the cloud, then pull the latest. Useful for reconciling after editing on another device."><span class="j-glass-only">↻ </span>Sync now</button>
           <button id="reload-cloud-btn" class="reload-cloud-btn" title="Fetch your latest data from the cloud and replace local data. Use this if changes from another device aren't showing up."><span class="j-glass-only">↻ </span>Reload from cloud</button>
@@ -177,11 +177,11 @@
         </div>
       </div>
       <button id="header-profile-btn" class="header-profile-btn" title="Profile" aria-label="Profile">
-        <img class="header-control-img theme-aware-img" src="assets/profile-control.png?v=actual-controls-20260516" data-dark-src="assets/profile-control.png?v=actual-controls-20260516" data-light-src="assets/profile-control-light.png?v=theme-aware-20260516" alt="" aria-hidden="true" />
+        <img class="header-control-img theme-aware-img" loading="lazy" src="assets/profile-control.png?v=actual-controls-20260516" data-dark-src="assets/profile-control.png?v=actual-controls-20260516" data-light-src="assets/profile-control-light.png?v=theme-aware-20260516" alt="" aria-hidden="true" />
         <span class="j-text">Profile</span>
       </button>
       <button id="theme-toggle" class="theme-toggle" title="Toggle light/dark mode">
-        <img class="header-control-img theme-aware-img" src="assets/theme-control.png?v=actual-controls-20260516" data-dark-src="assets/theme-control.png?v=actual-controls-20260516" data-light-src="assets/theme-control-light.png?v=theme-aware-20260516" alt="" aria-hidden="true" />
+        <img class="header-control-img theme-aware-img" loading="lazy" src="assets/theme-control.png?v=actual-controls-20260516" data-dark-src="assets/theme-control.png?v=actual-controls-20260516" data-light-src="assets/theme-control-light.png?v=theme-aware-20260516" alt="" aria-hidden="true" />
         <span class="j-text" id="theme-toggle-label">Day</span>
       </button>
     </div>
@@ -206,7 +206,7 @@
     <!-- Controls row (hidden on stats/community) -->
     <section class="controls">
       <div class="search-wrap">
-        <input type="text" id="search-input" placeholder="Search titles, genres, directors..." />
+        <input type="text" id="search-input" aria-label="Search your library" placeholder="Search titles, genres, directors..." />
         <button type="button" id="search-clear-btn" class="search-clear-btn hidden" title="Clear search" aria-label="Clear search">✕</button>
       </div>
       <div class="size-toggle">

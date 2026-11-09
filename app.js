@@ -1,5 +1,5 @@
 // ── Theme ───────────────────────────────────────────────
-const CINETRACK_BUILD = 'selection-filter-state-20260510-1';
+const CINETRACK_BUILD = 'journal-review-20261109';
 console.info(`[CineTrack] Build ${CINETRACK_BUILD}`);
 
 const themeToggle = document.getElementById('theme-toggle');
@@ -15,6 +15,16 @@ function applyTheme(theme) {
     const nextSrc = theme === 'light' ? img.dataset.lightSrc : img.dataset.darkSrc;
     if (nextSrc && img.getAttribute('src') !== nextSrc) img.setAttribute('src', nextSrc);
   });
+  syncThemeColor();
+}
+
+// The phone browser bar (theme-color) follows the actual page background, so it
+// matches Journal or Glass in dark and day mode instead of a fixed Glass purple.
+function syncThemeColor() {
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (!meta) return;
+  const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+  if (bg) meta.setAttribute('content', bg);
 }
 
 const savedTheme = localStorage.getItem('cinetrack_theme') || 'dark';
@@ -88,7 +98,7 @@ function applyPosters(v) { applyAttrPreset('data-posters', v, 'shown',       POS
 function applyEpisodeNotif(v) { applyAttrPreset('data-notif', v, 'off', NOTIF_OPTIONS); }
 // Always written out (never removed for the default): every Journal rule is
 // scoped to [data-style="journal"] and Glass must not match it.
-function applyStyle(v)   { document.documentElement.setAttribute('data-style', STYLE_OPTIONS.includes(v) ? v : 'journal'); }
+function applyStyle(v)   { document.documentElement.setAttribute('data-style', STYLE_OPTIONS.includes(v) ? v : 'journal'); syncThemeColor(); }
 function applyJournalAccent(v) { applyAttrPreset('data-jaccent', v, 'ink', JACCENT_OPTIONS); }
 function applyThemePreset(name) {
   const preset = THEME_PRESETS[name];
